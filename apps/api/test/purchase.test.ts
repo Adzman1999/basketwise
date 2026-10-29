@@ -16,7 +16,7 @@ const validPurchase = {
 };
 
 beforeEach(async () => {
-  await query('TRUNCATE TABLE purchase_items, purchases RESTART IDENTITY CASCADE');
+  await query('TRUNCATE TABLE purchase_items, purchases, grocery_items RESTART IDENTITY CASCADE');
 });
 
 afterAll(async () => {
@@ -42,7 +42,59 @@ describe('grocery purchases', () => {
       unit: 'kg',
       amountPaidCentavos: 11000,
     });
+    expect(response.body.items[0].groceryItemId).toMatch(/^[0-9a-f-]{36}$/i);
     expect(response.body.items[0].id).toMatch(/^[0-9a-f-]{36}$/i);
+  });
+
+  it('normalizes exact item names and returns comparable unit price history', async () => {
+    const firstPurchase = await request(app)
+      .post('/api/purchases')
+      .send(validPurchase);
+    const riceId = firstPurchase.body.items[0].groceryItemId;
+
+    const secondPurchase = await request(app)
+      .post('/api/purchases')
+      .send({
+        ...validPurchase,
+        purchasedOn: '2026-10-30',
+        items: [{
+          itemName: '  rice  ',
+          quantity: 1,
+          unit: 'KG',
+          amountPaidCentavos: 6000,
+        }],
+      });
+
+    expect(secondPurchase.status).toBe(201);
+    expect(secondPurchase.body.items[0].groceryItemId).toBe(riceId);
+
+    const catalog = await request(app).get('/api/grocery-items?page=1&pageSize=20');
+    expect(catalog.status).toBe(200);
+    expect(catalog.body.total).toBe(2);
+    expect(catalog.body.items.map((item: { name: string }) => item.name))
+      .toEqual(['Bananas', 'Rice']);
+
+    const history = await request(app)
+      .get(`/api/grocery-items/${riceId}/price-history?unit=kg`);
+    expect(history.status).toBe(200);
+    expect(history.body.groceryItem).toMatchObject({ id: riceId, name: 'Rice' });
+    expect(history.body.total).toBe(2);
+    expect(history.body.items.map((item: { unitPriceCentavos: number }) => item.unitPriceCentavos))
+      .toEqual([6000, 5500]);
+    expect(history.body.items.every((item: { unit: string }) => item.unit === 'kg' || item.unit === 'KG'))
+      .toBe(true);
+  });
+
+  it('returns 404 for an unknown grocery item and 400 for a malformed ID', async () => {
+    const unknownItem = await request(app)
+      .get('/api/grocery-items/7ef38c55-13ec-4e49-9b50-7d97eb8f5001/price-history');
+    expect(unknownItem.status).toBe(404);
+    expect(unknownItem.body.error.code).toBe('NOT_FOUND');
+
+    const malformedItem = await request(app)
+      .get('/api/grocery-items/not-a-uuid/price-history');
+    expect(malformedItem.status).toBe(400);
+    expect(malformedItem.body.error.code).toBe('VALIDATION_ERROR');
   });
 
   it('lists purchases newest first and applies page size', async () => {

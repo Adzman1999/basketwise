@@ -46,4 +46,4 @@ GitHub Actions now provisions PostgreSQL 15, applies test migrations, runs the A
 
 ## Next checkpoint
 
-Design a normalized grocery item catalog and price history from the saved purchase line items.
+Add normalized grocery item identities and price history as documented in [Step 09](09-grocery-item-catalog-and-price-history.md).

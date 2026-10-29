@@ -24,4 +24,4 @@ The local development servers remain available at `http://localhost:5173` and `h
 
 ## Next checkpoint
 
-Design a normalized grocery item catalog and price history so receipts with different names or units can be compared consistently.
+Add normalized grocery item identities and price history as documented in [Step 09](09-grocery-item-catalog-and-price-history.md).

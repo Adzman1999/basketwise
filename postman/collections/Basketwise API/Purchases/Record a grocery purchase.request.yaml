@@ -49,5 +49,7 @@ scripts:
         pm.expect(body.totalPaidCentavos).to.eql(12550);
         pm.expect(body.unallocatedAmountCentavos).to.eql(250);
         pm.expect(body.items).to.have.lengthOf(2);
+        pm.expect(body.items[0].groceryItemId).to.be.a('string');
         pm.collectionVariables.set('lastCreatedPurchaseId', body.id);
+        pm.collectionVariables.set('lastGroceryItemId', body.items[0].groceryItemId);
       });

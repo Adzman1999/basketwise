@@ -14,6 +14,7 @@ type PurchaseRow = {
 type PurchaseItemRow = {
   id: string;
   purchaseId: string;
+  groceryItemId: string;
   itemName: string;
   quantity: string | number;
   unit: string;
@@ -33,11 +34,23 @@ async function insertPurchaseItems(
 
   for (const [position, item] of items.entries()) {
     const result = await client.query<Omit<PurchaseItemRow, 'purchaseId'>>(
-      `INSERT INTO purchase_items (
-         purchase_id, position, item_name, quantity, unit, amount_paid_centavos
+      `WITH catalog_item AS (
+         INSERT INTO grocery_items (name, normalized_name)
+         VALUES (
+           btrim(regexp_replace(btrim($3), '[[:space:]]+', ' ', 'g')),
+           btrim(regexp_replace(lower(btrim($3)), '[[:space:]]+', ' ', 'g'))
+         )
+         ON CONFLICT (normalized_name)
+         DO UPDATE SET normalized_name = EXCLUDED.normalized_name
+         RETURNING id
        )
-       VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING id, item_name AS "itemName", quantity, unit,
+       INSERT INTO purchase_items (
+         purchase_id, position, grocery_item_id, item_name, quantity, unit,
+         amount_paid_centavos
+       )
+       SELECT $1, $2, catalog_item.id, $3, $4, $5, $6
+       FROM catalog_item
+       RETURNING id, grocery_item_id AS "groceryItemId", item_name AS "itemName", quantity, unit,
                  amount_paid_centavos AS "amountPaidCentavos"`,
       [purchaseId, position, item.itemName, item.quantity, item.unit, item.amountPaidCentavos]
     );
@@ -106,7 +119,8 @@ export async function listPurchaseRecords(input: PurchaseListQuery): Promise<{
     ? []
     : (await query<PurchaseItemRow>(
       `SELECT id, purchase_id AS "purchaseId", item_name AS "itemName",
-              quantity, unit, amount_paid_centavos AS "amountPaidCentavos"
+              grocery_item_id AS "groceryItemId", quantity, unit,
+              amount_paid_centavos AS "amountPaidCentavos"
        FROM purchase_items
        WHERE purchase_id = ANY($1::uuid[])
        ORDER BY purchase_id, position`,
@@ -118,6 +132,7 @@ export async function listPurchaseRecords(input: PurchaseListQuery): Promise<{
     const purchaseItems = itemsByPurchase.get(item.purchaseId) ?? [];
     purchaseItems.push({
       id: item.id,
+      groceryItemId: item.groceryItemId,
       itemName: item.itemName,
       quantity: item.quantity,
       unit: item.unit,

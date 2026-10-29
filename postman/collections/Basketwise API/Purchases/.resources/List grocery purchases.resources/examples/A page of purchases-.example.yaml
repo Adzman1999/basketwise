@@ -31,6 +31,7 @@ response:
             "items": [
               {
                 "id": "f557ea81-8e28-4bc0-bf38-92b0a1c3331a",
+                "groceryItemId": "b94ab4f4-cb08-48ce-83a9-ff99f6eb488c",
                 "itemName": "Rice",
                 "quantity": 2,
                 "unit": "kg",
@@ -38,6 +39,7 @@ response:
               },
               {
                 "id": "b4c7c876-a686-4caf-b6fd-4861c3e3a718",
+                "groceryItemId": "65fcaec9-a74a-4b8b-becb-0f0733762f35",
                 "itemName": "Bananas",
                 "quantity": 1,
                 "unit": "pack",

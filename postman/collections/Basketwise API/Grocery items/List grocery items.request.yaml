@@ -1,0 +1,36 @@
+$kind: http-request
+description: |
+  Lists catalog identities created from purchase line names. Matching is exact
+  after trimming, lowercasing, and collapsing whitespace; fuzzy matching is not
+  performed.
+url: '{{baseUrl}}/api/grocery-items?page=1&pageSize=20'
+method: GET
+headers:
+  Accept: application/json
+queryParams:
+  - key: page
+    value: "1"
+    disabled: false
+    description: One-based result page.
+  - key: pageSize
+    value: "20"
+    disabled: false
+    description: Number of grocery items per page, up to 100.
+settings: {}
+examples: ./.resources/List grocery items.resources/examples
+order: 1000
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('returns HTTP 200', function () {
+        pm.response.to.have.status(200);
+      });
+
+      pm.test('returns a paginated grocery item catalog', function () {
+        const body = pm.response.json();
+        pm.expect(body.page).to.eql(1);
+        pm.expect(body.pageSize).to.eql(20);
+        pm.expect(body.items).to.be.an('array');
+        pm.expect(body.total).to.be.a('number');
+      });

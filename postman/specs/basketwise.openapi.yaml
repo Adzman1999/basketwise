@@ -55,11 +55,13 @@ paths:
                     unallocatedAmountCentavos: 250
                     items:
                       - id: "f557ea81-8e28-4bc0-bf38-92b0a1c3331a"
+                        groceryItemId: "b94ab4f4-cb08-48ce-83a9-ff99f6eb488c"
                         itemName: "Rice"
                         quantity: 2
                         unit: "kg"
                         amountPaidCentavos: 11000
                       - id: "b4c7c876-a686-4caf-b6fd-4861c3e3a718"
+                        groceryItemId: "65fcaec9-a74a-4b8b-becb-0f0733762f35"
                         itemName: "Bananas"
                         quantity: 1
                         unit: "pack"
@@ -118,11 +120,13 @@ paths:
                 unallocatedAmountCentavos: 250
                 items:
                   - id: "f557ea81-8e28-4bc0-bf38-92b0a1c3331a"
+                    groceryItemId: "b94ab4f4-cb08-48ce-83a9-ff99f6eb488c"
                     itemName: "Rice"
                     quantity: 2
                     unit: "kg"
                     amountPaidCentavos: 11000
                   - id: "b4c7c876-a686-4caf-b6fd-4861c3e3a718"
+                    groceryItemId: "65fcaec9-a74a-4b8b-becb-0f0733762f35"
                     itemName: "Bananas"
                     quantity: 1
                     unit: "pack"
@@ -130,6 +134,129 @@ paths:
                 createdAt: "2026-10-29T08:00:00.000Z"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/grocery-items:
+    get:
+      operationId: listGroceryItems
+      tags:
+        - Grocery items
+      summary: List normalized grocery items
+      description: |
+        Lists catalog items in name order. Items are created from purchase line
+        item names. Names that match after trimming, lowercasing, and collapsing
+        whitespace share one catalog identity; fuzzy matches are not made.
+      parameters:
+        - name: page
+          in: query
+          required: false
+          description: One-based result page.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000000
+            default: 1
+        - name: pageSize
+          in: query
+          required: false
+          description: Number of grocery items per page, up to 100.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: A page of normalized grocery items.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroceryItemPage"
+              example:
+                items:
+                  - id: "b94ab4f4-cb08-48ce-83a9-ff99f6eb488c"
+                    name: "Rice"
+                page: 1
+                pageSize: 20
+                total: 1
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/grocery-items/{groceryItemId}/price-history:
+    get:
+      operationId: listGroceryItemPriceHistory
+      tags:
+        - Grocery items
+      summary: List recorded prices for a grocery item
+      description: |
+        Returns price observations derived from saved purchase lines, newest
+        first. Unit labels are matched after trimming, lowercasing, and
+        collapsing whitespace. No conversions are made between units, so
+        observations with different units must not be compared directly.
+        unitPriceCentavos is amountPaidCentavos divided by quantity and rounded
+        to six decimal places.
+      parameters:
+        - name: groceryItemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: unit
+          in: query
+          required: false
+          description: Filter to a normalized unit label, such as kg.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 32
+        - name: page
+          in: query
+          required: false
+          description: One-based result page.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000000
+            default: 1
+        - name: pageSize
+          in: query
+          required: false
+          description: Number of observations per page, up to 100.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: A page of price observations for the grocery item.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PriceHistoryPage"
+              example:
+                groceryItem:
+                  id: "b94ab4f4-cb08-48ce-83a9-ff99f6eb488c"
+                  name: "Rice"
+                items:
+                  - purchaseItemId: "f557ea81-8e28-4bc0-bf38-92b0a1c3331a"
+                    purchaseId: "7ef38c55-13ec-4e49-9b50-7d97eb8f5001"
+                    purchasedOn: "2026-10-29"
+                    storeName: "Neighborhood Market"
+                    itemName: "Rice"
+                    quantity: 2
+                    unit: "kg"
+                    amountPaidCentavos: 11000
+                    unitPriceCentavos: 5500
+                page: 1
+                pageSize: 20
+                total: 1
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
         "500":
           $ref: "#/components/responses/InternalServerError"
   /api/health:
@@ -268,6 +395,7 @@ components:
       additionalProperties: false
       required:
         - id
+        - groceryItemId
         - itemName
         - quantity
         - unit
@@ -276,6 +404,10 @@ components:
         id:
           type: string
           format: uuid
+        groceryItemId:
+          type: string
+          format: uuid
+          description: Normalized catalog identity associated with this receipt line.
         itemName:
           type: string
         quantity:
@@ -286,6 +418,98 @@ components:
           type: integer
           minimum: 0
           maximum: 2147483647
+    GroceryItem:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - name
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          description: Display name from the first purchase line with this normalized name.
+    GroceryItemPage:
+      type: object
+      additionalProperties: false
+      required:
+        - items
+        - page
+        - pageSize
+        - total
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/GroceryItem"
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+    PriceObservation:
+      type: object
+      additionalProperties: false
+      required:
+        - purchaseItemId
+        - purchaseId
+        - purchasedOn
+        - itemName
+        - quantity
+        - unit
+        - amountPaidCentavos
+        - unitPriceCentavos
+      properties:
+        purchaseItemId:
+          type: string
+          format: uuid
+        purchaseId:
+          type: string
+          format: uuid
+        purchasedOn:
+          type: string
+          format: date
+        storeName:
+          type: string
+        itemName:
+          type: string
+          description: Receipt-time item name snapshot.
+        quantity:
+          type: number
+        unit:
+          type: string
+        amountPaidCentavos:
+          type: integer
+          minimum: 0
+          maximum: 2147483647
+        unitPriceCentavos:
+          type: number
+          description: Amount paid divided by quantity, rounded to six decimal places.
+    PriceHistoryPage:
+      type: object
+      additionalProperties: false
+      required:
+        - groceryItem
+        - items
+        - page
+        - pageSize
+        - total
+      properties:
+        groceryItem:
+          $ref: "#/components/schemas/GroceryItem"
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PriceObservation"
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
     PurchasePage:
       type: object
       additionalProperties: false
@@ -343,3 +567,13 @@ components:
             error:
               code: "INTERNAL_SERVER_ERROR"
               message: "An unexpected error occurred."
+    NotFound:
+      description: The requested resource does not exist.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+          example:
+            error:
+              code: "NOT_FOUND"
+              message: "The requested resource was not found."

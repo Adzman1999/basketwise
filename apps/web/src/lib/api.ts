@@ -20,6 +20,7 @@ export type CreatePurchaseRequest = {
 
 export type PurchaseItem = CreatePurchaseItem & {
   id: string;
+  groceryItemId: string;
 };
 
 export type Purchase = {

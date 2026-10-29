@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import { config } from './config';
 import healthRoutes from './routes/health';
+import groceryItemRoutes from './routes/groceryItems';
 import purchaseRoutes from './routes/purchases';
 
 export function createApp() {
@@ -18,6 +19,7 @@ export function createApp() {
   }
 
   app.use('/api', purchaseRoutes);
+  app.use('/api', groceryItemRoutes);
   app.use('/api', healthRoutes);
 
   app.use((error: unknown, _req: Request, res: Response, next: NextFunction) => {
