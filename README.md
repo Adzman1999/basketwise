@@ -4,7 +4,7 @@ Basketwise is a home food cost system for tracking grocery spending, food prices
 
 ## Project status
 
-The repository foundation, API health endpoint, first API-connected web page, and initial CI checks are ready.
+The repository foundation, API health endpoint, first API-connected web page, and initial CI checks are ready. The grocery purchase API contract is defined; its database-backed implementation is the next checkpoint.
 
 ## Planned stack
 

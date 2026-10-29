@@ -1,0 +1,63 @@
+$kind: http-example
+name: The purchase was recorded.
+request:
+  url: "{{baseUrl}}/api/purchases"
+  method: POST
+  headers:
+    Accept: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "purchasedOn": "2026-10-29",
+        "storeName": "Neighborhood Market",
+        "totalPaidCentavos": 12550,
+        "items": [
+          {
+            "itemName": "Rice",
+            "quantity": 2,
+            "unit": "kg",
+            "amountPaidCentavos": 11000
+          },
+          {
+            "itemName": "Bananas",
+            "quantity": 1,
+            "unit": "pack",
+            "amountPaidCentavos": 1300
+          }
+        ]
+      }
+response:
+  statusCode: 201
+  statusText: Created
+  headers:
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "id": "7ef38c55-13ec-4e49-9b50-7d97eb8f5001",
+        "purchasedOn": "2026-10-29",
+        "storeName": "Neighborhood Market",
+        "currency": "PHP",
+        "totalPaidCentavos": 12550,
+        "unallocatedAmountCentavos": 250,
+        "items": [
+          {
+            "id": "f557ea81-8e28-4bc0-bf38-92b0a1c3331a",
+            "itemName": "Rice",
+            "quantity": 2,
+            "unit": "kg",
+            "amountPaidCentavos": 11000
+          },
+          {
+            "id": "b4c7c876-a686-4caf-b6fd-4861c3e3a718",
+            "itemName": "Bananas",
+            "quantity": 1,
+            "unit": "pack",
+            "amountPaidCentavos": 1300
+          }
+        ],
+        "createdAt": "2026-10-29T08:00:00.000Z"
+      }
+order: 1000

@@ -1,0 +1,28 @@
+$kind: http-example
+name: An invalid page number is rejected.
+request:
+  url: '{{baseUrl}}/api/purchases?page=0&pageSize=20'
+  method: GET
+  headers:
+    Accept: application/json
+  queryParams:
+    page: "0"
+    pageSize: "20"
+  body:
+    type: text
+    content: ""
+response:
+  statusCode: 400
+  statusText: Bad Request
+  headers:
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "error": {
+          "code": "VALIDATION_ERROR",
+          "message": "The request is invalid."
+        }
+      }
+order: 2000

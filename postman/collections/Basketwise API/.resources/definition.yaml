@@ -1,6 +1,7 @@
 $kind: collection
 description: |
-  The Basketwise API. The health endpoint reports process liveness only; it
-  does not check database readiness.
+  The Basketwise API. Grocery purchase amounts use Philippine pesos (PHP) in
+  centavos. The health endpoint reports process liveness only; it does not
+  check database readiness.
 variables:
   baseUrl: http://localhost:4000
