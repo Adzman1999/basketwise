@@ -4,7 +4,7 @@ Basketwise is a home food cost system for tracking grocery spending, food prices
 
 ## Project status
 
-The repository foundation, API health endpoint, and first API-connected web page are ready. Initial CI checks are the next checkpoint.
+The repository foundation, API health endpoint, first API-connected web page, and initial CI checks are ready.
 
 ## Planned stack
 
@@ -29,4 +29,4 @@ Check the workspace with `pnpm typecheck`, `pnpm test`, and `pnpm build`.
 
 ## Development checkpoints
 
-Each checkpoint is documented under [`docs/steps`](docs/steps/). The API, UI, migrations, test setup, CI, and deployment pipeline will be added incrementally and recorded as they are built.
+Each checkpoint is documented under [`docs/steps`](docs/steps/). The API, UI, migrations, test setup, CI, and deployment pipeline are added incrementally and recorded as they are built.
