@@ -14,7 +14,7 @@ A purchase contains:
 
 - Purchase date.
 - Store name, optional.
-- Currency code, required and recorded per purchase so amounts from different currencies are never silently combined.
+- Currency is PHP for v1; all purchases use Philippine pesos.
 - Total paid, recorded from the receipt.
 - One or more line items. Each line has the item name as entered, quantity, unit, and amount paid for that line.
 
@@ -23,13 +23,12 @@ The item name is a receipt-time snapshot. There is no shared product catalog in 
 ## V1 boundaries
 
 - No household budgets, pantry stock, recipes, waste tracking, or product catalog.
-- No currency conversion.
+- PHP only; no currency conversion or per-purchase currency selection.
 - No automatic unit conversion; quantity and unit are saved as entered.
 - No sign-in or multiple-household ownership in this checkpoint. The API is still a local, single-user development application.
 
 ## Decisions to settle before the migration and API contract
 
-- Which currency should the web form select by default? Each saved purchase will still retain its currency code.
 - Which quantity units should the first form offer, and should custom units be allowed?
 - How should the form capture taxes, discounts, or fees that are not attached to individual receipt lines?
 
