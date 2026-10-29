@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import GroceryCatalog from './components/GroceryCatalog';
 import PurchaseForm from './components/PurchaseForm';
 import PurchaseHistory, { type PurchaseHistoryState } from './components/PurchaseHistory';
 import { createPurchase, fetchHealthStatus, fetchPurchases, type CreatePurchaseRequest, type HealthResponse } from './lib/api';
@@ -16,6 +17,7 @@ export default function App() {
   const [history, setHistory] = useState<PurchaseHistoryState>({ kind: 'loading' });
   const [pageNumber, setPageNumber] = useState(1);
   const [historyRefresh, setHistoryRefresh] = useState(0);
+  const [catalogRefresh, setCatalogRefresh] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -59,6 +61,7 @@ export default function App() {
     await createPurchase(input);
     setPageNumber(1);
     setHistoryRefresh((current) => current + 1);
+    setCatalogRefresh((current) => current + 1);
   }
 
   const connectionLabel = connection.kind === 'connected'
@@ -100,9 +103,14 @@ export default function App() {
               <span className="hidden sm:inline">{connectionLabel}</span>
               <span className="sm:hidden">{connection.kind === 'connected' ? 'Online' : connection.kind === 'checking' ? 'Checking' : 'Offline'}</span>
             </button>
-            <a href="#purchase-history" className="hidden rounded-full bg-[#1d503b] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-[#17412f] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1d503b] sm:inline-flex">
-              View history
-            </a>
+            <nav className="hidden items-center gap-2 sm:flex" aria-label="Page sections">
+              <a href="#purchase-history" className="rounded-full border border-[#d9e0d5] bg-white/70 px-4 py-2.5 text-xs font-semibold text-[#45614d] transition hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1d503b]">
+                Purchases
+              </a>
+              <a href="#grocery-catalog" className="rounded-full bg-[#1d503b] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-[#17412f] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1d503b]">
+                Item prices
+              </a>
+            </nav>
           </div>
         </header>
 
@@ -137,6 +145,10 @@ export default function App() {
                 onRetry={() => setHistoryRefresh((current) => current + 1)}
               />
             </div>
+          </div>
+
+          <div className="mt-10 border-t border-[#dce3d9] pt-8 sm:mt-12 sm:pt-10">
+            <GroceryCatalog refreshKey={catalogRefresh} />
           </div>
         </main>
 

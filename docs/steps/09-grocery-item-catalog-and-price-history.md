@@ -16,7 +16,7 @@ Give saved receipt lines a stable grocery item identity so Basketwise can show a
 
 ## API contract
 
-- `GET /api/grocery-items` returns the catalog alphabetically with page/pageSize pagination.
+- `GET /api/grocery-items` returns the catalog alphabetically with page/pageSize pagination and an optional case-insensitive substring search.
 - `GET /api/grocery-items/{groceryItemId}/price-history` returns newest-first purchase-line observations. An optional `unit` filter uses the same unit-label normalization.
 - Purchase line responses include `groceryItemId`, while retaining their receipt-time `itemName`.
 - Unknown grocery item IDs return `404 NOT_FOUND`; malformed IDs and invalid query values return the standard `400 VALIDATION_ERROR` response.
@@ -41,4 +41,4 @@ New purchase lines resolve or create their catalog identity in the same database
 
 ## Next checkpoint
 
-Add catalog browsing and price-history views to the purchase UI.
+Add catalog browsing and price-history views to the purchase UI as documented in [Step 10](10-catalog-price-history-ui.md).

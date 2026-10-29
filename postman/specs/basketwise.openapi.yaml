@@ -145,8 +145,18 @@ paths:
       description: |
         Lists catalog items in name order. Items are created from purchase line
         item names. Names that match after trimming, lowercasing, and collapsing
-        whitespace share one catalog identity; fuzzy matches are not made.
+        whitespace share one catalog identity; fuzzy matches are not made. The
+        optional search term matches a literal, case-insensitive substring of
+        the normalized catalog name.
       parameters:
+        - name: search
+          in: query
+          required: false
+          description: Literal substring to search for in normalized item names.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 120
         - name: page
           in: query
           required: false

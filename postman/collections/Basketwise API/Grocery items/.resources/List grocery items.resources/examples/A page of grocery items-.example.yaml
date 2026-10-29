@@ -1,11 +1,12 @@
 $kind: http-example
 name: A page of grocery items.
 request:
-  url: '{{baseUrl}}/api/grocery-items?page=1&pageSize=20'
+  url: '{{baseUrl}}/api/grocery-items?search=rice&page=1&pageSize=20'
   method: GET
   headers:
     Accept: application/json
   queryParams:
+    search: rice
     page: "1"
     pageSize: "20"
   body:

@@ -74,6 +74,12 @@ describe('grocery purchases', () => {
     expect(catalog.body.items.map((item: { name: string }) => item.name))
       .toEqual(['Bananas', 'Rice']);
 
+    const searchResults = await request(app)
+      .get('/api/grocery-items?search=%20rIcE%20&page=1&pageSize=20');
+    expect(searchResults.status).toBe(200);
+    expect(searchResults.body.total).toBe(1);
+    expect(searchResults.body.items[0].name).toBe('Rice');
+
     const history = await request(app)
       .get(`/api/grocery-items/${riceId}/price-history?unit=kg`);
     expect(history.status).toBe(200);

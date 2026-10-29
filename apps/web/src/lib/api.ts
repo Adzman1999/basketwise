@@ -41,6 +41,38 @@ export type PurchasePage = {
   total: number;
 };
 
+export type GroceryItem = {
+  id: string;
+  name: string;
+};
+
+export type GroceryItemPage = {
+  items: GroceryItem[];
+  page: number;
+  pageSize: number;
+  total: number;
+};
+
+export type PriceObservation = {
+  purchaseItemId: string;
+  purchaseId: string;
+  purchasedOn: string;
+  storeName?: string;
+  itemName: string;
+  quantity: number;
+  unit: string;
+  amountPaidCentavos: number;
+  unitPriceCentavos: number;
+};
+
+export type PriceHistoryPage = {
+  groceryItem: GroceryItem;
+  items: PriceObservation[];
+  page: number;
+  pageSize: number;
+  total: number;
+};
+
 type ApiErrorResponse = {
   error?: {
     message?: unknown;
@@ -89,6 +121,33 @@ export async function fetchPurchases(
     headers: { Accept: 'application/json' },
     signal,
   });
+}
+
+export async function fetchGroceryItems(
+  page: number,
+  pageSize: number,
+  search: string,
+  signal: AbortSignal
+): Promise<GroceryItemPage> {
+  const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+  if (search.trim()) params.set('search', search.trim());
+  return sendRequest<GroceryItemPage>(`/api/grocery-items?${params.toString()}`, {
+    headers: { Accept: 'application/json' },
+    signal,
+  });
+}
+
+export async function fetchGroceryItemPriceHistory(
+  groceryItemId: string,
+  page: number,
+  pageSize: number,
+  signal: AbortSignal
+): Promise<PriceHistoryPage> {
+  const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+  return sendRequest<PriceHistoryPage>(
+    `/api/grocery-items/${encodeURIComponent(groceryItemId)}/price-history?${params.toString()}`,
+    { headers: { Accept: 'application/json' }, signal }
+  );
 }
 
 export async function createPurchase(input: CreatePurchaseRequest): Promise<Purchase> {
