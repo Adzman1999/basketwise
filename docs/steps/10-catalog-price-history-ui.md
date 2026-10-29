@@ -13,7 +13,9 @@ Let a household find a normalized grocery item and review the prices recorded on
 - The receipt unit is shown with every unit price. The UI does not compare or convert different unit labels.
 - Catalog and selected-item history refresh after a purchase is saved; list and history errors have retry actions.
 - Responsive layout and section navigation for purchase history and item prices.
-- App-style section menu using shadcn/ui Sidebar: it collapses to icons on desktop and opens as a mobile drawer. Basketwise's green palette is preserved.
+- shadcn/ui components throughout the dashboard, purchase form, history, catalog, and price observations, using shared light/dark theme tokens.
+- App-style section menu using shadcn/ui Sidebar: it collapses to icons on desktop and opens as a mobile drawer. Basketwise's green palette is preserved in both themes.
+- A persistent theme toggle follows the operating system preference on first visit and remembers the user's selection.
 - Removed the redundant PHP explainer while keeping the peso symbol beside amount fields.
 
 ## Verification
@@ -24,6 +26,8 @@ Let a household find a normalized grocery item and review the prices recorded on
 - OpenAPI syntax lint and Postman collection lint passed.
 - The local Vite page and API proxy return HTTP 200. The local dev database has no saved purchases, so the UI's empty-catalog state is served there.
 - Browser-based visual inspection was unavailable in this session.
+
+The shadcn UI refresh was checked with `pnpm typecheck:web` and `pnpm build:web`.
 
 ## Follow-up
 

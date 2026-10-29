@@ -1,8 +1,14 @@
 import { useEffect, useState } from 'react';
+import { Activity, ArrowUpRight, CirclePlus, RefreshCw } from 'lucide-react';
 import AppSidebar from '@/components/AppSidebar';
 import GroceryCatalog from '@/components/GroceryCatalog';
 import PurchaseForm from '@/components/PurchaseForm';
 import PurchaseHistory, { type PurchaseHistoryState } from '@/components/PurchaseHistory';
+import ThemeToggle from '@/components/ThemeToggle';
+import { ThemeProvider } from '@/components/ThemeProvider';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { createPurchase, fetchHealthStatus, fetchPurchases, type CreatePurchaseRequest, type HealthResponse } from '@/lib/api';
 
@@ -87,56 +93,67 @@ export default function App() {
         : 'Overview';
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#f5f6ef] text-[#1d342b]">
-      <div className="pointer-events-none absolute -left-40 top-44 h-80 w-80 rounded-full bg-[#e3eddb] opacity-70 blur-3xl" />
-      <div className="pointer-events-none absolute -right-40 top-[38rem] h-96 w-96 rounded-full bg-[#e8ead9] opacity-70 blur-3xl" />
-
-      <SidebarProvider defaultOpen className="relative min-h-screen w-full bg-transparent">
+    <ThemeProvider>
+      <SidebarProvider defaultOpen className="min-h-screen w-full bg-background">
         <AppSidebar activeHref={activeHref} />
-        <SidebarInset className="min-h-screen bg-[#f5f6ef]">
-          <header className="sticky top-0 z-30 border-b border-[#d9e0d5] bg-[#f5f6ef]/95 px-4 backdrop-blur sm:px-7 lg:px-9">
-            <div className="mx-auto flex min-h-[72px] max-w-[1600px] items-center justify-between gap-4">
+        <SidebarInset className="min-h-screen bg-background">
+          <header className="sticky top-0 z-30 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:px-7 lg:px-9">
+            <div className="mx-auto flex min-h-16 max-w-[1600px] items-center justify-between gap-4">
               <div className="flex min-w-0 items-center gap-3">
-                <SidebarTrigger className="h-10 w-10 rounded-xl border border-[#d9e0d5] bg-white text-[#345641] hover:bg-[#f6f9f3]" />
+                <SidebarTrigger className="shrink-0" />
+                <Separator orientation="vertical" className="hidden h-6 sm:block" />
                 <div className="min-w-0">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8a978d]">Basketwise workspace</p>
-                  <p className="mt-1 truncate text-sm font-semibold text-[#30483a]">{currentSectionLabel}</p>
+                  <p className="truncate text-xs text-muted-foreground">Basketwise workspace</p>
+                  <p className="truncate text-sm font-medium">{currentSectionLabel}</p>
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setConnectionCheck((current) => current + 1)}
-                disabled={connection.kind === 'checking'}
-                className="inline-flex shrink-0 items-center gap-2 rounded-full border border-[#d9e0d5] bg-white/80 px-3 py-2 text-[11px] font-medium text-[#53645a] transition hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#47765d] disabled:cursor-wait"
-                aria-live="polite"
-                title={connection.kind === 'error' ? connection.message : 'Check API connection'}
-              >
-                <span className={`h-2 w-2 rounded-full ${connection.kind === 'connected' ? 'bg-[#5c9666]' : connection.kind === 'checking' ? 'animate-pulse bg-[#b18a2f]' : 'bg-[#bd5b49]'}`} />
-                <span className="hidden sm:inline">{connectionLabel}</span>
-                <span className="sm:hidden">{connection.kind === 'connected' ? 'Online' : connection.kind === 'checking' ? 'Checking' : 'Offline'}</span>
-              </button>
+              <div className="flex shrink-0 items-center gap-2">
+                <Badge
+                  variant={connection.kind === 'error' ? 'destructive' : 'secondary'}
+                  className="gap-1.5 px-2.5 py-1"
+                  aria-live="polite"
+                  title={connection.kind === 'error' ? connection.message : 'Check API connection'}
+                >
+                  <Activity className={`size-3 ${connection.kind === 'checking' ? 'animate-pulse' : ''}`} aria-hidden="true" />
+                  <span className="hidden sm:inline">{connectionLabel}</span>
+                  <span className="sm:hidden">{connection.kind === 'connected' ? 'Online' : connection.kind === 'checking' ? 'Checking' : 'Offline'}</span>
+                </Badge>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setConnectionCheck((current) => current + 1)}
+                  disabled={connection.kind === 'checking'}
+                  aria-label="Refresh API status"
+                  title="Refresh API status"
+                >
+                  <span className="sr-only">Refresh API status</span>
+                  <RefreshCw className="size-4" aria-hidden="true" />
+                </Button>
+                <ThemeToggle />
+              </div>
             </div>
           </header>
 
-          <div className="mx-auto w-full max-w-[1600px] flex-1 px-4 pb-10 pt-7 sm:px-7 sm:pb-14 sm:pt-9 lg:px-9 lg:pt-10">
+          <main className="mx-auto w-full max-w-[1600px] flex-1 px-4 pb-10 pt-7 sm:px-7 sm:pb-14 sm:pt-9 lg:px-9 lg:pt-10">
             <section id="overview" className="mb-7 flex scroll-mt-24 flex-col justify-between gap-4 sm:mb-9 sm:flex-row sm:items-end">
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#6f8874]">Overview</p>
-                <h1 className="mt-1.5 text-3xl font-semibold leading-tight tracking-[-0.04em] text-[#203b30] sm:text-4xl">
-                  Grocery spending
-                </h1>
-                <p className="mt-2 max-w-xl text-sm leading-6 text-[#718075]">
+                <p className="text-xs font-medium text-primary">Overview</p>
+                <h1 className="mt-1.5 text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">Grocery spending</h1>
+                <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
                   Keep receipts, item costs, and price history organized for your household.
                 </p>
               </div>
-              <a href="#new-purchase" className="inline-flex w-fit items-center gap-2 rounded-xl bg-[#1d503b] px-4 py-3 text-xs font-semibold text-white transition hover:bg-[#17412f] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1d503b]">
-                <span aria-hidden="true">＋</span>
-                Add a purchase
-              </a>
+              <Button asChild>
+                <a href="#new-purchase">
+                  <CirclePlus aria-hidden="true" />
+                  Add a purchase
+                  <ArrowUpRight aria-hidden="true" />
+                </a>
+              </Button>
             </section>
 
-            <div className="grid items-start gap-7 lg:grid-cols-[minmax(320px,0.9fr)_minmax(0,1.1fr)] lg:gap-9">
+            <div className="grid items-start gap-6 xl:grid-cols-[minmax(340px,0.9fr)_minmax(0,1.1fr)] xl:gap-8">
               <div id="new-purchase" className="scroll-mt-24">
                 <PurchaseForm onSubmit={savePurchase} />
               </div>
@@ -151,17 +168,17 @@ export default function App() {
               </div>
             </div>
 
-            <div className="mt-10 border-t border-[#dce3d9] pt-8 sm:mt-12 sm:pt-10">
-              <GroceryCatalog refreshKey={catalogRefresh} />
-            </div>
+            <Separator className="my-10 sm:my-12" />
+            <GroceryCatalog refreshKey={catalogRefresh} />
 
-            <footer className="mt-8 flex flex-col gap-2 border-t border-[#d9e0d5] py-5 text-[11px] text-[#849087] sm:flex-row sm:items-center sm:justify-between">
+            <Separator className="my-8" />
+            <footer className="flex flex-col gap-2 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
               <span>Basketwise · A personal food cost system</span>
               <span>Units saved as entered</span>
             </footer>
-          </div>
+          </main>
         </SidebarInset>
       </SidebarProvider>
-    </div>
+    </ThemeProvider>
   );
 }

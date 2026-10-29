@@ -3,9 +3,20 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#f5f6ef" />
+    <meta name="theme-color" content="#f4f5ef" />
     <meta name="description" content="Basketwise helps households understand food spending and grocery prices." />
     <title>Basketwise — Home food costs, made clearer</title>
+    <script>
+      try {
+        const savedTheme = localStorage.getItem('basketwise-theme');
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const theme = savedTheme === 'dark' || (savedTheme !== 'light' && prefersDark) ? 'dark' : 'light';
+        if (theme === 'dark') document.documentElement.classList.add('dark');
+        document.documentElement.style.colorScheme = theme;
+      } catch {
+        // ThemeProvider applies the system preference after the app loads.
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

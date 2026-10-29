@@ -1,10 +1,18 @@
 import { useEffect, useState } from 'react';
+import { AlertCircle, ArrowLeft, ArrowRight, ChevronRight, Search, Tags } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Separator } from '@/components/ui/separator';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   fetchGroceryItemPriceHistory,
   fetchGroceryItems,
   type GroceryItemPage,
   type PriceHistoryPage,
-} from '../lib/api';
+} from '@/lib/api';
 
 type CatalogState =
   | { kind: 'loading' }
@@ -71,24 +79,28 @@ function CatalogPagination({
 
   return (
     <nav className="mt-4 flex items-center justify-between gap-3" aria-label={label}>
-      <button
-        className="rounded-lg border border-[#d9e2d7] bg-white px-3 py-2 text-xs font-semibold text-[#49634f] transition hover:bg-[#f4f8f2] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#47765d] disabled:cursor-not-allowed disabled:opacity-40"
-        type="button"
-        onClick={() => onPageChange(page - 1)}
-        disabled={disabled || page <= 1}
-      >
-        ← Previous
-      </button>
-      <span className="text-xs tabular-nums text-[#7b897e]">Page {page} of {totalPages}</span>
-      <button
-        className="rounded-lg border border-[#d9e2d7] bg-white px-3 py-2 text-xs font-semibold text-[#49634f] transition hover:bg-[#f4f8f2] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#47765d] disabled:cursor-not-allowed disabled:opacity-40"
-        type="button"
-        onClick={() => onPageChange(page + 1)}
-        disabled={disabled || page >= totalPages}
-      >
-        Next →
-      </button>
+      <Button variant="outline" size="sm" onClick={() => onPageChange(page - 1)} disabled={disabled || page <= 1}>
+        <ArrowLeft aria-hidden="true" /> Previous
+      </Button>
+      <span className="text-sm tabular-nums text-muted-foreground">Page {page} of {totalPages}</span>
+      <Button variant="outline" size="sm" onClick={() => onPageChange(page + 1)} disabled={disabled || page >= totalPages}>
+        Next <ArrowRight aria-hidden="true" />
+      </Button>
     </nav>
+  );
+}
+
+function LoadingCards({ count = 3 }: { count?: number }) {
+  return (
+    <div className="space-y-2.5" role="status" aria-label="Loading items">
+      {Array.from({ length: count }, (_, index) => (
+        <div key={index} className="rounded-lg border p-3.5">
+          <Skeleton className="h-4 w-2/5" />
+          <Skeleton className="mt-2 h-3 w-1/3" />
+        </div>
+      ))}
+      <span className="sr-only">Loading items…</span>
+    </div>
   );
 }
 
@@ -179,197 +191,179 @@ export default function GroceryCatalog({ refreshKey }: { refreshKey: number }) {
   }
 
   return (
-    <section id="grocery-catalog" aria-labelledby="grocery-catalog-title" className="scroll-mt-6">
-      <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#6f8874]">Item insights</p>
-          <h2 id="grocery-catalog-title" className="mt-1 text-2xl font-semibold tracking-tight text-[#203b30]">Catalog &amp; price history</h2>
-          <p className="mt-1.5 max-w-2xl text-sm leading-6 text-[#718075]">
+    <section id="grocery-catalog" aria-labelledby="grocery-catalog-title" className="scroll-mt-6 space-y-5">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div className="space-y-1.5">
+          <Badge variant="secondary" className="w-fit">Item insights</Badge>
+          <h2 id="grocery-catalog-title" className="text-2xl font-semibold tracking-tight">Catalog &amp; price history</h2>
+          <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
             Browse grocery items from your receipts and compare recorded prices within the same unit.
           </p>
         </div>
-        {catalogPage && (
-          <p className="text-xs text-[#7f8b82]">
-            {catalogPage.total} {catalogPage.total === 1 ? 'item' : 'items'}
-          </p>
-        )}
+        {catalogPage && <p className="text-sm text-muted-foreground">{catalogPage.total} {catalogPage.total === 1 ? 'item' : 'items'}</p>}
       </div>
 
-      <div className="grid items-start gap-5 xl:grid-cols-[minmax(260px,0.8fr)_minmax(0,1.2fr)]">
-        <section aria-label="Grocery item catalog" className="rounded-[1.5rem] border border-[#dfe6dd] bg-white p-4 shadow-[0_18px_50px_-42px_rgba(23,62,49,0.4)] sm:p-5">
-          <label className="block text-xs font-semibold text-[#40574a]" htmlFor="grocery-item-search">
-            Search items
-          </label>
-          <div className="relative mt-2">
-            <svg aria-hidden="true" viewBox="0 0 20 20" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8b998f]" fill="none">
-              <circle cx="8.8" cy="8.8" r="5.8" stroke="currentColor" strokeWidth="1.6" />
-              <path d="m13 13 4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-            </svg>
-            <input
-              id="grocery-item-search"
-              className="w-full rounded-xl border border-[#dce3d9] bg-white py-3 pl-9 pr-3 text-sm text-[#23392f] outline-none transition placeholder:text-[#9ba79e] focus:border-[#47765d] focus:ring-4 focus:ring-[#47765d]/10"
-              type="search"
-              value={searchText}
-              onChange={(event) => setSearchText(event.target.value)}
-              placeholder="Search by item name"
-              maxLength={120}
-            />
-          </div>
+      <div className="grid items-start gap-5 xl:grid-cols-[minmax(280px,0.8fr)_minmax(0,1.2fr)]">
+        <Card>
+          <CardHeader className="p-4 pb-3 sm:p-5 sm:pb-4">
+            <CardTitle className="text-base">Grocery items</CardTitle>
+            <CardDescription>Choose an item to see its recorded prices.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 p-4 pt-0 sm:p-5 sm:pt-0">
+            <div className="relative">
+              <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                id="grocery-item-search"
+                className="pl-9"
+                type="search"
+                value={searchText}
+                onChange={(event) => setSearchText(event.target.value)}
+                placeholder="Search by item name"
+                maxLength={120}
+                aria-label="Search items"
+              />
+            </div>
 
-          <div className="mt-3 space-y-2" aria-live="polite">
-            {catalogState.kind === 'loading' && (
-              <div className="rounded-xl border border-dashed border-[#cfdacf] px-4 py-8 text-center text-sm text-[#718075]" role="status">
-                Loading grocery items…
-              </div>
-            )}
-            {catalogState.kind === 'error' && (
-              <div className="rounded-xl border border-[#f0d8d1] bg-[#fff8f5] px-4 py-5">
-                <p className="text-sm font-semibold text-[#7e4539]">Catalog could not load</p>
-                <p className="mt-1 text-sm leading-5 text-[#8b625a]">{catalogState.message}</p>
-                <button
-                  className="mt-3 rounded-lg border border-[#dcbab1] px-3 py-2 text-xs font-semibold text-[#74483e] transition hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9c5b49]"
-                  type="button"
-                  onClick={() => setCatalogRefresh((current) => current + 1)}
-                >
-                  Try again
-                </button>
-              </div>
-            )}
-            {catalogPage && catalogPage.items.length === 0 && (
-              <div className="rounded-xl border border-dashed border-[#cfdacf] bg-[#fafbf8] px-4 py-8 text-center">
-                <p className="text-sm font-semibold text-[#365343]">
-                  {searchQuery ? 'No matching grocery items' : 'No grocery items yet'}
-                </p>
-                <p className="mt-1.5 text-sm leading-5 text-[#7b897e]">
-                  {searchQuery ? 'Try a different name.' : 'Save a purchase to build your catalog.'}
-                </p>
-              </div>
-            )}
-            {catalogPage?.items.map((item) => {
-              const isSelected = item.id === selectedItemId;
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  aria-pressed={isSelected}
-                  onClick={() => selectItem(item.id)}
-                  className={`flex w-full items-center justify-between gap-3 rounded-xl border px-3.5 py-3 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#47765d] ${isSelected ? 'border-[#9ab99c] bg-[#eff6ec]' : 'border-[#e5eae2] bg-white hover:border-[#c8d8c5] hover:bg-[#fafcf8]'}`}
-                >
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm font-semibold text-[#30483a]">{item.name}</span>
-                    <span className="mt-0.5 block text-[11px] text-[#87948a]">View price history</span>
-                  </span>
-                  <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${isSelected ? 'bg-[#d8e9d4] text-[#326147]' : 'bg-[#f2f5ef] text-[#809086]'}`} aria-hidden="true">→</span>
-                </button>
-              );
-            })}
-          </div>
+            <div className="space-y-2" aria-live="polite">
+              {catalogState.kind === 'loading' && <LoadingCards count={3} />}
+              {catalogState.kind === 'error' && (
+                <Alert variant="destructive">
+                  <AlertCircle aria-hidden="true" />
+                  <AlertTitle>Catalog could not load</AlertTitle>
+                  <AlertDescription className="space-y-3">
+                    <p>{catalogState.message}</p>
+                    <Button type="button" variant="outline" size="sm" onClick={() => setCatalogRefresh((current) => current + 1)}>Try again</Button>
+                  </AlertDescription>
+                </Alert>
+              )}
+              {catalogPage && catalogPage.items.length === 0 && (
+                <Card className="border-dashed bg-muted/20 shadow-none">
+                  <CardContent className="px-4 py-8 text-center">
+                    <p className="text-sm font-medium">{searchQuery ? 'No matching grocery items' : 'No grocery items yet'}</p>
+                    <p className="mt-1.5 text-sm text-muted-foreground">
+                      {searchQuery ? 'Try a different name.' : 'Save a purchase to build your catalog.'}
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+              {catalogPage?.items.map((item) => {
+                const isSelected = item.id === selectedItemId;
+                return (
+                  <Button
+                    key={item.id}
+                    type="button"
+                    variant="outline"
+                    aria-pressed={isSelected}
+                    onClick={() => selectItem(item.id)}
+                    className={`h-auto w-full justify-between whitespace-normal px-3.5 py-3 text-left ${isSelected ? 'border-primary bg-primary/5 ring-1 ring-primary/20' : ''}`}
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-medium">{item.name}</span>
+                      <span className="mt-0.5 block text-xs font-normal text-muted-foreground">View price history</span>
+                    </span>
+                    <ChevronRight aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
+                  </Button>
+                );
+              })}
+            </div>
 
-          {catalogPage && (
-            <CatalogPagination
-              page={catalogPageNumber}
-              total={catalogPage.total}
-              pageSize={catalogPageSize}
-              label="Grocery item pages"
-              onPageChange={setCatalogPageNumber}
-              disabled={catalogState.kind === 'loading'}
-            />
-          )}
-        </section>
+            {catalogPage && (
+              <CatalogPagination
+                page={catalogPageNumber}
+                total={catalogPage.total}
+                pageSize={catalogPageSize}
+                label="Grocery item pages"
+                onPageChange={setCatalogPageNumber}
+                disabled={catalogState.kind === 'loading'}
+              />
+            )}
+          </CardContent>
+        </Card>
 
-        <section aria-label="Selected grocery item price history" className="min-w-0 rounded-[1.5rem] border border-[#dfe6dd] bg-white p-4 shadow-[0_18px_50px_-42px_rgba(23,62,49,0.4)] sm:p-5">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#829087]">Recorded observations</p>
-              <h3 className="mt-1 text-lg font-semibold tracking-tight text-[#284235]">
-                {selectedItem?.name ?? 'Price history'}
-              </h3>
+        <Card className="min-w-0">
+          <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3 space-y-0 p-4 sm:p-5">
+            <div className="space-y-1.5">
+              <CardDescription>Recorded observations</CardDescription>
+              <CardTitle className="text-lg">{selectedItem?.name ?? 'Price history'}</CardTitle>
             </div>
             {priceHistoryPage && priceHistoryPage.total > 0 && (
-              <span className="rounded-full bg-[#edf4e9] px-3 py-1.5 text-[11px] font-semibold text-[#44694e]">
-                {priceHistoryPage.total} {priceHistoryPage.total === 1 ? 'record' : 'records'}
-              </span>
+              <Badge variant="secondary">{priceHistoryPage.total} {priceHistoryPage.total === 1 ? 'record' : 'records'}</Badge>
             )}
-          </div>
+          </CardHeader>
+          <CardContent className="p-4 pt-0 sm:p-5 sm:pt-0">
+            <p className="text-sm text-muted-foreground">Prices are listed by their receipt unit. Different units stay separate.</p>
+            <Separator className="my-4" />
 
-          <p className="mt-1.5 text-xs leading-5 text-[#829087]">
-            Prices are listed by their receipt unit. Different units are kept separate.
-          </p>
+            <div className="space-y-2.5" aria-live="polite">
+              {selectedItemId && priceHistoryState.kind === 'loading' && <LoadingCards count={2} />}
+              {selectedItemId && priceHistoryState.kind === 'error' && (
+                <Alert variant="destructive">
+                  <AlertCircle aria-hidden="true" />
+                  <AlertTitle>Price history could not load</AlertTitle>
+                  <AlertDescription className="space-y-3">
+                    <p>{priceHistoryState.message}</p>
+                    <Button type="button" variant="outline" size="sm" onClick={() => setPriceHistoryRefresh((current) => current + 1)}>Try again</Button>
+                  </AlertDescription>
+                </Alert>
+              )}
+              {!selectedItemId && catalogState.kind === 'loaded' && (
+                <Card className="border-dashed bg-muted/20 shadow-none">
+                  <CardContent className="flex flex-col items-center px-4 py-10 text-center">
+                    <Tags aria-hidden="true" className="size-5 text-primary" />
+                    <p className="mt-3 text-sm font-medium">Select an item to view its prices</p>
+                    <p className="mt-1 text-sm text-muted-foreground">Price records come from saved receipt lines.</p>
+                  </CardContent>
+                </Card>
+              )}
+              {priceHistoryPage?.items.map((observation) => (
+                <Card key={observation.purchaseItemId} className="shadow-none">
+                  <CardContent className="p-3.5 sm:p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-xs text-muted-foreground">
+                          <time dateTime={observation.purchasedOn}>{formatPurchaseDate(observation.purchasedOn)}</time>
+                        </p>
+                        <p className="mt-1 truncate text-sm font-medium">{observation.storeName || 'Grocery trip'}</p>
+                        {observation.itemName !== priceHistoryPage.groceryItem.name && (
+                          <p className="mt-0.5 truncate text-xs text-muted-foreground">Receipt label: {observation.itemName}</p>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-muted-foreground">Line paid</p>
+                        <p className="mt-1 text-sm font-semibold tabular-nums">{formatCentavos(observation.amountPaidCentavos)}</p>
+                      </div>
+                    </div>
+                    <Separator className="my-3" />
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                      <span className="text-muted-foreground">{formatQuantity(observation.quantity)} {observation.unit}</span>
+                      <Badge variant="secondary" className="tabular-nums">
+                        {formatUnitPrice(observation.unitPriceCentavos, observation.unit)}
+                      </Badge>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+              {priceHistoryPage && priceHistoryPage.total === 0 && (
+                <Card className="border-dashed bg-muted/20 shadow-none">
+                  <CardContent className="px-4 py-10 text-center text-sm text-muted-foreground">
+                    No price observations found.
+                  </CardContent>
+                </Card>
+              )}
+            </div>
 
-          <div className="mt-4 space-y-2.5" aria-live="polite">
-            {selectedItemId && priceHistoryState.kind === 'loading' && (
-              <div className="rounded-xl border border-dashed border-[#cfdacf] px-4 py-10 text-center text-sm text-[#718075]" role="status">
-                Loading price history…
-              </div>
+            {priceHistoryPage && (
+              <CatalogPagination
+                page={priceHistoryPageNumber}
+                total={priceHistoryPage.total}
+                pageSize={priceHistoryPageSize}
+                label="Price history pages"
+                onPageChange={setPriceHistoryPageNumber}
+                disabled={priceHistoryState.kind === 'loading'}
+              />
             )}
-            {selectedItemId && priceHistoryState.kind === 'error' && (
-              <div className="rounded-xl border border-[#f0d8d1] bg-[#fff8f5] px-4 py-6">
-                <p className="text-sm font-semibold text-[#7e4539]">Price history could not load</p>
-                <p className="mt-1 text-sm leading-5 text-[#8b625a]">{priceHistoryState.message}</p>
-                <button
-                  className="mt-3 rounded-lg border border-[#dcbab1] px-3 py-2 text-xs font-semibold text-[#74483e] transition hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9c5b49]"
-                  type="button"
-                  onClick={() => setPriceHistoryRefresh((current) => current + 1)}
-                >
-                  Try again
-                </button>
-              </div>
-            )}
-            {!selectedItemId && catalogState.kind === 'loaded' && (
-              <div className="rounded-xl border border-dashed border-[#cfdacf] bg-[#fafbf8] px-4 py-10 text-center">
-                <p className="text-sm font-semibold text-[#365343]">Select an item to view its prices</p>
-                <p className="mt-1.5 text-sm leading-5 text-[#7b897e]">Price records come from saved receipt lines.</p>
-              </div>
-            )}
-            {priceHistoryPage?.items.map((observation) => (
-              <article key={observation.purchaseItemId} className="rounded-xl border border-[#e5eae2] bg-[#fcfdfa] px-3.5 py-3.5 sm:px-4">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <time dateTime={observation.purchasedOn} className="text-[10px] font-semibold uppercase tracking-[0.13em] text-[#77907c]">
-                      {formatPurchaseDate(observation.purchasedOn)}
-                    </time>
-                    <p className="mt-1 truncate text-sm font-semibold text-[#30483a]">
-                      {observation.storeName || 'Grocery trip'}
-                    </p>
-                    {observation.itemName !== priceHistoryPage.groceryItem.name && (
-                      <p className="mt-0.5 truncate text-[11px] text-[#89958c]">Receipt label: {observation.itemName}</p>
-                    )}
-                  </div>
-                  <div className="text-right">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#859188]">Line paid</p>
-                    <p className="mt-1 text-sm font-semibold tabular-nums text-[#30483a]">
-                      {formatCentavos(observation.amountPaidCentavos)}
-                    </p>
-                  </div>
-                </div>
-                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-[#edf0eb] pt-3 text-xs">
-                  <span className="text-[#718075]">
-                    {formatQuantity(observation.quantity)} {observation.unit}
-                  </span>
-                  <span className="font-semibold tabular-nums text-[#41664d]">
-                    {formatUnitPrice(observation.unitPriceCentavos, observation.unit)}
-                  </span>
-                </div>
-              </article>
-            ))}
-            {priceHistoryPage && priceHistoryPage.total === 0 && (
-              <div className="rounded-xl border border-dashed border-[#cfdacf] bg-[#fafbf8] px-4 py-10 text-center">
-                <p className="text-sm font-semibold text-[#365343]">No price observations found</p>
-              </div>
-            )}
-          </div>
-
-          {priceHistoryPage && (
-            <CatalogPagination
-              page={priceHistoryPageNumber}
-              total={priceHistoryPage.total}
-              pageSize={priceHistoryPageSize}
-              label="Price history pages"
-              onPageChange={setPriceHistoryPageNumber}
-              disabled={priceHistoryState.kind === 'loading'}
-            />
-          )}
-        </section>
+          </CardContent>
+        </Card>
       </div>
     </section>
   );

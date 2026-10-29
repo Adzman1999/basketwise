@@ -9,7 +9,7 @@ The repository foundation, CI checks, database-backed grocery purchase API, purc
 ## Planned stack
 
 - pnpm workspaces with `apps/api`, `apps/web`, and `packages/shared`
-- Web: React, TypeScript, Vite, Tailwind CSS 3, and shadcn/ui components
+- Web: React, TypeScript, Vite, Tailwind CSS 3, shadcn/ui components, and persistent light/dark themes
 - API: Node.js, Express, TypeScript, and Zod
 - Database: PostgreSQL, with migrations and seeds
 - Backend flow: HTTP routes → controllers → services → repositories → database

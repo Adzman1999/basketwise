@@ -1,4 +1,11 @@
-import type { Purchase, PurchasePage } from '../lib/api';
+import { ArrowLeft, ArrowRight, ReceiptText } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
+import { Skeleton } from '@/components/ui/skeleton';
+import type { Purchase, PurchasePage } from '@/lib/api';
 
 type PurchaseHistoryState =
   | { kind: 'loading' }
@@ -31,47 +38,45 @@ function formatPurchaseDate(date: string): string {
 
 function PurchaseCard({ purchase }: { purchase: Purchase }) {
   return (
-    <article className="rounded-2xl border border-[#e1e8df] bg-white p-4 sm:p-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <time dateTime={purchase.purchasedOn} className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#77907c]">
-            {formatPurchaseDate(purchase.purchasedOn)}
-          </time>
-          <h3 className="mt-1 text-base font-semibold text-[#284235]">
-            {purchase.storeName || 'Grocery trip'}
-          </h3>
+    <Card>
+      <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3 space-y-0 p-4 sm:p-5">
+        <div className="space-y-1.5">
+          <p className="text-xs text-muted-foreground">
+            <time dateTime={purchase.purchasedOn}>{formatPurchaseDate(purchase.purchasedOn)}</time>
+          </p>
+          <CardTitle className="text-base">{purchase.storeName || 'Grocery trip'}</CardTitle>
         </div>
         <div className="text-right">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#859188]">Receipt total</p>
-          <p className="mt-1 text-lg font-semibold tracking-tight text-[#203b30]">
-            {formatCentavos(purchase.totalPaidCentavos)}
-          </p>
+          <p className="text-xs text-muted-foreground">Receipt total</p>
+          <p className="mt-1 text-lg font-semibold tabular-nums">{formatCentavos(purchase.totalPaidCentavos)}</p>
         </div>
-      </div>
+      </CardHeader>
 
-      <div className="mt-4 divide-y divide-[#edf0eb] border-y border-[#edf0eb]">
-        {purchase.items.map((item) => (
-          <div key={item.id} className="flex items-start justify-between gap-4 py-3 text-sm">
-            <div className="min-w-0">
-              <p className="truncate font-medium text-[#3f5447]">{item.itemName}</p>
-              <p className="mt-0.5 text-xs text-[#89958c]">{item.quantity} {item.unit}</p>
+      <CardContent className="px-4 pb-0 sm:px-5">
+        <Separator />
+        <div className="divide-y">
+          {purchase.items.map((item) => (
+            <div key={item.id} className="flex items-start justify-between gap-4 py-3 text-sm">
+              <div className="min-w-0">
+                <p className="truncate font-medium">{item.itemName}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">{item.quantity} {item.unit}</p>
+              </div>
+              <span className="shrink-0 font-medium tabular-nums">{formatCentavos(item.amountPaidCentavos)}</span>
             </div>
-            <span className="shrink-0 font-medium tabular-nums text-[#445a4b]">
-              {formatCentavos(item.amountPaidCentavos)}
-            </span>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+        <Separator />
+      </CardContent>
 
-      <div className="mt-3 flex items-center justify-between gap-4 text-xs">
-        <span className="text-[#7b897e]">{purchase.items.length} {purchase.items.length === 1 ? 'item' : 'items'}</span>
-        <span className={purchase.unallocatedAmountCentavos === 0 ? 'font-medium text-[#527257]' : 'font-medium text-[#7a6852]'}>
+      <div className="flex items-center justify-between gap-3 px-4 py-3 sm:px-5">
+        <span className="text-xs text-muted-foreground">{purchase.items.length} {purchase.items.length === 1 ? 'item' : 'items'}</span>
+        <Badge variant={purchase.unallocatedAmountCentavos === 0 ? 'secondary' : 'outline'}>
           {purchase.unallocatedAmountCentavos === 0
             ? 'Receipt lines match total'
             : `Unallocated ${formatCentavos(purchase.unallocatedAmountCentavos)}`}
-        </span>
+        </Badge>
       </div>
-    </article>
+    </Card>
   );
 }
 
@@ -87,86 +92,83 @@ export default function PurchaseHistory({
   const pageSpend = pageData?.items.reduce((sum, purchase) => sum + purchase.totalPaidCentavos, 0) ?? 0;
 
   return (
-    <section aria-labelledby="purchase-history-title" className="min-w-0">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#6f8874]">Your records</p>
-          <h2 id="purchase-history-title" className="mt-1 text-2xl font-semibold tracking-tight text-[#203b30]">Purchase history</h2>
+    <section aria-labelledby="purchase-history-title" className="min-w-0 space-y-4">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="space-y-1.5">
+          <Badge variant="secondary" className="w-fit">Your records</Badge>
+          <h2 id="purchase-history-title" className="text-2xl font-semibold tracking-tight">Purchase history</h2>
+          <p className="text-sm text-muted-foreground">Receipts and the prices recorded on each trip.</p>
         </div>
-        {pageData && pageData.total > 0 && (
-          <p className="text-xs text-[#7f8b82]">
-            {pageData.total} {pageData.total === 1 ? 'receipt' : 'receipts'} recorded
-          </p>
-        )}
+        {pageData && <p className="text-sm text-muted-foreground">{pageData.total} {pageData.total === 1 ? 'receipt' : 'receipts'}</p>}
       </div>
 
       {pageData && pageData.total > 0 && (
-        <div className="mt-5 grid grid-cols-2 gap-3">
-          <div className="rounded-2xl border border-[#dfe6dd] bg-[#f9fbf7] px-4 py-3.5">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#829087]">Receipts on this page</p>
-            <p className="mt-1.5 text-xl font-semibold tabular-nums text-[#274333]">{pageData.items.length}</p>
-          </div>
-          <div className="rounded-2xl border border-[#dfe6dd] bg-[#f9fbf7] px-4 py-3.5">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#829087]">Spend on this page</p>
-            <p className="mt-1.5 text-xl font-semibold tabular-nums text-[#274333]">{formatCentavos(pageSpend)}</p>
-          </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Card>
+            <CardHeader className="p-4 pb-2">
+              <CardDescription>Receipts on this page</CardDescription>
+              <CardTitle className="text-2xl tabular-nums">{pageData.items.length}</CardTitle>
+            </CardHeader>
+          </Card>
+          <Card>
+            <CardHeader className="p-4 pb-2">
+              <CardDescription>Spend on this page</CardDescription>
+              <CardTitle className="text-lg tabular-nums sm:text-2xl">{formatCentavos(pageSpend)}</CardTitle>
+            </CardHeader>
+          </Card>
         </div>
       )}
 
-      <div className="mt-5 space-y-3">
+      <div className="space-y-3" aria-live="polite">
         {state.kind === 'loading' && (
-          <div className="rounded-2xl border border-dashed border-[#cfdacf] bg-white/60 px-5 py-12 text-center" role="status">
-            <span className="mx-auto block h-6 w-6 animate-spin rounded-full border-2 border-[#cbd9c9] border-t-[#2d6a4f]" />
-            <p className="mt-3 text-sm text-[#718075]">Loading purchase history…</p>
-          </div>
+          <Card role="status" aria-label="Loading purchase history">
+            <CardContent className="space-y-3 p-4 sm:p-5">
+              <Skeleton className="h-4 w-28" />
+              <Skeleton className="h-6 w-44" />
+              <Separator />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-4/5" />
+            </CardContent>
+          </Card>
         )}
 
         {state.kind === 'error' && (
-          <div className="rounded-2xl border border-[#f0d8d1] bg-[#fff8f5] px-5 py-8 text-center">
-            <p className="text-sm font-semibold text-[#7e4539]">History could not load</p>
-            <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-[#8b625a]">{state.message}</p>
-            <button
-              className="mt-4 rounded-lg border border-[#dcbab1] px-3.5 py-2 text-xs font-semibold text-[#74483e] transition hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9c5b49]"
-              type="button"
-              onClick={onRetry}
-            >
-              Try again
-            </button>
-          </div>
+          <Alert variant="destructive">
+            <ReceiptText aria-hidden="true" />
+            <AlertTitle>History could not load</AlertTitle>
+            <AlertDescription className="space-y-3">
+              <p>{state.message}</p>
+              <Button type="button" variant="outline" size="sm" onClick={onRetry}>Try again</Button>
+            </AlertDescription>
+          </Alert>
         )}
 
         {pageData && pageData.items.length === 0 && (
-          <div className="rounded-2xl border border-dashed border-[#cfdacf] bg-white/60 px-5 py-12 text-center">
-            <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[#e7f0e3] text-xl text-[#477253]" aria-hidden="true">＋</span>
-            <h3 className="mt-4 text-base font-semibold text-[#365343]">Your first receipt starts here</h3>
-            <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-[#7b897e]">
-              Add a grocery purchase to start tracking what you spend and what each item costs.
-            </p>
-          </div>
+          <Card>
+            <CardContent className="flex flex-col items-center px-5 py-10 text-center">
+              <span className="flex size-11 items-center justify-center rounded-full bg-primary/10 text-primary">
+                <ReceiptText aria-hidden="true" className="size-5" />
+              </span>
+              <h3 className="mt-4 font-semibold">Your first receipt starts here</h3>
+              <p className="mt-2 max-w-sm text-sm leading-6 text-muted-foreground">
+                Add a grocery purchase to start tracking what you spend and what each item costs.
+              </p>
+            </CardContent>
+          </Card>
         )}
 
         {pageData?.items.map((purchase) => <PurchaseCard key={purchase.id} purchase={purchase} />)}
       </div>
 
       {pageData && pageData.total > 0 && totalPages > 1 && (
-        <nav className="mt-5 flex items-center justify-between gap-4" aria-label="Purchase history pages">
-          <button
-            className="rounded-lg border border-[#d9e2d7] bg-white px-3.5 py-2.5 text-xs font-semibold text-[#49634f] transition hover:bg-[#f4f8f2] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#47765d] disabled:cursor-not-allowed disabled:opacity-40"
-            type="button"
-            onClick={() => onPageChange(pageNumber - 1)}
-            disabled={pageNumber <= 1 || state.kind === 'loading'}
-          >
-            ← Previous
-          </button>
-          <span className="text-xs tabular-nums text-[#7b897e]">Page {pageNumber} of {totalPages}</span>
-          <button
-            className="rounded-lg border border-[#d9e2d7] bg-white px-3.5 py-2.5 text-xs font-semibold text-[#49634f] transition hover:bg-[#f4f8f2] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#47765d] disabled:cursor-not-allowed disabled:opacity-40"
-            type="button"
-            onClick={() => onPageChange(pageNumber + 1)}
-            disabled={pageNumber >= totalPages || state.kind === 'loading'}
-          >
-            Next →
-          </button>
+        <nav className="flex items-center justify-between gap-4" aria-label="Purchase history pages">
+          <Button variant="outline" size="sm" onClick={() => onPageChange(pageNumber - 1)} disabled={pageNumber <= 1 || state.kind === 'loading'}>
+            <ArrowLeft aria-hidden="true" /> Previous
+          </Button>
+          <span className="text-sm tabular-nums text-muted-foreground">Page {pageNumber} of {totalPages}</span>
+          <Button variant="outline" size="sm" onClick={() => onPageChange(pageNumber + 1)} disabled={pageNumber >= totalPages || state.kind === 'loading'}>
+            Next <ArrowRight aria-hidden="true" />
+          </Button>
         </nav>
       )}
     </section>
