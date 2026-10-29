@@ -8,6 +8,7 @@ Let a household find a normalized grocery item and review the prices recorded on
 
 - A case-insensitive, literal substring search on `GET /api/grocery-items`, with the existing page/pageSize behavior.
 - A paginated catalog browser with item selection and debounced search.
+- Purchase entry suggests existing catalog names as the user types. Selecting a saved name reuses its normalized identity; new names remain accepted.
 - Paginated, newest-first price observations that show the receipt date, store, quantity, line amount, and unit price.
 - The receipt unit is shown with every unit price. The UI does not compare or convert different unit labels.
 - Catalog and selected-item history refresh after a purchase is saved; list and history errors have retry actions.

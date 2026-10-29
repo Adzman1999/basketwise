@@ -1,5 +1,5 @@
-import { useRef, useState, type FormEvent } from 'react';
-import type { CreatePurchaseItem, CreatePurchaseRequest } from '../lib/api';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { fetchGroceryItems, type CreatePurchaseItem, type CreatePurchaseRequest, type GroceryItem } from '../lib/api';
 
 type DraftItem = {
   id: number;
@@ -42,6 +42,83 @@ function emptyItem(id: number): DraftItem {
 
 const inputClassName = 'mt-2 w-full rounded-xl border border-[#dce3d9] bg-white px-3.5 py-3 text-sm text-[#23392f] outline-none transition placeholder:text-[#9ba79e] focus:border-[#47765d] focus:ring-4 focus:ring-[#47765d]/10 disabled:bg-[#f4f6f2]';
 const labelClassName = 'block text-xs font-semibold text-[#40574a]';
+
+function CatalogNameInput({
+  itemId,
+  value,
+  onChange,
+  disabled,
+}: {
+  itemId: number;
+  value: string;
+  onChange: (value: string) => void;
+  disabled: boolean;
+}) {
+  const [suggestions, setSuggestions] = useState<GroceryItem[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const query = value.trim();
+  const suggestionsId = `grocery-item-suggestions-${itemId}`;
+  const helperId = `grocery-item-helper-${itemId}`;
+
+  useEffect(() => {
+    if (query.length < 2) {
+      setSuggestions([]);
+      setIsSearching(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => {
+      setIsSearching(true);
+      void fetchGroceryItems(1, 8, query, controller.signal)
+        .then((page) => {
+          if (!controller.signal.aborted) setSuggestions(page.items);
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) setSuggestions([]);
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setIsSearching(false);
+        });
+    }, 250);
+
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [query]);
+
+  const helperMessage = query.length < 2
+    ? 'Type two or more letters to search saved item names.'
+    : isSearching
+      ? 'Searching your saved items…'
+      : suggestions.length > 0
+        ? 'Choose a saved name to keep its price history together.'
+        : 'No match? This name will create a catalog item.';
+
+  return (
+    <>
+      <input
+        className={inputClassName}
+        type="text"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        maxLength={120}
+        placeholder="e.g. Rice"
+        list={suggestionsId}
+        aria-describedby={helperId}
+        required
+        disabled={disabled}
+      />
+      <datalist id={suggestionsId}>
+        {suggestions.map((item) => <option key={item.id} value={item.name} />)}
+      </datalist>
+      <span id={helperId} className="mt-1.5 block text-[10px] font-normal leading-4 text-[#849188]" aria-live="polite">
+        {helperMessage}
+      </span>
+    </>
+  );
+}
 
 export default function PurchaseForm({ onSubmit }: PurchaseFormProps) {
   const nextItemId = useRef(2);
@@ -226,14 +303,10 @@ export default function PurchaseForm({ onSubmit }: PurchaseFormProps) {
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
                   <label className={labelClassName}>
                     Food name
-                    <input
-                      className={inputClassName}
-                      type="text"
+                    <CatalogNameInput
+                      itemId={item.id}
                       value={item.itemName}
-                      onChange={(event) => updateItem(item.id, { itemName: event.target.value })}
-                      maxLength={120}
-                      placeholder="e.g. Rice"
-                      required
+                      onChange={(itemName) => updateItem(item.id, { itemName })}
                       disabled={isSaving}
                     />
                   </label>
