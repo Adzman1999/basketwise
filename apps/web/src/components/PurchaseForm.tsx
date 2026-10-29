@@ -157,7 +157,7 @@ export default function PurchaseForm({ onSubmit }: PurchaseFormProps) {
 
     const totalPaidCentavos = parsePesos(totalPaid);
     if (totalPaidCentavos === null) {
-      setErrorMessage(`Enter a PHP amount with up to two decimal places (maximum ₱${maxPesoAmount}).`);
+      setErrorMessage(`Enter an amount with up to two decimal places (maximum ₱${maxPesoAmount}).`);
       return;
     }
 
@@ -169,7 +169,7 @@ export default function PurchaseForm({ onSubmit }: PurchaseFormProps) {
       const amountPaidCentavos = parsePesos(item.amountPaid);
 
       if (!itemName || !unit || !Number.isFinite(quantity) || quantity <= 0 || amountPaidCentavos === null) {
-        setErrorMessage(`Check the name, quantity, unit, and PHP amount for item ${index + 1}.`);
+        setErrorMessage(`Check the name, quantity, unit, and amount for item ${index + 1}.`);
         return;
       }
 
@@ -205,7 +205,6 @@ export default function PurchaseForm({ onSubmit }: PurchaseFormProps) {
           <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#6f8874]">Receipt entry</p>
           <h2 id="new-purchase-title" className="mt-1 text-xl font-semibold tracking-tight text-[#203b30]">Add a purchase</h2>
         </div>
-        <span className="rounded-full bg-[#edf4e9] px-3 py-1.5 text-[11px] font-semibold text-[#44694e]">PHP · ₱</span>
       </div>
 
       <form className="mt-6 space-y-5" onSubmit={handleSubmit}>
@@ -236,7 +235,7 @@ export default function PurchaseForm({ onSubmit }: PurchaseFormProps) {
         </div>
 
         <label className={labelClassName}>
-          Receipt total <span className="font-normal text-[#849188]">· PHP</span>
+          Receipt total
           <div className="relative">
             <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-[#748378]">₱</span>
             <input
@@ -311,7 +310,7 @@ export default function PurchaseForm({ onSubmit }: PurchaseFormProps) {
                     />
                   </label>
                   <label className={labelClassName}>
-                    Line amount <span className="font-normal text-[#849188]">· PHP</span>
+                    Line amount
                     <div className="relative">
                       <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-[#748378]">₱</span>
                       <input
