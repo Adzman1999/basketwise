@@ -198,7 +198,7 @@ export default function App() {
               <DialogTitle>Add a purchase</DialogTitle>
               <DialogDescription>Enter the receipt total and the items on the receipt.</DialogDescription>
             </DialogHeader>
-            <PurchaseForm onSubmit={savePurchase} />
+            <PurchaseForm onSubmit={savePurchase} onCancel={() => setPurchaseDialogOpen(false)} />
           </DialogContent>
         </Dialog>
       </SidebarProvider>

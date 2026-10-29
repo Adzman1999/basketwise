@@ -17,6 +17,7 @@ type DraftItem = {
 
 type PurchaseFormProps = {
   onSubmit: (purchase: CreatePurchaseRequest) => Promise<void>;
+  onCancel: () => void;
 };
 
 const maxCentavos = 2_147_483_647;
@@ -46,8 +47,8 @@ function emptyItem(id: number): DraftItem {
   return { id, itemName: '', quantity: '1', unit: 'item', amountPaid: '' };
 }
 
-const inputClassName = 'mt-1.5 h-10 rounded-lg bg-background text-sm';
-const labelClassName = 'grid gap-1.5 text-sm font-medium';
+const inputClassName = 'h-10 w-full min-w-0 rounded-md bg-background text-sm';
+const labelClassName = 'grid min-w-0 gap-2 text-sm font-medium';
 
 function CatalogNameInput({
   itemId,
@@ -126,7 +127,7 @@ function CatalogNameInput({
   );
 }
 
-export default function PurchaseForm({ onSubmit }: PurchaseFormProps) {
+export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) {
   const nextItemId = useRef(2);
   const [purchasedOn, setPurchasedOn] = useState(todayAsLocalDate);
   const [storeName, setStoreName] = useState('');
@@ -303,17 +304,20 @@ export default function PurchaseForm({ onSubmit }: PurchaseFormProps) {
             </Alert>
           )}
 
+          <p className="text-center text-xs leading-5 text-muted-foreground">
+            Quantity units are saved as entered. Any receipt difference is shown as unallocated.
+          </p>
+
       </div>
 
-      <div className="sticky bottom-0 z-10 shrink-0 border-t bg-background px-6 py-4">
-        <Button className="w-full" size="lg" type="submit" disabled={isSaving}>
-            <Save aria-hidden="true" />
-            {isSaving ? 'Saving purchase…' : 'Save purchase'}
+      <div className="sticky bottom-0 z-10 flex shrink-0 items-center justify-end gap-2 border-t bg-background px-6 py-4">
+        <Button variant="outline" size="lg" type="button" onClick={onCancel}>
+          Close
         </Button>
-
-        <p className="mt-2 text-center text-xs leading-5 text-muted-foreground">
-          Quantity units are saved as entered. Any receipt difference is shown as unallocated.
-        </p>
+        <Button size="lg" type="submit" disabled={isSaving}>
+          <Save aria-hidden="true" />
+          {isSaving ? 'Saving purchase…' : 'Save purchase'}
+        </Button>
       </div>
     </form>
   );
