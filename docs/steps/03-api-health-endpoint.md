@@ -26,4 +26,4 @@ The request moves through `routes/health.ts` → `controllers/healthController.t
 
 ## Next checkpoint
 
-Add a small React page that fetches the health endpoint, then introduce the first CI workflow for the now-runnable workspace.
+The React page and Vite proxy are recorded in Step 04. Next, add the first CI workflow for workspace typecheck, API tests, and production builds.

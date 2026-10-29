@@ -6,9 +6,16 @@
     "node": ">=24"
   },
   "scripts": {
+    "dev": "pnpm --parallel --filter @basketwise/api --filter @basketwise/web dev",
     "dev:api": "pnpm --filter @basketwise/api dev",
+    "dev:web": "pnpm --filter @basketwise/web dev",
+    "build": "pnpm build:api && pnpm build:web",
     "build:api": "pnpm --filter @basketwise/api build",
+    "build:web": "pnpm --filter @basketwise/web build",
+    "typecheck": "pnpm typecheck:api && pnpm typecheck:web",
     "typecheck:api": "pnpm --filter @basketwise/api typecheck",
+    "typecheck:web": "pnpm --filter @basketwise/web typecheck",
+    "test": "pnpm test:api",
     "test:api": "pnpm --filter @basketwise/api test"
   }
 }
