@@ -1,4 +1,4 @@
-import { CirclePlus, LayoutDashboard, ReceiptText, ShoppingBasket, Tags } from 'lucide-react';
+import { LayoutDashboard, ReceiptText, ShoppingBasket, Tags } from 'lucide-react';
 import {
   Sidebar,
   SidebarContent,
@@ -14,17 +14,16 @@ import {
 } from '@/components/ui/sidebar';
 
 const navigationItems = [
-  { kind: 'link' as const, href: '#overview', label: 'Overview', icon: LayoutDashboard },
-  { kind: 'action' as const, label: 'Add purchase', icon: CirclePlus },
-  { kind: 'link' as const, href: '#grocery-catalog', label: 'Items & prices', icon: Tags },
-  { kind: 'link' as const, href: '#purchase-history', label: 'Purchase history', icon: ReceiptText },
+  { href: '#overview', label: 'Overview', icon: LayoutDashboard },
+  { href: '#grocery-spending', label: 'Grocery spending', icon: ReceiptText },
+  { href: '#grocery-catalog', label: 'Items & prices', icon: Tags },
 ];
 
 function Brand() {
   return (
-    <a href="#overview" className="flex items-center gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring">
-      <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-        <ShoppingBasket aria-hidden="true" className="size-5" />
+    <a href="#overview" className="flex items-center gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring group-data-[collapsible=icon]:justify-center">
+      <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground group-data-[collapsible=icon]:size-8">
+        <ShoppingBasket aria-hidden="true" className="size-5 group-data-[collapsible=icon]:size-4" />
       </span>
       <span className="min-w-0 group-data-[collapsible=icon]:hidden">
         <span className="block text-base font-semibold tracking-tight text-sidebar-foreground">Basketwise</span>
@@ -34,12 +33,12 @@ function Brand() {
   );
 }
 
-export default function AppSidebar({ activeHref, onAddPurchase }: { activeHref: string; onAddPurchase: () => void }) {
+export default function AppSidebar({ activeHref }: { activeHref: string }) {
   const { isMobile, setOpenMobile } = useSidebar();
 
   return (
     <Sidebar collapsible="icon" variant="sidebar" className="border-sidebar-border">
-      <SidebarHeader className="px-4 py-5">
+      <SidebarHeader className="px-4 py-5 group-data-[collapsible=icon]:px-2">
         <Brand />
       </SidebarHeader>
 
@@ -50,23 +49,6 @@ export default function AppSidebar({ activeHref, onAddPurchase }: { activeHref: 
             <SidebarMenu>
               {navigationItems.map((item) => {
                 const { label, icon: Icon } = item;
-                if (item.kind === 'action') {
-                  return (
-                    <SidebarMenuItem key={label}>
-                      <SidebarMenuButton
-                        tooltip={label}
-                        onClick={() => {
-                          onAddPurchase();
-                          if (isMobile) setOpenMobile(false);
-                        }}
-                      >
-                        <Icon aria-hidden="true" />
-                        <span>{label}</span>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  );
-                }
-
                 const { href } = item;
                 const isActive = activeHref === href;
                 return (

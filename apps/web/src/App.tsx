@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Activity, ArrowUpRight, CirclePlus, RefreshCw, Tags } from 'lucide-react';
+import { Activity, ArrowUpRight, CirclePlus, RefreshCw } from 'lucide-react';
 import AppSidebar from '@/components/AppSidebar';
 import GroceryCatalog from '@/components/GroceryCatalog';
 import PurchaseForm from '@/components/PurchaseForm';
@@ -20,6 +20,13 @@ type ConnectionState =
 
 const pageSize = 20;
 
+function getActiveHref(): string {
+  const hash = window.location.hash;
+  if (hash === '#purchase-history' || hash === '#new-purchase') return '#grocery-spending';
+  if (hash === '#grocery-spending' || hash === '#grocery-catalog') return hash;
+  return '#overview';
+}
+
 export default function App() {
   const [connection, setConnection] = useState<ConnectionState>({ kind: 'checking' });
   const [connectionCheck, setConnectionCheck] = useState(0);
@@ -27,10 +34,12 @@ export default function App() {
   const [pageNumber, setPageNumber] = useState(1);
   const [historyRefresh, setHistoryRefresh] = useState(0);
   const [catalogRefresh, setCatalogRefresh] = useState(0);
-  const [activeHref, setActiveHref] = useState(() => window.location.hash || '#overview');
+  const [activeHref, setActiveHref] = useState(getActiveHref);
   const [purchaseDialogOpen, setPurchaseDialogOpen] = useState(false);
 
   useEffect(() => {
+    if (activeHref !== '#grocery-spending') return;
+
     const controller = new AbortController();
     setConnection({ kind: 'checking' });
 
@@ -66,10 +75,10 @@ export default function App() {
       });
 
     return () => controller.abort();
-  }, [pageNumber, historyRefresh]);
+  }, [activeHref, pageNumber, historyRefresh]);
 
   useEffect(() => {
-    const updateActiveSection = () => setActiveHref(window.location.hash || '#overview');
+    const updateActiveSection = () => setActiveHref(getActiveHref());
     window.addEventListener('hashchange', updateActiveSection);
     return () => window.removeEventListener('hashchange', updateActiveSection);
   }, []);
@@ -87,18 +96,16 @@ export default function App() {
     : connection.kind === 'checking'
       ? 'Checking API'
       : 'API unavailable';
-  const currentSectionLabel = activeHref === '#new-purchase'
-    ? 'Add purchase'
-    : activeHref === '#purchase-history'
-      ? 'Purchase history'
-      : activeHref === '#grocery-catalog'
-        ? 'Items & prices'
-        : 'Overview';
+  const currentSectionLabel = activeHref === '#grocery-spending'
+    ? 'Grocery spending'
+    : activeHref === '#grocery-catalog'
+      ? 'Items & prices'
+      : 'Overview';
 
   return (
     <ThemeProvider>
       <SidebarProvider defaultOpen className="min-h-screen w-full bg-background">
-            <AppSidebar activeHref={activeHref} onAddPurchase={() => setPurchaseDialogOpen(true)} />
+        <AppSidebar activeHref={activeHref} />
         <SidebarInset className="min-h-screen bg-background">
           <header className="sticky top-0 z-30 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:px-7 lg:px-9">
             <div className="mx-auto flex min-h-16 max-w-[1600px] items-center justify-between gap-4">
@@ -139,52 +146,50 @@ export default function App() {
           </header>
 
           <main className="mx-auto w-full max-w-[1600px] flex-1 px-4 pb-10 pt-7 sm:px-7 sm:pb-14 sm:pt-9 lg:px-9 lg:pt-10">
-            <section id="overview" className="mb-7 flex scroll-mt-24 flex-col justify-between gap-4 sm:mb-9 sm:flex-row sm:items-end">
-              <div>
-                <p className="text-xs font-medium text-primary">{activeHref === '#grocery-catalog' ? 'Items & prices' : activeHref === '#purchase-history' ? 'Your records' : 'Overview'}</p>
-                <h1 className="mt-1.5 text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">
-                  {activeHref === '#grocery-catalog' ? 'Grocery items' : activeHref === '#purchase-history' ? 'Purchase history' : 'Grocery spending'}
-                </h1>
-                <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
-                  {activeHref === '#grocery-catalog'
-                    ? 'Choose an item to see its recorded prices.'
-                    : 'Keep receipts, item costs, and price history organized for your household.'}
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <Button onClick={() => setPurchaseDialogOpen(true)}>
-                  <CirclePlus aria-hidden="true" />
-                  Add a purchase
-                  <ArrowUpRight aria-hidden="true" />
-                </Button>
-                <Button asChild variant="outline">
-                  <a href="#grocery-catalog">
-                    <Tags aria-hidden="true" />
-                    Items & prices
-                  </a>
-                </Button>
-              </div>
-            </section>
+            {activeHref !== '#overview' && (
+              <>
+                <section className="mb-7 flex scroll-mt-24 flex-col justify-between gap-4 sm:mb-9 sm:flex-row sm:items-end">
+                  <div>
+                    <p className="text-xs font-medium text-primary">{activeHref === '#grocery-catalog' ? 'Items & prices' : 'Household'}</p>
+                    <h1 className="mt-1.5 text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">
+                      {activeHref === '#grocery-catalog' ? 'Grocery items' : 'Grocery spending'}
+                    </h1>
+                    <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
+                      {activeHref === '#grocery-catalog'
+                        ? 'Browse saved grocery items and compare their recorded prices.'
+                        : 'Keep receipts, item costs, and price history organized for your household.'}
+                    </p>
+                  </div>
+                  {activeHref === '#grocery-spending' && (
+                    <Button onClick={() => setPurchaseDialogOpen(true)}>
+                      <CirclePlus aria-hidden="true" />
+                      Add a purchase
+                      <ArrowUpRight aria-hidden="true" />
+                    </Button>
+                  )}
+                </section>
 
-            {activeHref === '#grocery-catalog' ? (
-              <GroceryCatalog refreshKey={catalogRefresh} />
-            ) : (
-              <div id={activeHref === '#purchase-history' ? 'purchase-history' : undefined} className="scroll-mt-24">
-                <PurchaseHistory
-                  state={history}
-                  pageNumber={pageNumber}
-                  pageSize={pageSize}
-                  onPageChange={setPageNumber}
-                  onRetry={() => setHistoryRefresh((current) => current + 1)}
-                />
-              </div>
+                {activeHref === '#grocery-catalog' ? (
+                  <GroceryCatalog refreshKey={catalogRefresh} />
+                ) : (
+                  <div id="grocery-spending" className="scroll-mt-24">
+                    <PurchaseHistory
+                      state={history}
+                      pageNumber={pageNumber}
+                      pageSize={pageSize}
+                      onPageChange={setPageNumber}
+                      onRetry={() => setHistoryRefresh((current) => current + 1)}
+                    />
+                  </div>
+                )}
+
+                <Separator className="my-8" />
+                <footer className="flex flex-col gap-2 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+                  <span>Basketwise · A personal food cost system</span>
+                  <span>Units saved as entered</span>
+                </footer>
+              </>
             )}
-
-            <Separator className="my-8" />
-            <footer className="flex flex-col gap-2 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-              <span>Basketwise · A personal food cost system</span>
-              <span>Units saved as entered</span>
-            </footer>
           </main>
         </SidebarInset>
         <Dialog open={purchaseDialogOpen} onOpenChange={setPurchaseDialogOpen}>

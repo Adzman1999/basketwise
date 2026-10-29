@@ -16,8 +16,8 @@ Let a household find a normalized grocery item and review the prices recorded on
 - shadcn/ui components throughout the dashboard, purchase form, history, catalog, and price observations, using shared light/dark theme tokens.
 - App-style section menu using shadcn/ui Sidebar: it collapses to icons on desktop and opens as a mobile drawer. Basketwise's green palette is preserved in both themes.
 - A persistent theme toggle follows the operating system preference on first visit and remembers the user's selection.
-- Purchase entry opens in a shadcn/ui modal from the main action button or app menu, with no duplicate inline form card.
-- The Items & prices menu sits beside Add purchase and opens the catalog and selected-item price history view.
+- Purchase entry opens in a shadcn/ui modal from the Grocery spending action, with no duplicate inline form card or Add purchase menu item.
+- Sidebar destinations each have their own content: Overview is reserved, Grocery spending contains receipt history and its purchase modal action, and Items & prices contains the catalog and selected-item price history.
 - Removed the redundant PHP explainer while keeping the peso symbol beside amount fields.
 
 ## Verification

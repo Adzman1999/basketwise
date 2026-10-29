@@ -206,7 +206,7 @@ export default function GroceryCatalog({ refreshKey }: { refreshKey: number }) {
       <div className="grid items-start gap-5 xl:grid-cols-[minmax(280px,0.8fr)_minmax(0,1.2fr)]">
         <Card>
           <CardHeader className="p-4 pb-3 sm:p-5 sm:pb-4">
-            <CardTitle className="text-base">Grocery items</CardTitle>
+            <CardTitle className="text-base">Catalog</CardTitle>
             <CardDescription>Choose an item to see its recorded prices.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 p-4 pt-0 sm:p-5 sm:pt-0">
