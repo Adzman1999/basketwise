@@ -13,7 +13,8 @@ Let a household find a normalized grocery item and review the prices recorded on
 - The receipt unit is shown with every unit price. The UI does not compare or convert different unit labels.
 - Catalog and selected-item history refresh after a purchase is saved; list and history errors have retry actions.
 - Responsive layout and section navigation for purchase history and item prices.
-- App-style section menu with a desktop sidebar and a collapsible mobile menu; removed the redundant PHP explainer while keeping the peso symbol beside amount fields.
+- App-style section menu using shadcn/ui Sidebar: it collapses to icons on desktop and opens as a mobile drawer. Basketwise's green palette is preserved.
+- Removed the redundant PHP explainer while keeping the peso symbol beside amount fields.
 
 ## Verification
 
