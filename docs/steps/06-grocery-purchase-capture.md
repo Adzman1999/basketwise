@@ -37,4 +37,4 @@ The database-backed API implementation is documented in [Step 07](07-purchase-pe
 
 ## Next checkpoint
 
-Build the purchase entry form and paginated history in the web app.
+The purchase entry form and paginated history are implemented in [Step 08](08-purchase-ui.md).

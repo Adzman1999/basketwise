@@ -46,4 +46,4 @@ GitHub Actions now provisions PostgreSQL 15, applies test migrations, runs the A
 
 ## Next checkpoint
 
-Add the purchase entry form and paginated purchase history to the web app, using the API contract as the source of truth.
+Design a normalized grocery item catalog and price history from the saved purchase line items.
