@@ -15,7 +15,7 @@ queryParams:
     description: Number of purchases per page, up to 100.
 settings: {}
 examples: ./.resources/List grocery purchases.resources/examples
-order: 1000
+order: 2000
 scripts:
   - type: afterResponse
     language: text/javascript
@@ -33,4 +33,8 @@ scripts:
           pm.expect(purchase.currency).to.eql('PHP');
           pm.expect(purchase.items).to.be.an('array');
         });
+        const createdPurchaseId = pm.collectionVariables.get('lastCreatedPurchaseId');
+        pm.expect(body.items.some(function (purchase) {
+          return purchase.id === createdPurchaseId;
+        })).to.eql(true);
       });

@@ -4,7 +4,7 @@ Basketwise is a home food cost system for tracking grocery spending, food prices
 
 ## Project status
 
-The repository foundation, API health endpoint, first API-connected web page, and initial CI checks are ready. The grocery purchase API contract is defined; its database-backed implementation is the next checkpoint.
+The repository foundation, API health endpoint, first API-connected web page, CI checks, and database-backed grocery purchase API are ready. The next checkpoint is the purchase entry and history UI.
 
 ## Planned stack
 
@@ -16,16 +16,22 @@ The repository foundation, API health endpoint, first API-connected web page, an
 
 ## Local setup
 
-Requirements for the current API and web checkpoint: Node.js 24 or newer and pnpm 10.33.2. PostgreSQL 15 or newer will be needed when database integration is added.
+Requirements: Node.js 24 or newer, pnpm 10.33.2, and PostgreSQL 15 or newer.
 
 ```sh
 pnpm install
+cp apps/api/.env.example apps/api/.env
+createdb basketwise_dev
+createdb basketwise_test
+pnpm db:migrate
 pnpm dev
 ```
 
-The API starts at `http://localhost:4000`, and the web app starts at `http://localhost:5173`. The page checks `GET /api/health` through the Vite development proxy. The template at `apps/api/.env.example` can be copied to `apps/api/.env` to override local settings; its database and JWT values are reserved for later checkpoints.
+Replace `YOUR_LOCAL_DB_USER` in `apps/api/.env` with your local PostgreSQL role. `pnpm test` uses `TEST_DATABASE_URL` and only accepts a local database whose name ends in `_test`.
 
-Check the workspace with `pnpm typecheck`, `pnpm test`, and `pnpm build`.
+The API starts at `http://localhost:4000`, and the web app starts at `http://localhost:5173`. The page checks `GET /api/health` through the Vite development proxy. Database URLs in `apps/api/.env.example` configure local development and test databases; the JWT value is reserved for a later authentication checkpoint.
+
+Check the workspace with `pnpm typecheck`, `pnpm test`, and `pnpm build`. `pnpm db:migrate` applies schema changes to the development database; tests apply them to the separate test database.
 
 ## Development checkpoints
 

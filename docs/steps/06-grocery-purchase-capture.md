@@ -31,6 +31,10 @@ The item name is a receipt-time snapshot. There is no shared product catalog in 
 
 The OpenAPI source of truth defines `POST /api/purchases` for receipt entry and `GET /api/purchases` for a newest-first paginated history. The Postman collection carries request definitions, response examples, and assertions to run once the endpoints are implemented. Purchase create input requires a date, total receipt amount, and at least one line item.
 
+## Implementation
+
+The database-backed API implementation is documented in [Step 07](07-purchase-persistence.md).
+
 ## Next checkpoint
 
-Implement the contract with a PostgreSQL migration, repository, service, and API routes, then verify create and list behavior with Vitest/Supertest and the Postman collection.
+Build the purchase entry form and paginated history in the web app.

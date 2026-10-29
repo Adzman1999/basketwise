@@ -27,6 +27,7 @@ paths:
           schema:
             type: integer
             minimum: 1
+            maximum: 1000000
             default: 1
         - name: pageSize
           in: query
@@ -186,6 +187,7 @@ components:
         totalPaidCentavos:
           type: integer
           minimum: 0
+          maximum: 2147483647
           description: Receipt total in PHP centavos.
         items:
           type: array
@@ -209,6 +211,7 @@ components:
         quantity:
           type: number
           exclusiveMinimum: 0
+          maximum: 999999999.999
           multipleOf: 0.001
         unit:
           type: string
@@ -220,6 +223,7 @@ components:
         amountPaidCentavos:
           type: integer
           minimum: 0
+          maximum: 2147483647
           description: Amount paid for this line in PHP centavos.
     Purchase:
       type: object
@@ -247,6 +251,8 @@ components:
             - PHP
         totalPaidCentavos:
           type: integer
+          minimum: 0
+          maximum: 2147483647
         unallocatedAmountCentavos:
           type: integer
           description: Receipt total minus the sum of line item amounts.
@@ -278,6 +284,8 @@ components:
           type: string
         amountPaidCentavos:
           type: integer
+          minimum: 0
+          maximum: 2147483647
     PurchasePage:
       type: object
       additionalProperties: false

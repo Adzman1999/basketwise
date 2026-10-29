@@ -34,7 +34,7 @@ body:
     }
 settings: {}
 examples: ./.resources/Record a grocery purchase.resources/examples
-order: 2000
+order: 1000
 scripts:
   - type: afterResponse
     language: text/javascript
@@ -49,4 +49,5 @@ scripts:
         pm.expect(body.totalPaidCentavos).to.eql(12550);
         pm.expect(body.unallocatedAmountCentavos).to.eql(250);
         pm.expect(body.items).to.have.lengthOf(2);
+        pm.collectionVariables.set('lastCreatedPurchaseId', body.id);
       });
