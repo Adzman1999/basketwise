@@ -4,7 +4,7 @@ Basketwise is a home food cost system for tracking grocery spending, food prices
 
 ## Project status
 
-The first checkpoint sets up the repository and workspace. The API and web app will be added in the next checkpoint as a small, working health-check flow.
+The repository foundation and first API endpoint are ready. The web app and initial CI checks are the next checkpoints.
 
 ## Planned stack
 
@@ -16,13 +16,16 @@ The first checkpoint sets up the repository and workspace. The API and web app w
 
 ## Local setup
 
-Requirements: Node.js 24 or newer, pnpm 10.33.2, and PostgreSQL 15 or newer.
+Requirements for the current API checkpoint: Node.js 24 or newer and pnpm 10.33.2. PostgreSQL 15 or newer will be needed when database integration is added.
 
 ```sh
 pnpm install
+pnpm dev:api
 ```
 
-The API environment template is at `apps/api/.env.example`. Copy it to `apps/api/.env` when the API checkpoint is added, then set the local database connection and a private development secret. No server or database commands are available in this foundation checkpoint yet.
+The API starts at `http://localhost:4000`; check `http://localhost:4000/api/health`. The template at `apps/api/.env.example` can be copied to `apps/api/.env` to override local settings. Its database and JWT values are reserved for later checkpoints.
+
+Check the API package with `pnpm typecheck:api`, `pnpm test:api`, and `pnpm build:api`.
 
 ## Development checkpoints
 

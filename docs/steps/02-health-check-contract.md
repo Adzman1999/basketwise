@@ -18,8 +18,8 @@ Agree on the first API interface before implementing it. This contract defines o
 
 ## Verification
 
-The OpenAPI spec passes Postman syntax lint. Governance lint requires a Postman login and is not enabled. The generated collection passes structural lint; its assertions have not run because the API is not implemented yet.
+The OpenAPI spec passes Postman syntax lint. Governance lint requires a Postman login and is not enabled. The generated collection passes structural lint, and its two assertions pass against the local API. No Postman workspace report was sent.
 
 ## Next checkpoint
 
-Implement the health endpoint to match the contract, add a focused API test, then connect a minimal React page to it.
+The contract is implemented in `apps/api` and covered with a focused Vitest/Supertest check. The next checkpoint connects a minimal React page to the live endpoint.
