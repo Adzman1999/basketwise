@@ -41,6 +41,13 @@ export type PurchasePage = {
   total: number;
 };
 
+export type PurchaseFilters = {
+  search: string;
+  store: string;
+  from: string;
+  to: string;
+};
+
 export type GroceryItem = {
   id: string;
   name: string;
@@ -114,9 +121,14 @@ export async function fetchHealthStatus(signal: AbortSignal): Promise<HealthResp
 export async function fetchPurchases(
   page: number,
   pageSize: number,
+  filters: PurchaseFilters,
   signal: AbortSignal
 ): Promise<PurchasePage> {
   const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+  if (filters.search.trim()) params.set('search', filters.search.trim());
+  if (filters.store.trim()) params.set('store', filters.store.trim());
+  if (filters.from) params.set('from', filters.from);
+  if (filters.to) params.set('to', filters.to);
   return sendRequest<PurchasePage>(`/api/purchases?${params.toString()}`, {
     headers: { Accept: 'application/json' },
     signal,

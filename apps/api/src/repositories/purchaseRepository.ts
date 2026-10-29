@@ -102,15 +102,48 @@ export async function listPurchaseRecords(input: PurchaseListQuery): Promise<{
   total: number;
 }> {
   const offset = (input.page - 1) * input.pageSize;
-  const countResult = await query<{ total: string }>('SELECT COUNT(*) AS total FROM purchases');
+  const filterValues: string[] = [];
+  const conditions: string[] = [];
+  const addValue = (value: string) => {
+    filterValues.push(value);
+    return `$${filterValues.length}`;
+  };
+  const escapeLike = (value: string) => value.replace(/[\\%_]/g, '\\$&');
+
+  if (input.search) {
+    const searchParameter = addValue(`%${escapeLike(input.search)}%`);
+    conditions.push(`EXISTS (
+      SELECT 1
+      FROM purchase_items pi
+      WHERE pi.purchase_id = p.id
+        AND pi.item_name ILIKE ${searchParameter} ESCAPE E'\\\\'
+    )`);
+  }
+
+  if (input.store) {
+    const storeParameter = addValue(`%${escapeLike(input.store)}%`);
+    conditions.push(`p.store_name ILIKE ${storeParameter} ESCAPE E'\\\\'`);
+  }
+
+  if (input.from) conditions.push(`p.purchased_on >= ${addValue(input.from)}::date`);
+  if (input.to) conditions.push(`p.purchased_on <= ${addValue(input.to)}::date`);
+
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+  const countResult = await query<{ total: string }>(
+    `SELECT COUNT(*) AS total FROM purchases p ${whereClause}`,
+    filterValues
+  );
+  const pageSizeParameter = `$${filterValues.length + 1}`;
+  const offsetParameter = `$${filterValues.length + 2}`;
   const purchaseResult = await query<PurchaseRow>(
-    `SELECT id, purchased_on::text AS "purchasedOn", store_name AS "storeName",
-            currency, total_paid_centavos AS "totalPaidCentavos",
-            created_at AS "createdAt"
-     FROM purchases
-     ORDER BY purchased_on DESC, created_at DESC, id DESC
-     LIMIT $1 OFFSET $2`,
-    [input.pageSize, offset]
+    `SELECT p.id, p.purchased_on::text AS "purchasedOn", p.store_name AS "storeName",
+            p.currency, p.total_paid_centavos AS "totalPaidCentavos",
+            p.created_at AS "createdAt"
+     FROM purchases p
+     ${whereClause}
+     ORDER BY p.purchased_on DESC, p.created_at DESC, p.id DESC
+     LIMIT ${pageSizeParameter} OFFSET ${offsetParameter}`,
+    [...filterValues, input.pageSize, offset]
   );
 
   const purchaseRows = purchaseResult.rows;

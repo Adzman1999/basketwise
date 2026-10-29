@@ -33,7 +33,19 @@ export const createPurchaseSchema = z.object({
 export const purchaseListQuerySchema = z.object({
   page: z.coerce.number().int().min(1).max(1_000_000).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
-}).strict();
+  search: z.string().trim().min(1).max(120).optional(),
+  store: z.string().trim().min(1).max(120).optional(),
+  from: calendarDate.optional(),
+  to: calendarDate.optional(),
+}).strict().superRefine((filters, context) => {
+  if (filters.from && filters.to && filters.from > filters.to) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['to'],
+      message: 'The end date must be on or after the start date.',
+    });
+  }
+});
 
 export type CreatePurchaseInput = z.infer<typeof createPurchaseSchema>;
 export type PurchaseListQuery = z.infer<typeof purchaseListQuerySchema>;

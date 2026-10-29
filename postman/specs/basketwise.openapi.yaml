@@ -18,7 +18,9 @@ paths:
       summary: List grocery purchases
       description: |
         Returns purchases by purchase date descending, then creation time
-        descending, then ID descending, with receipt line items.
+        descending, then ID descending, with receipt line items. Optional item
+        and store substring searches and inclusive purchase-date bounds are
+        applied before pagination; total reports the number of matching receipts.
       parameters:
         - name: page
           in: query
@@ -38,6 +40,36 @@ paths:
             minimum: 1
             maximum: 100
             default: 20
+        - name: search
+          in: query
+          required: false
+          description: Case-insensitive literal substring matched against receipt item names.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 120
+        - name: store
+          in: query
+          required: false
+          description: Case-insensitive literal substring matched against the store name.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 120
+        - name: from
+          in: query
+          required: false
+          description: Inclusive start purchase date in YYYY-MM-DD format.
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          required: false
+          description: Inclusive end purchase date in YYYY-MM-DD format; must be on or after from.
+          schema:
+            type: string
+            format: date
       responses:
         "200":
           description: A page of purchases.

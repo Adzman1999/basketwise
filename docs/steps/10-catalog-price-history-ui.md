@@ -18,12 +18,13 @@ Let a household find a normalized grocery item and review the prices recorded on
 - A persistent theme toggle follows the operating system preference on first visit and remembers the user's selection.
 - Purchase entry opens in a shadcn/ui modal from the Grocery spending action, with no duplicate inline form card or Add purchase menu item.
 - Sidebar destinations each have their own content: Overview is reserved, Grocery spending contains receipt history and its purchase modal action, and Items & prices contains the catalog and selected-item price history.
+- Purchase history supports debounced item-name search, store substring matching, and inclusive date-range filters. The API applies filters before pagination and reports the matching total.
 - Removed the redundant PHP explainer while keeping the peso symbol beside amount fields.
 
 ## Verification
 
 - `pnpm typecheck` passed for API and web.
-- `pnpm test` passed against the isolated local test database, including item search and price history.
+- `pnpm test` passed against the isolated local test database, covering item/store purchase search, date bounds, filtered pagination, and item price history.
 - `pnpm build` passed for API and web.
 - OpenAPI syntax lint and Postman collection lint passed.
 - The local Vite page and API proxy return HTTP 200. The local dev database has no saved purchases, so the UI's empty-catalog state is served there.

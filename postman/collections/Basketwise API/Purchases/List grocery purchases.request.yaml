@@ -1,5 +1,5 @@
 $kind: http-request
-description: Returns purchases newest first, with receipt line items.
+description: Returns purchases newest first, with receipt line items. Optional item/store substring searches and inclusive date bounds are applied before pagination.
 url: '{{baseUrl}}/api/purchases?page=1&pageSize=20'
 method: GET
 headers:
@@ -13,6 +13,22 @@ queryParams:
     value: "20"
     disabled: false
     description: Number of purchases per page, up to 100.
+  - key: search
+    value: "rice"
+    disabled: true
+    description: Case-insensitive literal substring matched against receipt item names.
+  - key: store
+    value: "market"
+    disabled: true
+    description: Case-insensitive literal substring matched against the store name.
+  - key: from
+    value: "2026-10-01"
+    disabled: true
+    description: Inclusive start purchase date in YYYY-MM-DD format.
+  - key: to
+    value: "2026-10-31"
+    disabled: true
+    description: Inclusive end purchase date in YYYY-MM-DD format.
 settings: {}
 examples: ./.resources/List grocery purchases.resources/examples
 order: 2000

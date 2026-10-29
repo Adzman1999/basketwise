@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
-import { createPurchase, fetchHealthStatus, fetchPurchases, type CreatePurchaseRequest, type HealthResponse } from '@/lib/api';
+import { createPurchase, fetchHealthStatus, fetchPurchases, type CreatePurchaseRequest, type HealthResponse, type PurchaseFilters } from '@/lib/api';
 
 type ConnectionState =
   | { kind: 'checking' }
@@ -19,6 +19,14 @@ type ConnectionState =
   | { kind: 'error'; message: string };
 
 const pageSize = 20;
+const emptyPurchaseFilters: PurchaseFilters = { search: '', store: '', from: '', to: '' };
+
+function samePurchaseFilters(left: PurchaseFilters, right: PurchaseFilters): boolean {
+  return left.search === right.search
+    && left.store === right.store
+    && left.from === right.from
+    && left.to === right.to;
+}
 
 function getActiveHref(): string {
   const hash = window.location.hash;
@@ -33,13 +41,13 @@ export default function App() {
   const [history, setHistory] = useState<PurchaseHistoryState>({ kind: 'loading' });
   const [pageNumber, setPageNumber] = useState(1);
   const [historyRefresh, setHistoryRefresh] = useState(0);
+  const [purchaseFilters, setPurchaseFilters] = useState<PurchaseFilters>(emptyPurchaseFilters);
+  const [appliedPurchaseFilters, setAppliedPurchaseFilters] = useState<PurchaseFilters>(emptyPurchaseFilters);
   const [catalogRefresh, setCatalogRefresh] = useState(0);
   const [activeHref, setActiveHref] = useState(getActiveHref);
   const [purchaseDialogOpen, setPurchaseDialogOpen] = useState(false);
 
   useEffect(() => {
-    if (activeHref !== '#grocery-spending') return;
-
     const controller = new AbortController();
     setConnection({ kind: 'checking' });
 
@@ -59,10 +67,16 @@ export default function App() {
   }, [connectionCheck]);
 
   useEffect(() => {
+    if (activeHref !== '#grocery-spending') return;
+    if (appliedPurchaseFilters.from && appliedPurchaseFilters.to && appliedPurchaseFilters.from > appliedPurchaseFilters.to) {
+      setHistory({ kind: 'invalid', message: 'The start date must be on or before the end date.' });
+      return;
+    }
+
     const controller = new AbortController();
     setHistory({ kind: 'loading' });
 
-    void fetchPurchases(pageNumber, pageSize, controller.signal)
+    void fetchPurchases(pageNumber, pageSize, appliedPurchaseFilters, controller.signal)
       .then((data) => {
         if (!controller.signal.aborted) setHistory({ kind: 'loaded', page: data });
       })
@@ -75,7 +89,18 @@ export default function App() {
       });
 
     return () => controller.abort();
-  }, [activeHref, pageNumber, historyRefresh]);
+  }, [activeHref, pageNumber, historyRefresh, appliedPurchaseFilters]);
+
+  useEffect(() => {
+    if (samePurchaseFilters(purchaseFilters, appliedPurchaseFilters)) return;
+
+    const timeout = window.setTimeout(() => {
+      setAppliedPurchaseFilters(purchaseFilters);
+      setPageNumber(1);
+    }, 250);
+
+    return () => window.clearTimeout(timeout);
+  }, [purchaseFilters, appliedPurchaseFilters]);
 
   useEffect(() => {
     const updateActiveSection = () => setActiveHref(getActiveHref());
@@ -101,6 +126,7 @@ export default function App() {
     : activeHref === '#grocery-catalog'
       ? 'Items & prices'
       : 'Overview';
+  const purchaseFiltersPending = !samePurchaseFilters(purchaseFilters, appliedPurchaseFilters);
 
   return (
     <ThemeProvider>
@@ -177,6 +203,11 @@ export default function App() {
                       state={history}
                       pageNumber={pageNumber}
                       pageSize={pageSize}
+                      filters={purchaseFilters}
+                      filtersPending={purchaseFiltersPending}
+                      onFiltersChange={(filters) => {
+                        setPurchaseFilters(filters);
+                      }}
                       onPageChange={setPageNumber}
                       onRetry={() => setHistoryRefresh((current) => current + 1)}
                     />
