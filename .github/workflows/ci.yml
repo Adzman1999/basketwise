@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate workspace and API contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: postgresql://basketwise:basketwise@localhost:5432/basketwise_test
+      TEST_DATABASE_URL: postgresql://basketwise:basketwise@localhost:5432/basketwise_test
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: basketwise
+          POSTGRES_PASSWORD: basketwise
+          POSTGRES_DB: basketwise_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U basketwise -d basketwise_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 10.33.2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Postman CLI
+        run: npm install --global postman-cli@1.76.0
+
+      - name: Lint OpenAPI syntax
+        run: postman spec lint postman/specs/basketwise.openapi.yaml --issueType syntax --no-report-events
+
+      - name: Lint Postman collection
+        run: postman collection lint 'postman/collections/Basketwise API' --fail-severity error
+
+      - name: Typecheck workspace
+        run: pnpm typecheck
+
+      - name: Apply test database migrations
+        run: pnpm db:migrate:test
+
+      - name: Run API tests
+        run: pnpm test
+
+      - name: Build workspace
+        run: pnpm build
+
+      - name: Run Postman API checks
+        run: |
+          set -euo pipefail
+          NODE_ENV=test node apps/api/dist/server.js > "$RUNNER_TEMP/basketwise-api.log" 2>&1 &
+          api_pid=$!
+          cleanup() {
+            kill "$api_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          for attempt in {1..30}; do
+            if curl --fail --silent http://localhost:4000/api/health >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+
+          if ! curl --fail --silent http://localhost:4000/api/health >/dev/null; then
+            cat "$RUNNER_TEMP/basketwise-api.log"
+            exit 1
+          fi
+
+          postman collection run 'postman/collections/Basketwise API' --no-report-events

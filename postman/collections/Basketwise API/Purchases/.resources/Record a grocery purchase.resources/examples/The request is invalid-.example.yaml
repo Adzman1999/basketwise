@@ -1,0 +1,44 @@
+$kind: http-example
+name: A purchase with zero quantity is rejected.
+request:
+  url: '{{baseUrl}}/api/purchases'
+  method: POST
+  headers:
+    Accept: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "purchasedOn": "2026-10-29",
+        "storeName": "Neighborhood Market",
+        "totalPaidCentavos": 12550,
+        "items": [
+          {
+            "itemName": "Rice",
+            "quantity": 0,
+            "unit": "kg",
+            "amountPaidCentavos": 11000
+          },
+          {
+            "itemName": "Bananas",
+            "quantity": 1,
+            "unit": "pack",
+            "amountPaidCentavos": 1300
+          }
+        ]
+      }
+response:
+  statusCode: 400
+  statusText: Bad Request
+  headers:
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "error": {
+          "code": "VALIDATION_ERROR",
+          "message": "The request is invalid."
+        }
+      }
+order: 2000

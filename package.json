@@ -4,5 +4,20 @@
   "packageManager": "pnpm@10.33.2",
   "engines": {
     "node": ">=24"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter @basketwise/api --filter @basketwise/web dev",
+    "dev:api": "pnpm --filter @basketwise/api dev",
+    "dev:web": "pnpm --filter @basketwise/web dev",
+    "build": "pnpm build:api && pnpm build:web",
+    "build:api": "pnpm --filter @basketwise/api build",
+    "build:web": "pnpm --filter @basketwise/web build",
+    "db:migrate": "pnpm --filter @basketwise/api db:migrate",
+    "db:migrate:test": "pnpm --filter @basketwise/api db:migrate:test",
+    "typecheck": "pnpm typecheck:api && pnpm typecheck:web",
+    "typecheck:api": "pnpm --filter @basketwise/api typecheck",
+    "typecheck:web": "pnpm --filter @basketwise/web typecheck",
+    "test": "pnpm test:api",
+    "test:api": "pnpm --filter @basketwise/api test"
   }
 }

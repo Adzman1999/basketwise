@@ -1,0 +1,33 @@
+$kind: http-example
+name: A page of grocery items.
+request:
+  url: '{{baseUrl}}/api/grocery-items?page=1&pageSize=20'
+  method: GET
+  headers:
+    Accept: application/json
+  queryParams:
+    page: "1"
+    pageSize: "20"
+  body:
+    type: text
+    content: ""
+response:
+  statusCode: 200
+  statusText: OK
+  headers:
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "items": [
+          {
+            "id": "b94ab4f4-cb08-48ce-83a9-ff99f6eb488c",
+            "name": "Rice"
+          }
+        ],
+        "page": 1,
+        "pageSize": 20,
+        "total": 1
+      }
+order: 1000

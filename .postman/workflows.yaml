@@ -1,0 +1,4 @@
+workflows:
+  syncSpecToCollection:
+    - spec: ../postman/specs/basketwise.openapi.yaml
+      collection: ../postman/collections/Basketwise API

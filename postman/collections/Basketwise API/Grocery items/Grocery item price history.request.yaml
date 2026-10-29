@@ -1,0 +1,37 @@
+$kind: http-request
+description: |
+  Lists price observations newest first. Only matching normalized unit labels
+  are comparable; no conversion between units is performed.
+url: '{{baseUrl}}/api/grocery-items/{{lastGroceryItemId}}/price-history?page=1&pageSize=20'
+method: GET
+headers:
+  Accept: application/json
+queryParams:
+  - key: page
+    value: "1"
+    disabled: false
+    description: One-based result page.
+  - key: pageSize
+    value: "20"
+    disabled: false
+    description: Number of observations per page, up to 100.
+settings: {}
+examples: ./.resources/Grocery item price history.resources/examples
+order: 2000
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('returns HTTP 200', function () {
+        pm.response.to.have.status(200);
+      });
+
+      pm.test('returns purchase-backed price observations', function () {
+        const body = pm.response.json();
+        pm.expect(body.groceryItem.id).to.eql(pm.collectionVariables.get('lastGroceryItemId'));
+        pm.expect(body.items).to.be.an('array').that.is.not.empty;
+        body.items.forEach(function (observation) {
+          pm.expect(observation.amountPaidCentavos).to.be.a('number');
+          pm.expect(observation.unitPriceCentavos).to.be.a('number');
+        });
+      });

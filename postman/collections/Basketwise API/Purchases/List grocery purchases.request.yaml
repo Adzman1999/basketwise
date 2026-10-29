@@ -1,0 +1,40 @@
+$kind: http-request
+description: Returns purchases newest first, with receipt line items.
+url: '{{baseUrl}}/api/purchases?page=1&pageSize=20'
+method: GET
+headers:
+  Accept: application/json
+queryParams:
+  - key: page
+    value: "1"
+    disabled: false
+    description: One-based result page.
+  - key: pageSize
+    value: "20"
+    disabled: false
+    description: Number of purchases per page, up to 100.
+settings: {}
+examples: ./.resources/List grocery purchases.resources/examples
+order: 2000
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('returns HTTP 200', function () {
+        pm.response.to.have.status(200);
+      });
+
+      pm.test('returns the requested page and PHP purchase records', function () {
+        const body = pm.response.json();
+        pm.expect(body.page).to.eql(1);
+        pm.expect(body.pageSize).to.eql(20);
+        pm.expect(body.items).to.be.an('array');
+        body.items.forEach(function (purchase) {
+          pm.expect(purchase.currency).to.eql('PHP');
+          pm.expect(purchase.items).to.be.an('array');
+        });
+        const createdPurchaseId = pm.collectionVariables.get('lastCreatedPurchaseId');
+        pm.expect(body.items.some(function (purchase) {
+          return purchase.id === createdPurchaseId;
+        })).to.eql(true);
+      });

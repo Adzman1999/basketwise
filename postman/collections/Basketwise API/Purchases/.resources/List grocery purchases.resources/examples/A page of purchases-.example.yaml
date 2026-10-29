@@ -1,0 +1,56 @@
+$kind: http-example
+name: A page of purchases.
+request:
+  url: '{{baseUrl}}/api/purchases?page=1&pageSize=20'
+  method: GET
+  headers:
+    Accept: application/json
+  queryParams:
+    page: "1"
+    pageSize: "20"
+  body:
+    type: text
+    content: ""
+response:
+  statusCode: 200
+  statusText: OK
+  headers:
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "items": [
+          {
+            "id": "7ef38c55-13ec-4e49-9b50-7d97eb8f5001",
+            "purchasedOn": "2026-10-29",
+            "storeName": "Neighborhood Market",
+            "currency": "PHP",
+            "totalPaidCentavos": 12550,
+            "unallocatedAmountCentavos": 250,
+            "items": [
+              {
+                "id": "f557ea81-8e28-4bc0-bf38-92b0a1c3331a",
+                "groceryItemId": "b94ab4f4-cb08-48ce-83a9-ff99f6eb488c",
+                "itemName": "Rice",
+                "quantity": 2,
+                "unit": "kg",
+                "amountPaidCentavos": 11000
+              },
+              {
+                "id": "b4c7c876-a686-4caf-b6fd-4861c3e3a718",
+                "groceryItemId": "65fcaec9-a74a-4b8b-becb-0f0733762f35",
+                "itemName": "Bananas",
+                "quantity": 1,
+                "unit": "pack",
+                "amountPaidCentavos": 1300
+              }
+            ],
+            "createdAt": "2026-10-29T08:00:00.000Z"
+          }
+        ],
+        "page": 1,
+        "pageSize": 20,
+        "total": 1
+      }
+order: 1000
