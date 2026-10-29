@@ -10,6 +10,57 @@ servers:
   - url: http://localhost:4000
     description: Local development
 paths:
+  /api/stores:
+    get:
+      operationId: listStores
+      tags:
+        - Stores
+      summary: List saved stores and shops
+      description: Returns saved places in alphabetical order for selection on a grocery purchase.
+      responses:
+        "200":
+          description: Saved stores and shops.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StorePage"
+              example:
+                items:
+                  - id: "7ef38c55-13ec-4e49-9b50-7d97eb8f5001"
+                    name: "Neighborhood Market"
+                    category: neighborhood_grocery
+                    createdAt: "2026-10-29T08:00:00.000Z"
+                total: 1
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    post:
+      operationId: createStore
+      tags:
+        - Stores
+      summary: Save a store or shop
+      description: Adds a place to the saved list. Names are unique after trimming, lowercasing, and collapsing whitespace.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateStoreRequest"
+            example:
+              name: "Green Market"
+              category: neighborhood_grocery
+      responses:
+        "201":
+          description: The store or shop was saved.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Store"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/DuplicateStore"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
   /api/purchases:
     get:
       operationId: listPurchases
@@ -338,6 +389,60 @@ paths:
                 timestamp: "2026-10-29T00:00:00.000Z"
 components:
   schemas:
+    StoreCategory:
+      type: string
+      enum:
+        - supermarket
+        - public_market
+        - convenience_store
+        - neighborhood_grocery
+        - online_grocery
+        - other
+    CreateStoreRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+        - category
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        category:
+          $ref: "#/components/schemas/StoreCategory"
+    Store:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - name
+        - category
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        category:
+          $ref: "#/components/schemas/StoreCategory"
+        createdAt:
+          type: string
+          format: date-time
+    StorePage:
+      type: object
+      additionalProperties: false
+      required:
+        - items
+        - total
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Store"
+        total:
+          type: integer
     CreatePurchaseRequest:
       type: object
       additionalProperties: false
@@ -589,6 +694,16 @@ components:
             message:
               type: string
   responses:
+    DuplicateStore:
+      description: A store or shop with this normalized name already exists.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+          example:
+            error:
+              code: "DUPLICATE_STORE"
+              message: "A store or shop with this name already exists."
     BadRequest:
       description: The request is invalid.
       content:

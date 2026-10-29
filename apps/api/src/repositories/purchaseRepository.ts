@@ -68,6 +68,20 @@ export async function createPurchaseRecord(input: CreatePurchaseInput): Promise<
     await client.query('BEGIN');
     transactionStarted = true;
 
+    if (input.storeName) {
+      await client.query(
+        `INSERT INTO stores (name, normalized_name, category)
+         VALUES (
+           btrim(regexp_replace($1, '[[:space:]]+', ' ', 'g')),
+           btrim(regexp_replace(lower(btrim($1)), '[[:space:]]+', ' ', 'g')),
+           'other'
+         )
+         ON CONFLICT (normalized_name)
+         DO UPDATE SET normalized_name = EXCLUDED.normalized_name`,
+        [input.storeName]
+      );
+    }
+
     const purchaseResult = await client.query<PurchaseRow>(
       `INSERT INTO purchases (purchased_on, store_name, total_paid_centavos)
        VALUES ($1, $2, $3)

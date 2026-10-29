@@ -16,7 +16,7 @@ const validPurchase = {
 };
 
 beforeEach(async () => {
-  await query('TRUNCATE TABLE purchase_items, purchases, grocery_items RESTART IDENTITY CASCADE');
+  await query('TRUNCATE TABLE purchase_items, purchases, grocery_items, stores RESTART IDENTITY CASCADE');
 });
 
 afterAll(async () => {

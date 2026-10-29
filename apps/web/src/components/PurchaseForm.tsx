@@ -5,7 +5,19 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { fetchGroceryItems, type CreatePurchaseItem, type CreatePurchaseRequest, type GroceryItem } from '../lib/api';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  createStore,
+  fetchGroceryItems,
+  fetchStores,
+  storeCategories,
+  storeCategoryLabels,
+  type CreatePurchaseItem,
+  type CreatePurchaseRequest,
+  type GroceryItem,
+  type Store,
+  type StoreCategory,
+} from '../lib/api';
 
 type DraftItem = {
   id: number;
@@ -49,6 +61,12 @@ function emptyItem(id: number): DraftItem {
 
 const inputClassName = 'h-10 w-full min-w-0 rounded-md bg-background text-sm';
 const labelClassName = 'grid min-w-0 gap-2 text-sm font-medium';
+const noStoreValue = 'none';
+const addStoreValue = 'add-store';
+
+function normalizeStoreName(name: string): string {
+  return name.trim().replace(/\s+/g, ' ').toLowerCase();
+}
 
 function CatalogNameInput({
   itemId,
@@ -130,12 +148,38 @@ function CatalogNameInput({
 export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) {
   const nextItemId = useRef(2);
   const [purchasedOn, setPurchasedOn] = useState(todayAsLocalDate);
-  const [storeName, setStoreName] = useState('');
+  const [stores, setStores] = useState<Store[]>([]);
+  const [storesLoading, setStoresLoading] = useState(true);
+  const [storeLoadError, setStoreLoadError] = useState('');
+  const [selectedStoreId, setSelectedStoreId] = useState(noStoreValue);
+  const [storeEditorOpen, setStoreEditorOpen] = useState(false);
+  const [newStoreName, setNewStoreName] = useState('');
+  const [newStoreCategory, setNewStoreCategory] = useState<StoreCategory>('supermarket');
+  const [storeErrorMessage, setStoreErrorMessage] = useState('');
+  const [isAddingStore, setIsAddingStore] = useState(false);
   const [totalPaid, setTotalPaid] = useState('');
   const [items, setItems] = useState<DraftItem[]>([emptyItem(1)]);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetchStores(controller.signal)
+      .then((page) => {
+        if (!controller.signal.aborted) setStores(page.items);
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) return;
+        setStoreLoadError(error instanceof Error ? error.message : 'Could not load saved stores.');
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setStoresLoading(false);
+      });
+    return () => controller.abort();
+  }, []);
+
+  const selectedStore = stores.find((store) => store.id === selectedStoreId);
 
   function updateItem(id: number, changes: Partial<DraftItem>) {
     setItems((current) => current.map((item) => item.id === id ? { ...item, ...changes } : item));
@@ -152,9 +196,39 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
 
   function resetForm() {
     setPurchasedOn(todayAsLocalDate());
-    setStoreName('');
+    setSelectedStoreId(noStoreValue);
     setTotalPaid('');
     setItems([emptyItem(nextItemId.current++)]);
+  }
+
+  async function saveNewStore() {
+    const name = newStoreName.trim().replace(/\s+/g, ' ');
+    if (!name) {
+      setStoreErrorMessage('Enter a store or shop name.');
+      return;
+    }
+
+    const existing = stores.find((store) => normalizeStoreName(store.name) === normalizeStoreName(name));
+    if (existing) {
+      setSelectedStoreId(existing.id);
+      setStoreEditorOpen(false);
+      setStoreErrorMessage('');
+      return;
+    }
+
+    setStoreErrorMessage('');
+    setIsAddingStore(true);
+    try {
+      const store = await createStore({ name, category: newStoreCategory });
+      setStores((current) => [...current, store].sort((left, right) => left.name.localeCompare(right.name)));
+      setSelectedStoreId(store.id);
+      setNewStoreName('');
+      setStoreEditorOpen(false);
+    } catch (error) {
+      setStoreErrorMessage(error instanceof Error ? error.message : 'Could not save this store or shop.');
+    } finally {
+      setIsAddingStore(false);
+    }
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -192,7 +266,7 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
     try {
       await onSubmit({
         purchasedOn,
-        ...(storeName.trim() ? { storeName: storeName.trim() } : {}),
+        ...(selectedStore ? { storeName: selectedStore.name } : {}),
         totalPaidCentavos,
         items: purchaseItems,
       });
@@ -214,10 +288,89 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
               <Input className={inputClassName} type="date" value={purchasedOn} onChange={(event) => setPurchasedOn(event.target.value)} required disabled={isSaving} />
             </Label>
             <Label className={labelClassName}>
-              Store <span className="font-normal text-muted-foreground">· optional</span>
-              <Input className={inputClassName} type="text" value={storeName} onChange={(event) => setStoreName(event.target.value)} maxLength={120} placeholder="Where did you shop?" disabled={isSaving} />
+              Store or shop <span className="font-normal text-muted-foreground">· optional</span>
+              <Select
+                value={storeEditorOpen ? addStoreValue : selectedStoreId}
+                onValueChange={(value) => {
+                  if (value === addStoreValue) {
+                    setStoreErrorMessage('');
+                    setStoreEditorOpen(true);
+                    return;
+                  }
+                  setStoreEditorOpen(false);
+                  setSelectedStoreId(value);
+                }}
+                disabled={isSaving || storesLoading}
+              >
+                <SelectTrigger className={inputClassName} aria-label="Choose a store or shop">
+                  <SelectValue placeholder={storesLoading ? 'Loading saved places…' : 'Choose a saved place'} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={noStoreValue}>Not recorded</SelectItem>
+                  {stores.map((store) => (
+                    <SelectItem key={store.id} value={store.id}>
+                      {store.name} · {storeCategoryLabels[store.category]}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value={addStoreValue}>
+                    <span className="inline-flex items-center gap-2">
+                      <Plus className="size-4" aria-hidden="true" /> Add a store or shop…
+                    </span>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              {storeLoadError && <span className="text-xs font-normal leading-5 text-destructive">{storeLoadError}</span>}
             </Label>
           </div>
+
+          {storeEditorOpen && (
+            <fieldset className="space-y-4 rounded-lg border bg-muted/20 p-4">
+              <legend className="px-1 text-sm font-medium">Add a store or shop</legend>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Label htmlFor="purchase-new-store-name" className={labelClassName}>
+                  Name
+                  <Input
+                    id="purchase-new-store-name"
+                    className={inputClassName}
+                    value={newStoreName}
+                    onChange={(event) => setNewStoreName(event.target.value)}
+                    maxLength={120}
+                    placeholder="e.g. Green Market"
+                    disabled={isAddingStore || isSaving}
+                  />
+                </Label>
+                <div className="grid min-w-0 gap-2 text-sm font-medium">
+                  <Label htmlFor="purchase-new-store-category">Category</Label>
+                  <Select
+                    value={newStoreCategory}
+                    onValueChange={(value) => setNewStoreCategory(value as StoreCategory)}
+                    disabled={isAddingStore || isSaving}
+                  >
+                    <SelectTrigger id="purchase-new-store-category" className={inputClassName}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {storeCategories.map((category) => (
+                        <SelectItem key={category} value={category}>{storeCategoryLabels[category]}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              {storeErrorMessage && (
+                <Alert variant="destructive">
+                  <AlertTitle>Store could not be added</AlertTitle>
+                  <AlertDescription>{storeErrorMessage}</AlertDescription>
+                </Alert>
+              )}
+              <div className="flex flex-wrap justify-end gap-2">
+                <Button type="button" variant="ghost" size="sm" onClick={() => setStoreEditorOpen(false)} disabled={isAddingStore || isSaving}>Cancel</Button>
+                <Button type="button" size="sm" onClick={() => void saveNewStore()} disabled={isAddingStore || isSaving || !newStoreName.trim()}>
+                  <Plus aria-hidden="true" /> {isAddingStore ? 'Saving…' : 'Save place'}
+                </Button>
+              </div>
+            </fieldset>
+          )}
 
           <Label className={labelClassName}>
             Receipt total

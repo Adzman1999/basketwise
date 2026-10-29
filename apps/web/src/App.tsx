@@ -4,6 +4,7 @@ import AppSidebar from '@/components/AppSidebar';
 import GroceryCatalog from '@/components/GroceryCatalog';
 import PurchaseForm from '@/components/PurchaseForm';
 import PurchaseHistory, { type PurchaseHistoryState } from '@/components/PurchaseHistory';
+import StoresAndShops from '@/components/StoresAndShops';
 import ThemeToggle from '@/components/ThemeToggle';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import { Badge } from '@/components/ui/badge';
@@ -31,7 +32,7 @@ function samePurchaseFilters(left: PurchaseFilters, right: PurchaseFilters): boo
 function getActiveHref(): string {
   const hash = window.location.hash;
   if (hash === '#purchase-history' || hash === '#new-purchase') return '#grocery-spending';
-  if (hash === '#grocery-spending' || hash === '#grocery-catalog') return hash;
+  if (hash === '#grocery-spending' || hash === '#grocery-catalog' || hash === '#stores') return hash;
   return '#overview';
 }
 
@@ -125,7 +126,9 @@ export default function App() {
     ? 'Grocery spending'
     : activeHref === '#grocery-catalog'
       ? 'Items & prices'
-      : 'Overview';
+      : activeHref === '#stores'
+        ? 'Stores & shops'
+        : 'Overview';
   const purchaseFiltersPending = !samePurchaseFilters(purchaseFilters, appliedPurchaseFilters);
 
   return (
@@ -176,14 +179,22 @@ export default function App() {
               <>
                 <section className="mb-7 flex scroll-mt-24 flex-col justify-between gap-4 sm:mb-9 sm:flex-row sm:items-end">
                   <div>
-                    <p className="text-xs font-medium text-primary">{activeHref === '#grocery-catalog' ? 'Items & prices' : 'Household'}</p>
+                    <p className="text-xs font-medium text-primary">
+                      {activeHref === '#grocery-catalog' ? 'Items & prices' : activeHref === '#stores' ? 'Places' : 'Household'}
+                    </p>
                     <h1 className="mt-1.5 text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">
-                      {activeHref === '#grocery-catalog' ? 'Grocery items' : 'Grocery spending'}
+                      {activeHref === '#grocery-catalog'
+                        ? 'Grocery items'
+                        : activeHref === '#stores'
+                          ? 'Stores & shops'
+                          : 'Grocery spending'}
                     </h1>
                     <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
                       {activeHref === '#grocery-catalog'
                         ? 'Browse saved grocery items and compare their recorded prices.'
-                        : 'Keep receipts, item costs, and price history organized for your household.'}
+                        : activeHref === '#stores'
+                          ? 'Save the places you shop and choose them when recording a purchase.'
+                          : 'Keep receipts, item costs, and price history organized for your household.'}
                     </p>
                   </div>
                   {activeHref === '#grocery-spending' && (
@@ -197,6 +208,8 @@ export default function App() {
 
                 {activeHref === '#grocery-catalog' ? (
                   <GroceryCatalog refreshKey={catalogRefresh} />
+                ) : activeHref === '#stores' ? (
+                  <StoresAndShops />
                 ) : (
                   <div id="grocery-spending" className="scroll-mt-24">
                     <PurchaseHistory

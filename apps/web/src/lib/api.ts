@@ -53,6 +53,38 @@ export type GroceryItem = {
   name: string;
 };
 
+export const storeCategories = [
+  'supermarket',
+  'public_market',
+  'convenience_store',
+  'neighborhood_grocery',
+  'online_grocery',
+  'other',
+] as const;
+
+export type StoreCategory = (typeof storeCategories)[number];
+
+export const storeCategoryLabels: Record<StoreCategory, string> = {
+  supermarket: 'Supermarket',
+  public_market: 'Public market',
+  convenience_store: 'Convenience store',
+  neighborhood_grocery: 'Neighborhood grocery',
+  online_grocery: 'Online grocery',
+  other: 'Other',
+};
+
+export type Store = {
+  id: string;
+  name: string;
+  category: StoreCategory;
+  createdAt: string;
+};
+
+export type StorePage = {
+  items: Store[];
+  total: number;
+};
+
 export type GroceryItemPage = {
   items: GroceryItem[];
   page: number;
@@ -146,6 +178,24 @@ export async function fetchGroceryItems(
   return sendRequest<GroceryItemPage>(`/api/grocery-items?${params.toString()}`, {
     headers: { Accept: 'application/json' },
     signal,
+  });
+}
+
+export async function fetchStores(signal: AbortSignal): Promise<StorePage> {
+  return sendRequest<StorePage>('/api/stores', {
+    headers: { Accept: 'application/json' },
+    signal,
+  });
+}
+
+export async function createStore(input: { name: string; category: StoreCategory }): Promise<Store> {
+  return sendRequest<Store>('/api/stores', {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(input),
   });
 }
 

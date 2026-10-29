@@ -1,0 +1,31 @@
+$kind: http-request
+description: Saves a uniquely named example place in the store directory.
+url: '{{baseUrl}}/api/stores'
+method: POST
+headers:
+  Content-Type: application/json
+  Accept: application/json
+body:
+  type: json
+  content: |-
+    {
+      "name": "Basketwise Example {{$guid}}",
+      "category": "supermarket"
+    }
+settings: {}
+examples: ./.resources/Save a store or shop.resources/examples
+order: 2000
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('returns HTTP 201', function () {
+        pm.response.to.have.status(201);
+      });
+
+      pm.test('returns the saved store and its category', function () {
+        const body = pm.response.json();
+        pm.expect(body.id).to.be.a('string');
+        pm.expect(body.name).to.include('Basketwise Example');
+        pm.expect(body.category).to.eql('supermarket');
+      });

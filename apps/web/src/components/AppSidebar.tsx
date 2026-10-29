@@ -1,4 +1,4 @@
-import { LayoutDashboard, ReceiptText, ShoppingBasket, Tags } from 'lucide-react';
+import { LayoutDashboard, ReceiptText, ShoppingBasket, Store, Tags } from 'lucide-react';
 import {
   Sidebar,
   SidebarContent,
@@ -17,6 +17,7 @@ const navigationItems = [
   { href: '#overview', label: 'Overview', icon: LayoutDashboard },
   { href: '#grocery-spending', label: 'Grocery spending', icon: ReceiptText },
   { href: '#grocery-catalog', label: 'Items & prices', icon: Tags },
+  { href: '#stores', label: 'Stores & shops', icon: Store },
 ];
 
 function Brand() {
@@ -75,7 +76,7 @@ export default function AppSidebar({ activeHref }: { activeHref: string }) {
 
       <SidebarFooter className="border-t border-sidebar-border p-4">
         <p className="text-xs font-medium text-sidebar-foreground group-data-[collapsible=icon]:hidden">Your grocery notebook</p>
-        <p className="mt-1 text-xs leading-5 text-sidebar-foreground/70 group-data-[collapsible=icon]:hidden">Receipts, items, and prices in one place.</p>
+        <p className="mt-1 text-xs leading-5 text-sidebar-foreground/70 group-data-[collapsible=icon]:hidden">Receipts, items, prices, and stores.</p>
       </SidebarFooter>
     </Sidebar>
   );

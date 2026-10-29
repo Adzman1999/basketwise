@@ -1,0 +1,22 @@
+$kind: http-request
+description: Lists saved stores and shops in alphabetical order.
+url: '{{baseUrl}}/api/stores'
+method: GET
+headers:
+  Accept: application/json
+settings: {}
+examples: ./.resources/List stores and shops.resources/examples
+order: 1000
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('returns HTTP 200', function () {
+        pm.response.to.have.status(200);
+      });
+
+      pm.test('returns a store directory', function () {
+        const body = pm.response.json();
+        pm.expect(body.items).to.be.an('array');
+        pm.expect(body.total).to.eql(body.items.length);
+      });
