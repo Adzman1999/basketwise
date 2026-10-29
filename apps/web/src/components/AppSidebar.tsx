@@ -14,10 +14,10 @@ import {
 } from '@/components/ui/sidebar';
 
 const navigationItems = [
-  { href: '#overview', label: 'Overview', icon: LayoutDashboard },
-  { href: '#new-purchase', label: 'Add purchase', icon: CirclePlus },
-  { href: '#purchase-history', label: 'Purchase history', icon: ReceiptText },
-  { href: '#grocery-catalog', label: 'Items & prices', icon: Tags },
+  { kind: 'link' as const, href: '#overview', label: 'Overview', icon: LayoutDashboard },
+  { kind: 'action' as const, label: 'Add purchase', icon: CirclePlus },
+  { kind: 'link' as const, href: '#grocery-catalog', label: 'Items & prices', icon: Tags },
+  { kind: 'link' as const, href: '#purchase-history', label: 'Purchase history', icon: ReceiptText },
 ];
 
 function Brand() {
@@ -34,7 +34,7 @@ function Brand() {
   );
 }
 
-export default function AppSidebar({ activeHref }: { activeHref: string }) {
+export default function AppSidebar({ activeHref, onAddPurchase }: { activeHref: string; onAddPurchase: () => void }) {
   const { isMobile, setOpenMobile } = useSidebar();
 
   return (
@@ -48,7 +48,26 @@ export default function AppSidebar({ activeHref }: { activeHref: string }) {
           <SidebarGroupLabel>Workspace</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navigationItems.map(({ href, label, icon: Icon }) => {
+              {navigationItems.map((item) => {
+                const { label, icon: Icon } = item;
+                if (item.kind === 'action') {
+                  return (
+                    <SidebarMenuItem key={label}>
+                      <SidebarMenuButton
+                        tooltip={label}
+                        onClick={() => {
+                          onAddPurchase();
+                          if (isMobile) setOpenMobile(false);
+                        }}
+                      >
+                        <Icon aria-hidden="true" />
+                        <span>{label}</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                }
+
+                const { href } = item;
                 const isActive = activeHref === href;
                 return (
                   <SidebarMenuItem key={href}>

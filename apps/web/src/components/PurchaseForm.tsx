@@ -3,7 +3,6 @@ import { CheckCircle2, Plus, Save, Trash2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { fetchGroceryItems, type CreatePurchaseItem, type CreatePurchaseRequest, type GroceryItem } from '../lib/api';
@@ -206,19 +205,7 @@ export default function PurchaseForm({ onSubmit }: PurchaseFormProps) {
   }
 
   return (
-    <Card className="overflow-hidden shadow-sm">
-      <CardHeader className="border-b bg-muted/30 p-5 sm:p-6">
-        <div className="flex items-start justify-between gap-4">
-          <div className="space-y-1.5">
-            <Badge variant="secondary" className="w-fit">Receipt entry</Badge>
-            <CardTitle className="text-xl">Add a purchase</CardTitle>
-            <CardDescription>Record the receipt total and its item lines.</CardDescription>
-          </div>
-        </div>
-      </CardHeader>
-
-      <CardContent className="p-5 sm:p-6">
-        <form className="space-y-5" onSubmit={handleSubmit}>
+    <form className="space-y-5" onSubmit={handleSubmit}>
           <div className="grid gap-4 sm:grid-cols-2">
             <Label className={labelClassName}>
               Purchase date
@@ -323,8 +310,6 @@ export default function PurchaseForm({ onSubmit }: PurchaseFormProps) {
           <p className="text-center text-xs leading-5 text-muted-foreground">
             Quantity units are saved as entered. Any receipt difference is shown as unallocated.
           </p>
-        </form>
-      </CardContent>
-    </Card>
+    </form>
   );
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Activity, ArrowUpRight, CirclePlus, RefreshCw } from 'lucide-react';
+import { Activity, ArrowUpRight, CirclePlus, RefreshCw, Tags } from 'lucide-react';
 import AppSidebar from '@/components/AppSidebar';
 import GroceryCatalog from '@/components/GroceryCatalog';
 import PurchaseForm from '@/components/PurchaseForm';
@@ -8,6 +8,7 @@ import ThemeToggle from '@/components/ThemeToggle';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { createPurchase, fetchHealthStatus, fetchPurchases, type CreatePurchaseRequest, type HealthResponse } from '@/lib/api';
@@ -27,6 +28,7 @@ export default function App() {
   const [historyRefresh, setHistoryRefresh] = useState(0);
   const [catalogRefresh, setCatalogRefresh] = useState(0);
   const [activeHref, setActiveHref] = useState(() => window.location.hash || '#overview');
+  const [purchaseDialogOpen, setPurchaseDialogOpen] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -77,6 +79,7 @@ export default function App() {
     setPageNumber(1);
     setHistoryRefresh((current) => current + 1);
     setCatalogRefresh((current) => current + 1);
+    setPurchaseDialogOpen(false);
   }
 
   const connectionLabel = connection.kind === 'connected'
@@ -95,7 +98,7 @@ export default function App() {
   return (
     <ThemeProvider>
       <SidebarProvider defaultOpen className="min-h-screen w-full bg-background">
-        <AppSidebar activeHref={activeHref} />
+            <AppSidebar activeHref={activeHref} onAddPurchase={() => setPurchaseDialogOpen(true)} />
         <SidebarInset className="min-h-screen bg-background">
           <header className="sticky top-0 z-30 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:px-7 lg:px-9">
             <div className="mx-auto flex min-h-16 max-w-[1600px] items-center justify-between gap-4">
@@ -138,26 +141,35 @@ export default function App() {
           <main className="mx-auto w-full max-w-[1600px] flex-1 px-4 pb-10 pt-7 sm:px-7 sm:pb-14 sm:pt-9 lg:px-9 lg:pt-10">
             <section id="overview" className="mb-7 flex scroll-mt-24 flex-col justify-between gap-4 sm:mb-9 sm:flex-row sm:items-end">
               <div>
-                <p className="text-xs font-medium text-primary">Overview</p>
-                <h1 className="mt-1.5 text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">Grocery spending</h1>
+                <p className="text-xs font-medium text-primary">{activeHref === '#grocery-catalog' ? 'Items & prices' : activeHref === '#purchase-history' ? 'Your records' : 'Overview'}</p>
+                <h1 className="mt-1.5 text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">
+                  {activeHref === '#grocery-catalog' ? 'Grocery items' : activeHref === '#purchase-history' ? 'Purchase history' : 'Grocery spending'}
+                </h1>
                 <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
-                  Keep receipts, item costs, and price history organized for your household.
+                  {activeHref === '#grocery-catalog'
+                    ? 'Choose an item to see its recorded prices.'
+                    : 'Keep receipts, item costs, and price history organized for your household.'}
                 </p>
               </div>
-              <Button asChild>
-                <a href="#new-purchase">
+              <div className="flex flex-wrap items-center gap-2">
+                <Button onClick={() => setPurchaseDialogOpen(true)}>
                   <CirclePlus aria-hidden="true" />
                   Add a purchase
                   <ArrowUpRight aria-hidden="true" />
-                </a>
-              </Button>
+                </Button>
+                <Button asChild variant="outline">
+                  <a href="#grocery-catalog">
+                    <Tags aria-hidden="true" />
+                    Items & prices
+                  </a>
+                </Button>
+              </div>
             </section>
 
-            <div className="grid items-start gap-6 xl:grid-cols-[minmax(340px,0.9fr)_minmax(0,1.1fr)] xl:gap-8">
-              <div id="new-purchase" className="scroll-mt-24">
-                <PurchaseForm onSubmit={savePurchase} />
-              </div>
-              <div id="purchase-history" className="scroll-mt-24">
+            {activeHref === '#grocery-catalog' ? (
+              <GroceryCatalog refreshKey={catalogRefresh} />
+            ) : (
+              <div id={activeHref === '#purchase-history' ? 'purchase-history' : undefined} className="scroll-mt-24">
                 <PurchaseHistory
                   state={history}
                   pageNumber={pageNumber}
@@ -166,10 +178,7 @@ export default function App() {
                   onRetry={() => setHistoryRefresh((current) => current + 1)}
                 />
               </div>
-            </div>
-
-            <Separator className="my-10 sm:my-12" />
-            <GroceryCatalog refreshKey={catalogRefresh} />
+            )}
 
             <Separator className="my-8" />
             <footer className="flex flex-col gap-2 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
@@ -178,6 +187,15 @@ export default function App() {
             </footer>
           </main>
         </SidebarInset>
+        <Dialog open={purchaseDialogOpen} onOpenChange={setPurchaseDialogOpen}>
+          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Add a purchase</DialogTitle>
+              <DialogDescription>Enter the receipt total and the items on the receipt.</DialogDescription>
+            </DialogHeader>
+            <PurchaseForm onSubmit={savePurchase} />
+          </DialogContent>
+        </Dialog>
       </SidebarProvider>
     </ThemeProvider>
   );
