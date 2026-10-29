@@ -193,8 +193,8 @@ export default function App() {
           </main>
         </SidebarInset>
         <Dialog open={purchaseDialogOpen} onOpenChange={setPurchaseDialogOpen}>
-          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
-            <DialogHeader>
+          <DialogContent className="flex max-h-[90dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
+            <DialogHeader className="sticky top-0 z-20 shrink-0 border-b bg-background px-6 py-5">
               <DialogTitle>Add a purchase</DialogTitle>
               <DialogDescription>Enter the receipt total and the items on the receipt.</DialogDescription>
             </DialogHeader>

@@ -205,7 +205,8 @@ export default function PurchaseForm({ onSubmit }: PurchaseFormProps) {
   }
 
   return (
-    <form className="space-y-5" onSubmit={handleSubmit}>
+    <form className="flex min-h-0 flex-1 flex-col" onSubmit={handleSubmit}>
+      <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-5">
           <div className="grid gap-4 sm:grid-cols-2">
             <Label className={labelClassName}>
               Purchase date
@@ -302,14 +303,18 @@ export default function PurchaseForm({ onSubmit }: PurchaseFormProps) {
             </Alert>
           )}
 
-          <Button className="w-full" size="lg" type="submit" disabled={isSaving}>
+      </div>
+
+      <div className="sticky bottom-0 z-10 shrink-0 border-t bg-background px-6 py-4">
+        <Button className="w-full" size="lg" type="submit" disabled={isSaving}>
             <Save aria-hidden="true" />
             {isSaving ? 'Saving purchase…' : 'Save purchase'}
-          </Button>
+        </Button>
 
-          <p className="text-center text-xs leading-5 text-muted-foreground">
-            Quantity units are saved as entered. Any receipt difference is shown as unallocated.
-          </p>
+        <p className="mt-2 text-center text-xs leading-5 text-muted-foreground">
+          Quantity units are saved as entered. Any receipt difference is shown as unallocated.
+        </p>
+      </div>
     </form>
   );
 }
