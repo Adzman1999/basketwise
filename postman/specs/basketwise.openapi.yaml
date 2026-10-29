@@ -1,0 +1,46 @@
+openapi: 3.1.0
+info:
+  title: Basketwise API
+  version: 0.1.0
+  description: |
+    The Basketwise API. The health endpoint reports process liveness only; it
+    does not check database readiness.
+servers:
+  - url: http://localhost:4000
+    description: Local development
+paths:
+  /api/health:
+    get:
+      operationId: getHealth
+      tags:
+        - Health
+      summary: Check API process liveness
+      description: Reports that the Basketwise API process is running.
+      responses:
+        "200":
+          description: The API process is running.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - status
+                  - app
+                  - timestamp
+                properties:
+                  status:
+                    type: string
+                    enum:
+                      - healthy
+                  app:
+                    type: string
+                    enum:
+                      - Basketwise API
+                  timestamp:
+                    type: string
+                    format: date-time
+              example:
+                status: healthy
+                app: Basketwise API
+                timestamp: "2026-10-29T00:00:00.000Z"

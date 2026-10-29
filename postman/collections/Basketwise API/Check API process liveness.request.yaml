@@ -1,0 +1,23 @@
+$kind: http-request
+description: Reports that the Basketwise API process is running.
+url: "{{baseUrl}}/api/health"
+method: GET
+headers:
+  Accept: application/json
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('returns HTTP 200', function () {
+        pm.response.to.have.status(200);
+      });
+
+      pm.test('matches the documented liveness response', function () {
+        const body = pm.response.json();
+        pm.expect(body.status).to.eql('healthy');
+        pm.expect(body.app).to.eql('Basketwise API');
+        pm.expect(body.timestamp).to.match(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/);
+      });
+settings: {}
+examples: ./.resources/Check API process liveness.resources/examples
+order: 1000
