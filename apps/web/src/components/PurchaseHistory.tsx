@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, CalendarDays, ChevronDown, ReceiptText, RotateCcw, Search, SlidersHorizontal, Store } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CalendarDays, ChevronDown, LoaderCircle, ReceiptText, RotateCcw, Search, SlidersHorizontal, Store } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
-import type { Purchase, PurchaseFilters, PurchasePage } from '@/lib/api';
+import type { Purchase, PurchaseFilterOptions, PurchasePage } from '@/lib/api';
 
 type PurchaseHistoryState =
   | { kind: 'loading' }
@@ -20,12 +20,17 @@ type PurchaseHistoryProps = {
   state: PurchaseHistoryState;
   pageNumber: number;
   pageSize: number;
-  filters: PurchaseFilters;
-  appliedFilters: PurchaseFilters;
+  filters: PurchaseFilterOptions;
+  appliedFilters: PurchaseFilterOptions;
+  itemSearch: string;
+  appliedSearch: string;
   filtersPending: boolean;
-  onFiltersChange: (filters: PurchaseFilters) => void;
+  searchPending: boolean;
+  onFiltersChange: (filters: PurchaseFilterOptions) => void;
+  onItemSearchChange: (search: string) => void;
   onApplyFilters: () => void;
   onClearFilters: () => void;
+  onClearSearch: () => void;
   onPageChange: (page: number) => void;
   onRetry: () => void;
 };
@@ -133,19 +138,25 @@ export default function PurchaseHistory({
   pageSize,
   filters,
   appliedFilters,
+  itemSearch,
+  appliedSearch,
   filtersPending,
+  searchPending,
   onFiltersChange,
+  onItemSearchChange,
   onApplyFilters,
   onClearFilters,
+  onClearSearch,
   onPageChange,
   onRetry,
 }: PurchaseHistoryProps) {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const filtersPopoverRef = useRef<HTMLDivElement>(null);
-  const draftFilterCount = [filters.search.trim(), filters.store.trim(), filters.from, filters.to].filter(Boolean).length;
-  const appliedFilterCount = [appliedFilters.search.trim(), appliedFilters.store.trim(), appliedFilters.from, appliedFilters.to].filter(Boolean).length;
+  const draftFilterCount = [filters.store.trim(), filters.from, filters.to].filter(Boolean).length;
+  const appliedFilterCount = [appliedFilters.store.trim(), appliedFilters.from, appliedFilters.to].filter(Boolean).length;
   const hasDraftFilters = draftFilterCount > 0;
   const hasAppliedFilters = appliedFilterCount > 0;
+  const hasAppliedCriteria = Boolean(appliedSearch.trim() || hasAppliedFilters);
   const dateRangeInvalid = Boolean(filters.from && filters.to && filters.from > filters.to);
   const appliedDateRangeInvalid = dateRangeInvalid && !filtersPending;
   const pageData = state.kind === 'loaded' && !appliedDateRangeInvalid ? state.page : null;
@@ -169,7 +180,7 @@ export default function PurchaseHistory({
     };
   }, [filtersOpen]);
 
-  function updateFilter(key: keyof PurchaseFilters, value: string) {
+  function updateFilter(key: keyof PurchaseFilterOptions, value: string) {
     onFiltersChange({ ...filters, [key]: value });
   }
 
@@ -192,12 +203,17 @@ export default function PurchaseHistory({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 id="purchase-history-title" className="text-xl font-semibold tracking-tight">Purchase history</h2>
         <div className="flex items-center gap-2">
+          {searchPending && (
+            <Badge variant="secondary" className="gap-1.5">
+              <LoaderCircle aria-hidden="true" className="size-3 animate-spin" /> Searching
+            </Badge>
+          )}
           {filtersPending && (
-            <Badge variant="outline">Not applied</Badge>
+            <Badge variant="outline">Filters not applied</Badge>
           )}
           {pageData && (
             <p className="text-sm text-muted-foreground">
-              {pageData.total} {hasAppliedFilters ? 'matching ' : ''}{pageData.total === 1 ? 'receipt' : 'receipts'}
+              {pageData.total} {hasAppliedCriteria ? 'matching ' : ''}{pageData.total === 1 ? 'receipt' : 'receipts'}
             </p>
           )}
         </div>
@@ -211,14 +227,8 @@ export default function PurchaseHistory({
             id="purchase-item-search"
             className="h-10 pl-9"
             type="search"
-            value={filters.search}
-            onChange={(event) => updateFilter('search', event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') {
-                event.preventDefault();
-                applyFilters();
-              }
-            }}
+            value={itemSearch}
+            onChange={(event) => onItemSearchChange(event.target.value)}
             placeholder="Search item names"
             maxLength={120}
             aria-label="Search item names"
@@ -318,7 +328,7 @@ export default function PurchaseHistory({
         </Alert>
       )}
 
-      <div className="space-y-3" aria-live="polite" aria-busy={filtersPending || state.kind === 'loading'}>
+      <div className="space-y-3" aria-live="polite" aria-busy={filtersPending || searchPending || state.kind === 'loading'}>
         {state.kind === 'loading' && !appliedDateRangeInvalid && (
           <Card role="status" aria-label="Loading purchase history">
             <CardContent className="space-y-3 p-4 sm:p-5">
@@ -350,7 +360,7 @@ export default function PurchaseHistory({
           </Alert>
         )}
 
-        {pageData && pageData.items.length === 0 && !hasAppliedFilters && (
+        {pageData && pageData.items.length === 0 && !hasAppliedCriteria && (
           <Card>
             <CardContent className="flex flex-col items-center px-5 py-10 text-center">
               <span className="flex size-11 items-center justify-center rounded-full bg-primary/10 text-primary">
@@ -364,7 +374,7 @@ export default function PurchaseHistory({
           </Card>
         )}
 
-        {pageData && pageData.items.length === 0 && hasAppliedFilters && (
+        {pageData && pageData.items.length === 0 && hasAppliedCriteria && (
           <Card>
             <CardContent className="flex flex-col items-center px-5 py-10 text-center">
               <span className="flex size-11 items-center justify-center rounded-full bg-muted text-muted-foreground">
@@ -372,25 +382,34 @@ export default function PurchaseHistory({
               </span>
               <h3 className="mt-4 font-semibold">No matching purchases</h3>
               <p className="mt-2 max-w-sm text-sm leading-6 text-muted-foreground">Try a different item, store, or date range.</p>
-              <Button type="button" variant="outline" size="sm" className="mt-4" onClick={clearFilters}>
-                <RotateCcw aria-hidden="true" /> Clear filters
-              </Button>
+              <div className="mt-4 flex flex-wrap justify-center gap-2">
+                {appliedSearch && (
+                  <Button type="button" variant="outline" size="sm" onClick={onClearSearch}>
+                    <RotateCcw aria-hidden="true" /> Clear search
+                  </Button>
+                )}
+                {hasAppliedFilters && (
+                  <Button type="button" variant="outline" size="sm" onClick={clearFilters}>
+                    <RotateCcw aria-hidden="true" /> Clear filters
+                  </Button>
+                )}
+              </div>
             </CardContent>
           </Card>
         )}
 
         {pageData?.items.map((purchase) => (
-          <PurchaseCard key={purchase.id} purchase={purchase} searchQuery={appliedFilters.search} />
+          <PurchaseCard key={purchase.id} purchase={purchase} searchQuery={appliedSearch} />
         ))}
       </div>
 
       {pageData && pageData.total > 0 && totalPages > 1 && (
         <nav className="flex items-center justify-between gap-4" aria-label="Purchase history pages">
-          <Button variant="outline" size="sm" onClick={() => onPageChange(pageNumber - 1)} disabled={pageNumber <= 1 || state.kind === 'loading' || filtersPending}>
+          <Button variant="outline" size="sm" onClick={() => onPageChange(pageNumber - 1)} disabled={pageNumber <= 1 || state.kind === 'loading' || filtersPending || searchPending}>
             <ArrowLeft aria-hidden="true" /> Previous
           </Button>
           <span className="text-sm tabular-nums text-muted-foreground">Page {pageNumber} of {totalPages}</span>
-          <Button variant="outline" size="sm" onClick={() => onPageChange(pageNumber + 1)} disabled={pageNumber >= totalPages || state.kind === 'loading' || filtersPending}>
+          <Button variant="outline" size="sm" onClick={() => onPageChange(pageNumber + 1)} disabled={pageNumber >= totalPages || state.kind === 'loading' || filtersPending || searchPending}>
             Next <ArrowRight aria-hidden="true" />
           </Button>
         </nav>

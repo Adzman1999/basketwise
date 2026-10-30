@@ -40,11 +40,14 @@ export type PurchasePage = {
   total: number;
 };
 
-export type PurchaseFilters = {
-  search: string;
+export type PurchaseFilterOptions = {
   store: string;
   from: string;
   to: string;
+};
+
+export type PurchaseFilters = PurchaseFilterOptions & {
+  search: string;
 };
 
 export type GroceryItem = {

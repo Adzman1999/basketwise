@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
-import { createPurchase, fetchHealthStatus, fetchPurchases, type CreatePurchaseRequest, type HealthResponse, type PurchaseFilters } from '@/lib/api';
+import { createPurchase, fetchHealthStatus, fetchPurchases, type CreatePurchaseRequest, type HealthResponse, type PurchaseFilterOptions, type PurchaseFilters } from '@/lib/api';
 
 type ConnectionState =
   | { kind: 'checking' }
@@ -20,11 +20,10 @@ type ConnectionState =
   | { kind: 'error'; message: string };
 
 const pageSize = 20;
-const emptyPurchaseFilters: PurchaseFilters = { search: '', store: '', from: '', to: '' };
+const emptyPurchaseFilterOptions: PurchaseFilterOptions = { store: '', from: '', to: '' };
 
-function samePurchaseFilters(left: PurchaseFilters, right: PurchaseFilters): boolean {
-  return left.search === right.search
-    && left.store === right.store
+function samePurchaseFilters(left: PurchaseFilterOptions, right: PurchaseFilterOptions): boolean {
+  return left.store === right.store
     && left.from === right.from
     && left.to === right.to;
 }
@@ -42,8 +41,10 @@ export default function App() {
   const [history, setHistory] = useState<PurchaseHistoryState>({ kind: 'loading' });
   const [pageNumber, setPageNumber] = useState(1);
   const [historyRefresh, setHistoryRefresh] = useState(0);
-  const [purchaseFilters, setPurchaseFilters] = useState<PurchaseFilters>(emptyPurchaseFilters);
-  const [appliedPurchaseFilters, setAppliedPurchaseFilters] = useState<PurchaseFilters>(emptyPurchaseFilters);
+  const [itemSearch, setItemSearch] = useState('');
+  const [appliedItemSearch, setAppliedItemSearch] = useState('');
+  const [purchaseFilters, setPurchaseFilters] = useState<PurchaseFilterOptions>(emptyPurchaseFilterOptions);
+  const [appliedPurchaseFilters, setAppliedPurchaseFilters] = useState<PurchaseFilterOptions>(emptyPurchaseFilterOptions);
   const [catalogRefresh, setCatalogRefresh] = useState(0);
   const [activeHref, setActiveHref] = useState(getActiveHref);
   const [purchaseDialogOpen, setPurchaseDialogOpen] = useState(false);
@@ -77,7 +78,8 @@ export default function App() {
     const controller = new AbortController();
     setHistory({ kind: 'loading' });
 
-    void fetchPurchases(pageNumber, pageSize, appliedPurchaseFilters, controller.signal)
+    const appliedFilters: PurchaseFilters = { search: appliedItemSearch, ...appliedPurchaseFilters };
+    void fetchPurchases(pageNumber, pageSize, appliedFilters, controller.signal)
       .then((data) => {
         if (!controller.signal.aborted) setHistory({ kind: 'loaded', page: data });
       })
@@ -90,7 +92,20 @@ export default function App() {
       });
 
     return () => controller.abort();
-  }, [activeHref, pageNumber, historyRefresh, appliedPurchaseFilters]);
+  }, [activeHref, pageNumber, historyRefresh, appliedItemSearch, appliedPurchaseFilters]);
+
+  useEffect(() => {
+    const nextSearch = itemSearch.trim();
+    if (nextSearch === appliedItemSearch) return;
+
+    const timeout = window.setTimeout(() => {
+      setHistory({ kind: 'loading' });
+      setAppliedItemSearch(nextSearch);
+      setPageNumber(1);
+    }, 250);
+
+    return () => window.clearTimeout(timeout);
+  }, [itemSearch, appliedItemSearch]);
 
   useEffect(() => {
     const updateActiveSection = () => setActiveHref(getActiveHref());
@@ -117,11 +132,20 @@ export default function App() {
   }
 
   function clearPurchaseFilters() {
-    const filtersChanged = !samePurchaseFilters(emptyPurchaseFilters, appliedPurchaseFilters);
+    const filtersChanged = !samePurchaseFilters(emptyPurchaseFilterOptions, appliedPurchaseFilters);
     const pageChanged = pageNumber !== 1;
     if (filtersChanged || pageChanged) setHistory({ kind: 'loading' });
-    setPurchaseFilters(emptyPurchaseFilters);
-    if (filtersChanged) setAppliedPurchaseFilters(emptyPurchaseFilters);
+    setPurchaseFilters(emptyPurchaseFilterOptions);
+    if (filtersChanged) setAppliedPurchaseFilters(emptyPurchaseFilterOptions);
+    setPageNumber(1);
+  }
+
+  function clearItemSearch() {
+    const searchChanged = appliedItemSearch !== '' || itemSearch.trim() !== '';
+    const pageChanged = pageNumber !== 1;
+    if (searchChanged || pageChanged) setHistory({ kind: 'loading' });
+    setItemSearch('');
+    if (appliedItemSearch !== '') setAppliedItemSearch('');
     setPageNumber(1);
   }
 
@@ -138,6 +162,7 @@ export default function App() {
         ? 'Stores & shops'
         : 'Overview';
   const purchaseFiltersPending = !samePurchaseFilters(purchaseFilters, appliedPurchaseFilters);
+  const itemSearchPending = itemSearch.trim() !== appliedItemSearch;
 
   return (
     <ThemeProvider>
@@ -226,12 +251,17 @@ export default function App() {
                       pageSize={pageSize}
                       filters={purchaseFilters}
                       appliedFilters={appliedPurchaseFilters}
+                      itemSearch={itemSearch}
+                      appliedSearch={appliedItemSearch}
                       filtersPending={purchaseFiltersPending}
+                      searchPending={itemSearchPending}
                       onFiltersChange={(filters) => {
                         setPurchaseFilters(filters);
                       }}
+                      onItemSearchChange={setItemSearch}
                       onApplyFilters={applyPurchaseFilters}
                       onClearFilters={clearPurchaseFilters}
+                      onClearSearch={clearItemSearch}
                       onPageChange={setPageNumber}
                       onRetry={() => setHistoryRefresh((current) => current + 1)}
                     />
