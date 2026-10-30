@@ -19,7 +19,7 @@ export const createPurchaseItemSchema = z.object({
     .positive()
     .max(maxQuantity)
     .refine((value) => Math.abs(value * 1000 - Math.round(value * 1000)) < 1e-7),
-  unit: z.string().trim().min(1).max(32),
+  unit: z.string().trim().min(1).max(32).transform((value) => value.replace(/\s+/g, ' ')),
   amountPaidCentavos: centavos,
 }).strict();
 

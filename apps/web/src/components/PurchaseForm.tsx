@@ -7,8 +7,11 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import UnitInput from '@/components/UnitInput';
 import {
+  createUnit,
   createStore,
+  fetchUnits,
   fetchGroceryItems,
   fetchStores,
   storeCategories,
@@ -16,6 +19,7 @@ import {
   type CreatePurchaseItem,
   type CreatePurchaseRequest,
   type GroceryItem,
+  type MeasurementUnit,
   type Store,
   type StoreCategory,
 } from '../lib/api';
@@ -66,7 +70,7 @@ function emptyItem(id: number): DraftItem {
   return { id, itemName: '', quantity: '1', unit: 'item', amountPaid: '' };
 }
 
-const inputClassName = 'h-10 w-full min-w-0 rounded-md bg-background text-sm';
+const inputClassName = 'h-10 w-full min-w-0 rounded-md bg-background text-base sm:text-sm';
 const labelClassName = 'grid min-w-0 gap-2 text-sm font-medium';
 const noStoreValue = 'none';
 
@@ -195,7 +199,7 @@ function CatalogNameInput({
     <>
       <Command shouldFilter={false} className="h-auto overflow-visible rounded-md bg-transparent">
         <CommandInput
-          className="h-full w-auto min-w-0 flex-1 bg-transparent px-0 py-0 text-sm shadow-none focus-visible:ring-0"
+          className="h-full w-auto min-w-0 flex-1 bg-transparent px-0 py-0 text-base shadow-none focus-visible:ring-0 sm:text-sm"
           wrapperClassName="h-10 rounded-md border border-input bg-background px-3 shadow-sm ring-offset-background focus-within:ring-1 focus-within:ring-ring"
           value={value}
           onValueChange={(nextValue) => {
@@ -247,6 +251,9 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
   const [stores, setStores] = useState<Store[]>([]);
   const [storesLoading, setStoresLoading] = useState(true);
   const [storeLoadError, setStoreLoadError] = useState('');
+  const [units, setUnits] = useState<MeasurementUnit[]>([]);
+  const [unitsLoading, setUnitsLoading] = useState(true);
+  const [unitLoadError, setUnitLoadError] = useState('');
   const [selectedStoreId, setSelectedStoreId] = useState(noStoreValue);
   const [storeSearch, setStoreSearch] = useState('');
   const [storeSuggestionsOpen, setStoreSuggestionsOpen] = useState(false);
@@ -272,6 +279,22 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
       })
       .finally(() => {
         if (!controller.signal.aborted) setStoresLoading(false);
+      });
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetchUnits(controller.signal)
+      .then((page) => {
+        if (!controller.signal.aborted) setUnits(page.items);
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) return;
+        setUnitLoadError(error instanceof Error ? error.message : 'Could not load saved units.');
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setUnitsLoading(false);
       });
     return () => controller.abort();
   }, []);
@@ -307,7 +330,29 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
     setStoreSuggestionsOpen(false);
     setStoreEditorOpen(false);
     setNewStoreName('');
+    setNewStoreCategory('supermarket');
+    setStoreErrorMessage('');
+    setErrorMessage('');
+    setSuccessMessage('');
     setItems([emptyItem(nextItemId.current++)]);
+  }
+
+  function cancelPurchase() {
+    resetForm();
+    onCancel();
+  }
+
+  async function saveUnit(name: string): Promise<MeasurementUnit> {
+    const normalizedName = name.trim().replace(/\s+/g, ' ').toLowerCase();
+    const existing = units.find((unit) => unit.name.trim().replace(/\s+/g, ' ').toLowerCase() === normalizedName);
+    if (existing) return existing;
+
+    const unit = await createUnit(name);
+    setUnits((current) => [...current, unit].sort((left, right) => {
+      if (left.isPreset !== right.isPreset) return left.isPreset ? -1 : 1;
+      return left.name.localeCompare(right.name);
+    }));
+    return unit;
   }
 
   async function saveNewStore() {
@@ -402,7 +447,7 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
 
   return (
     <form className="flex min-h-0 flex-1 flex-col" onSubmit={handleSubmit}>
-      <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-5">
+      <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
           <div className="grid gap-4 sm:grid-cols-2">
             <Label className={labelClassName}>
               Purchase date
@@ -548,20 +593,16 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
               <div className="space-y-1">
                 <h3 className="text-sm font-medium">Receipt items</h3>
                 <p className="text-xs text-muted-foreground">Line amounts help build item cost history.</p>
+                {unitLoadError && (
+                  <p className="text-xs leading-5 text-destructive">
+                    Could not load saved units: {unitLoadError} You can still enter a unit manually; it will be saved with the purchase.
+                  </p>
+                )}
               </div>
               <Button type="button" variant="outline" size="sm" onClick={addItem} disabled={isSaving || items.length >= 100}>
                 <Plus aria-hidden="true" /> Add item
               </Button>
             </div>
-
-            <datalist id="purchase-units">
-              <option value="g" />
-              <option value="kg" />
-              <option value="ml" />
-              <option value="l" />
-              <option value="item" />
-              <option value="pack" />
-            </datalist>
 
             <div className="space-y-3">
               {items.map((item, index) => (
@@ -590,14 +631,20 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
                     </Label>
                   </div>
 
-                  <div className="mt-4 grid grid-cols-2 gap-4">
+                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
                     <Label className={labelClassName}>
                       Quantity
                       <Input className={inputClassName} type="number" min="0.001" max="999999999.999" step="0.001" value={item.quantity} onChange={(event) => updateItem(item.id, { quantity: event.target.value })} required disabled={isSaving} />
                     </Label>
                     <Label className={labelClassName}>
                       Unit
-                      <Input className={inputClassName} type="text" list="purchase-units" value={item.unit} onChange={(event) => updateItem(item.id, { unit: event.target.value })} maxLength={32} placeholder="kg, item, pack…" required disabled={isSaving} />
+                      <UnitInput
+                        value={item.unit}
+                        units={units}
+                        onChange={(unit) => updateItem(item.id, { unit })}
+                        onAddUnit={saveUnit}
+                        disabled={isSaving || unitsLoading}
+                      />
                     </Label>
                   </div>
                 </fieldset>
@@ -633,11 +680,11 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
 
       </div>
 
-      <div className="sticky bottom-0 z-10 flex shrink-0 items-center justify-end gap-2 border-t bg-background px-6 py-4">
-        <Button variant="outline" size="lg" type="button" onClick={onCancel}>
-          Close
+      <div className="sticky bottom-0 z-10 flex shrink-0 flex-col gap-2 border-t bg-background px-4 py-3 sm:flex-row sm:items-center sm:justify-end sm:px-6 sm:py-4">
+        <Button className="w-full sm:w-auto" variant="outline" size="lg" type="button" onClick={cancelPurchase} disabled={isSaving || isAddingStore}>
+          Cancel
         </Button>
-        <Button size="lg" type="submit" disabled={isSaving}>
+        <Button className="w-full sm:w-auto" size="lg" type="submit" disabled={isSaving || isAddingStore || unitsLoading}>
           <Save aria-hidden="true" />
           {isSaving ? 'Saving purchase…' : 'Save purchase'}
         </Button>

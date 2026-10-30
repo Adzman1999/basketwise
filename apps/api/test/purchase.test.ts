@@ -16,6 +16,7 @@ const validPurchase = {
 
 beforeEach(async () => {
   await query('TRUNCATE TABLE purchase_items, purchases, grocery_items, stores RESTART IDENTITY CASCADE');
+  await query('DELETE FROM measurement_units WHERE is_preset = FALSE');
 });
 
 afterAll(async () => {

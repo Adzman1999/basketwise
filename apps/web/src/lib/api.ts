@@ -84,6 +84,18 @@ export type StorePage = {
   total: number;
 };
 
+export type MeasurementUnit = {
+  id: string;
+  name: string;
+  isPreset: boolean;
+  createdAt: string;
+};
+
+export type MeasurementUnitPage = {
+  items: MeasurementUnit[];
+  total: number;
+};
+
 export type GroceryItemPage = {
   items: GroceryItem[];
   page: number;
@@ -195,6 +207,24 @@ export async function createStore(input: { name: string; category: StoreCategory
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(input),
+  });
+}
+
+export async function fetchUnits(signal: AbortSignal): Promise<MeasurementUnitPage> {
+  return sendRequest<MeasurementUnitPage>('/api/units', {
+    headers: { Accept: 'application/json' },
+    signal,
+  });
+}
+
+export async function createUnit(name: string): Promise<MeasurementUnit> {
+  return sendRequest<MeasurementUnit>('/api/units', {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ name }),
   });
 }
 

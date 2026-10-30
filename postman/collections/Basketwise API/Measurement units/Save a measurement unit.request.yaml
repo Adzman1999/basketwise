@@ -1,0 +1,30 @@
+$kind: http-request
+description: Adds a uniquely named example custom measurement unit.
+url: '{{baseUrl}}/api/units'
+method: POST
+headers:
+  Content-Type: application/json
+  Accept: application/json
+body:
+  type: json
+  content: |-
+    {
+      "name": "u-{{$randomAlphaNumeric}}"
+    }
+settings: {}
+examples: ./.resources/Save a measurement unit.resources/examples
+order: 2000
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('returns HTTP 201', function () {
+        pm.response.to.have.status(201);
+      });
+
+      pm.test('returns the saved custom unit', function () {
+        const body = pm.response.json();
+        pm.expect(body.id).to.be.a('string');
+        pm.expect(body.name).to.include('u-');
+        pm.expect(body.isPreset).to.eql(false);
+      });

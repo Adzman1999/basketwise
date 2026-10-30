@@ -43,13 +43,23 @@ async function insertPurchaseItems(
          ON CONFLICT (normalized_name)
          DO UPDATE SET normalized_name = EXCLUDED.normalized_name
          RETURNING id
+       ), unit_record AS (
+         INSERT INTO measurement_units (name, normalized_name, is_preset)
+         VALUES (
+           btrim(regexp_replace($5, '[[:space:]]+', ' ', 'g')),
+           btrim(regexp_replace(lower(btrim($5)), '[[:space:]]+', ' ', 'g')),
+           FALSE
+         )
+         ON CONFLICT (normalized_name)
+         DO UPDATE SET normalized_name = EXCLUDED.normalized_name
+         RETURNING id
        )
        INSERT INTO purchase_items (
-         purchase_id, position, grocery_item_id, item_name, quantity, unit,
-         amount_paid_centavos
+         purchase_id, position, grocery_item_id, unit_id, item_name, quantity,
+         unit, amount_paid_centavos
        )
-       SELECT $1, $2, catalog_item.id, $3, $4, $5, $6
-       FROM catalog_item
+       SELECT $1, $2, catalog_item.id, unit_record.id, $3, $4, $5, $6
+       FROM catalog_item, unit_record
        RETURNING id, grocery_item_id AS "groceryItemId", item_name AS "itemName", quantity, unit,
                  amount_paid_centavos AS "amountPaidCentavos"`,
       [purchaseId, position, item.itemName, item.quantity, item.unit, item.amountPaidCentavos]

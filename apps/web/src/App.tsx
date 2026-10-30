@@ -230,15 +230,15 @@ export default function App() {
                 <Separator className="my-8" />
                 <footer className="flex flex-col gap-2 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
                   <span>Basketwise · A personal food cost system</span>
-                  <span>Units saved as entered</span>
+                  <span>Saved units reused across purchases</span>
                 </footer>
               </>
             )}
           </main>
         </SidebarInset>
         <Dialog open={purchaseDialogOpen} onOpenChange={setPurchaseDialogOpen}>
-          <DialogContent className="flex max-h-[90dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
-            <DialogHeader className="sticky top-0 z-20 shrink-0 border-b bg-background px-6 py-5">
+          <DialogContent className="flex h-[100dvh] max-h-[100dvh] w-screen max-w-none flex-col gap-0 overflow-hidden rounded-none p-0 sm:h-[min(90dvh,900px)] sm:max-h-[90dvh] sm:w-[calc(100vw-2rem)] sm:max-w-3xl sm:rounded-lg">
+            <DialogHeader className="sticky top-0 z-20 shrink-0 border-b bg-background px-4 py-4 sm:px-6 sm:py-5">
               <DialogTitle>Add a purchase</DialogTitle>
               <DialogDescription>Enter the receipt date and items. The total is calculated from the item amounts.</DialogDescription>
             </DialogHeader>

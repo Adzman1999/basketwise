@@ -10,6 +10,56 @@ servers:
   - url: http://localhost:4000
     description: Local development
 paths:
+  /api/units:
+    get:
+      operationId: listMeasurementUnits
+      tags:
+        - Measurement units
+      summary: List saved measurement units
+      description: Returns preset and custom units for reuse on purchase receipt lines.
+      responses:
+        "200":
+          description: Saved measurement units.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MeasurementUnitPage"
+              example:
+                items:
+                  - id: "b94ab4f4-cb08-48ce-83a9-ff99f6eb488c"
+                    name: "kg"
+                    isPreset: true
+                    createdAt: "2026-10-29T08:00:00.000Z"
+                total: 1
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    post:
+      operationId: createMeasurementUnit
+      tags:
+        - Measurement units
+      summary: Save a measurement unit
+      description: Adds a custom unit for reuse. Names are unique after trimming, lowercasing, and collapsing whitespace.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateMeasurementUnitRequest"
+            example:
+              name: "dozen"
+      responses:
+        "201":
+          description: The measurement unit was saved.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MeasurementUnit"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/DuplicateUnit"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
   /api/stores:
     get:
       operationId: listStores
@@ -386,6 +436,49 @@ paths:
                 timestamp: "2026-10-29T00:00:00.000Z"
 components:
   schemas:
+    CreateMeasurementUnitRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 32
+    MeasurementUnit:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - name
+        - isPreset
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        isPreset:
+          type: boolean
+          description: True for the built-in units g, kg, ml, l, item, and pack.
+        createdAt:
+          type: string
+          format: date-time
+    MeasurementUnitPage:
+      type: object
+      additionalProperties: false
+      required:
+        - items
+        - total
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/MeasurementUnit"
+        total:
+          type: integer
     StoreCategory:
       type: string
       enum:
@@ -685,6 +778,16 @@ components:
             message:
               type: string
   responses:
+    DuplicateUnit:
+      description: A measurement unit with this normalized name already exists.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+          example:
+            error:
+              code: "DUPLICATE_UNIT"
+              message: "This unit is already saved."
     DuplicateStore:
       description: A store or shop with this normalized name already exists.
       content:
