@@ -19,7 +19,7 @@ type ConnectionState =
   | { kind: 'connected'; health: HealthResponse }
   | { kind: 'error'; message: string };
 
-const pageSize = 20;
+const pageSize = 10;
 const emptyPurchaseFilterOptions: PurchaseFilterOptions = { store: '', from: '', to: '' };
 
 function samePurchaseFilters(left: PurchaseFilterOptions, right: PurchaseFilterOptions): boolean {
