@@ -485,7 +485,7 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
             </Label>
             <Label className={labelClassName}>
               Store or shop
-              <Command shouldFilter={false} className="h-auto overflow-visible rounded-md bg-transparent">
+              <Command shouldFilter={false} className="relative h-auto overflow-visible rounded-md bg-transparent">
                 <CommandInput
                   className="h-full w-auto min-w-0 flex-1 bg-transparent px-0 py-0 text-sm shadow-none focus-visible:ring-0"
                   wrapperClassName="h-10 rounded-md border border-input bg-background px-3 shadow-sm ring-offset-background focus-within:ring-1 focus-within:ring-ring"
@@ -504,7 +504,7 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
                   disabled={isSaving || storesLoading}
                 />
                 {storeSuggestionsOpen && !storesLoading && (
-                  <CommandList className="mt-1 rounded-md border bg-popover shadow-sm">
+                  <CommandList className="absolute inset-x-0 top-full z-50 mt-1 max-h-64 w-full rounded-md border bg-popover shadow-lg">
                     {storeSearch.trim() ? (
                       <CommandGroup heading="Saved places">
                         {storeSuggestions.map(({ store, rank }) => (
