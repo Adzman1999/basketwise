@@ -107,13 +107,21 @@ export default function App() {
   }
 
   function applyPurchaseFilters() {
-    setAppliedPurchaseFilters(purchaseFilters);
+    const filtersChanged = !samePurchaseFilters(purchaseFilters, appliedPurchaseFilters);
+    const pageChanged = pageNumber !== 1;
+    if (filtersChanged || pageChanged) {
+      setHistory({ kind: 'loading' });
+      if (filtersChanged) setAppliedPurchaseFilters(purchaseFilters);
+    }
     setPageNumber(1);
   }
 
   function clearPurchaseFilters() {
+    const filtersChanged = !samePurchaseFilters(emptyPurchaseFilters, appliedPurchaseFilters);
+    const pageChanged = pageNumber !== 1;
+    if (filtersChanged || pageChanged) setHistory({ kind: 'loading' });
     setPurchaseFilters(emptyPurchaseFilters);
-    setAppliedPurchaseFilters(emptyPurchaseFilters);
+    if (filtersChanged) setAppliedPurchaseFilters(emptyPurchaseFilters);
     setPageNumber(1);
   }
 
@@ -217,6 +225,7 @@ export default function App() {
                       pageNumber={pageNumber}
                       pageSize={pageSize}
                       filters={purchaseFilters}
+                      appliedFilters={appliedPurchaseFilters}
                       filtersPending={purchaseFiltersPending}
                       onFiltersChange={(filters) => {
                         setPurchaseFilters(filters);

@@ -21,6 +21,7 @@ type PurchaseHistoryProps = {
   pageNumber: number;
   pageSize: number;
   filters: PurchaseFilters;
+  appliedFilters: PurchaseFilters;
   filtersPending: boolean;
   onFiltersChange: (filters: PurchaseFilters) => void;
   onApplyFilters: () => void;
@@ -131,6 +132,7 @@ export default function PurchaseHistory({
   pageNumber,
   pageSize,
   filters,
+  appliedFilters,
   filtersPending,
   onFiltersChange,
   onApplyFilters,
@@ -140,8 +142,10 @@ export default function PurchaseHistory({
 }: PurchaseHistoryProps) {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const filtersPopoverRef = useRef<HTMLDivElement>(null);
-  const activeFilterCount = [filters.search.trim(), filters.store.trim(), filters.from, filters.to].filter(Boolean).length;
-  const hasActiveFilters = activeFilterCount > 0;
+  const draftFilterCount = [filters.search.trim(), filters.store.trim(), filters.from, filters.to].filter(Boolean).length;
+  const appliedFilterCount = [appliedFilters.search.trim(), appliedFilters.store.trim(), appliedFilters.from, appliedFilters.to].filter(Boolean).length;
+  const hasDraftFilters = draftFilterCount > 0;
+  const hasAppliedFilters = appliedFilterCount > 0;
   const dateRangeInvalid = Boolean(filters.from && filters.to && filters.from > filters.to);
   const appliedDateRangeInvalid = dateRangeInvalid && !filtersPending;
   const pageData = state.kind === 'loaded' && !appliedDateRangeInvalid ? state.page : null;
@@ -193,7 +197,7 @@ export default function PurchaseHistory({
           )}
           {pageData && (
             <p className="text-sm text-muted-foreground">
-              {pageData.total} {hasActiveFilters ? 'matching ' : ''}{pageData.total === 1 ? 'receipt' : 'receipts'}
+              {pageData.total} {hasAppliedFilters ? 'matching ' : ''}{pageData.total === 1 ? 'receipt' : 'receipts'}
             </p>
           )}
         </div>
@@ -227,12 +231,12 @@ export default function PurchaseHistory({
             className="h-10 px-3"
             aria-expanded={filtersOpen}
             aria-controls="purchase-filter-panel"
-            aria-label={activeFilterCount > 0 ? `Filters, ${activeFilterCount} active` : 'Filters'}
+            aria-label={appliedFilterCount > 0 ? `Filters, ${appliedFilterCount} active` : 'Filters'}
             onClick={() => setFiltersOpen((open) => !open)}
           >
             <SlidersHorizontal aria-hidden="true" />
             <span className="hidden sm:inline">Filters</span>
-            {activeFilterCount > 0 && <Badge variant="secondary" className="ml-1">{activeFilterCount}</Badge>}
+            {appliedFilterCount > 0 && <Badge variant="secondary" className="ml-1">{appliedFilterCount}</Badge>}
           </Button>
 
           {filtersOpen && (
@@ -291,7 +295,7 @@ export default function PurchaseHistory({
                   <p className="text-xs text-destructive" role="alert">The start date must be on or before the end date.</p>
                 )}
                 <div className="flex items-center justify-between gap-2 border-t pt-3">
-                  {hasActiveFilters ? (
+                  {hasDraftFilters || hasAppliedFilters ? (
                     <Button type="button" variant="ghost" size="sm" onClick={clearFilters}>
                       <RotateCcw aria-hidden="true" /> Clear
                     </Button>
@@ -346,7 +350,7 @@ export default function PurchaseHistory({
           </Alert>
         )}
 
-        {pageData && pageData.items.length === 0 && !hasActiveFilters && (
+        {pageData && pageData.items.length === 0 && !hasAppliedFilters && (
           <Card>
             <CardContent className="flex flex-col items-center px-5 py-10 text-center">
               <span className="flex size-11 items-center justify-center rounded-full bg-primary/10 text-primary">
@@ -360,7 +364,7 @@ export default function PurchaseHistory({
           </Card>
         )}
 
-        {pageData && pageData.items.length === 0 && hasActiveFilters && (
+        {pageData && pageData.items.length === 0 && hasAppliedFilters && (
           <Card>
             <CardContent className="flex flex-col items-center px-5 py-10 text-center">
               <span className="flex size-11 items-center justify-center rounded-full bg-muted text-muted-foreground">
@@ -376,7 +380,7 @@ export default function PurchaseHistory({
         )}
 
         {pageData?.items.map((purchase) => (
-          <PurchaseCard key={purchase.id} purchase={purchase} searchQuery={filtersPending ? '' : filters.search} />
+          <PurchaseCard key={purchase.id} purchase={purchase} searchQuery={appliedFilters.search} />
         ))}
       </div>
 
