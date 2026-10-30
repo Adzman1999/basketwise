@@ -487,7 +487,7 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
               Store or shop
               <Command shouldFilter={false} className="relative h-auto w-full min-w-0 self-start items-start overflow-visible rounded-md bg-transparent">
                 <CommandInput
-                  className="h-full w-auto min-w-0 flex-1 bg-transparent px-0 py-0 text-sm shadow-none focus-visible:ring-0"
+                  className="h-full w-0 min-w-0 flex-1 bg-transparent px-0 py-0 text-left text-sm shadow-none focus-visible:ring-0"
                   wrapperClassName="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 shadow-sm ring-offset-background focus-within:ring-1 focus-within:ring-ring"
                   value={storeSearch}
                   onValueChange={(nextValue) => {
