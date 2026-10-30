@@ -29,7 +29,7 @@ type DraftItem = {
   itemName: string;
   quantity: string;
   unit: string;
-  amountPaid: string;
+  unitPrice: string;
 };
 
 type PurchaseFormProps = {
@@ -39,6 +39,7 @@ type PurchaseFormProps = {
 
 const maxCentavos = 2_147_483_647;
 const maxPesoAmount = (maxCentavos / 100).toFixed(2);
+const maxQuantityMilliUnits = 999_999_999_999n;
 
 function todayAsLocalDate(): string {
   const today = new Date();
@@ -60,14 +61,35 @@ function parsePesos(value: string): number | null {
   return Number(totalCentavos);
 }
 
-function formatPesoAmount(centavos: number): string {
-  const wholePesos = Math.floor(centavos / 100).toLocaleString('en-PH');
-  const remainingCentavos = String(centavos % 100).padStart(2, '0');
+function parseQuantityMilliUnits(value: string): bigint | null {
+  const match = value.trim().match(/^(?:(\d+)(?:\.(\d{0,3}))?|\.(\d{1,3}))$/);
+  if (!match) return null;
+
+  const wholeUnits = BigInt(match[1] || '0');
+  const fractionalMilliUnits = BigInt((match[2] ?? match[3] ?? '').padEnd(3, '0') || '0');
+  const quantityMilliUnits = wholeUnits * 1000n + fractionalMilliUnits;
+  if (quantityMilliUnits <= 0n || quantityMilliUnits > maxQuantityMilliUnits) return null;
+  return quantityMilliUnits;
+}
+
+function calculateLineTotalCentavos(unitPriceCentavos: number | null, quantityMilliUnits: bigint | null): bigint | null {
+  if (unitPriceCentavos === null || quantityMilliUnits === null) return null;
+  const productMilliCentavos = BigInt(unitPriceCentavos) * quantityMilliUnits;
+  return (productMilliCentavos + 500n) / 1000n;
+}
+
+function lineTotalForItem(item: DraftItem): bigint | null {
+  return calculateLineTotalCentavos(parsePesos(item.unitPrice), parseQuantityMilliUnits(item.quantity));
+}
+
+function formatPesoAmount(centavos: bigint): string {
+  const wholePesos = (centavos / 100n).toLocaleString('en-PH');
+  const remainingCentavos = String(centavos % 100n).padStart(2, '0');
   return `${wholePesos}.${remainingCentavos}`;
 }
 
 function emptyItem(id: number): DraftItem {
-  return { id, itemName: '', quantity: '1', unit: 'item', amountPaid: '' };
+  return { id, itemName: '', quantity: '1', unit: 'item', unitPrice: '' };
 }
 
 const inputClassName = 'h-10 w-full min-w-0 rounded-md bg-background text-base sm:text-sm';
@@ -306,8 +328,8 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
     .sort((left, right) => left.rank - right.rank || left.store.name.localeCompare(right.store.name))
     .slice(0, 8);
   const calculatedTotalCentavos = items.reduce(
-    (total, item) => total + (parsePesos(item.amountPaid) ?? 0),
-    0
+    (total, item) => total + (lineTotalForItem(item) ?? 0n),
+    0n
   );
 
   function updateItem(id: number, changes: Partial<DraftItem>) {
@@ -408,23 +430,30 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
       const itemName = item.itemName.trim();
       const unit = item.unit.trim();
       const quantity = Number(item.quantity);
-      const amountPaidCentavos = parsePesos(item.amountPaid);
+      const quantityMilliUnits = parseQuantityMilliUnits(item.quantity);
+      const unitPriceCentavos = parsePesos(item.unitPrice);
 
-      if (!itemName || !unit || !Number.isFinite(quantity) || quantity <= 0 || amountPaidCentavos === null) {
-        setErrorMessage(`Check the name, quantity, unit, and amount for item ${index + 1}.`);
+      if (!itemName || !unit || unitPriceCentavos === null) {
+        setErrorMessage(`Check the name, unit, and price per unit for item ${index + 1}.`);
         return;
       }
 
-      if (quantity > 999_999_999.999 || Math.abs(quantity * 1000 - Math.round(quantity * 1000)) >= 1e-7) {
+      if (!Number.isFinite(quantity) || quantityMilliUnits === null) {
         setErrorMessage(`Item ${index + 1} quantity must use up to three decimal places.`);
         return;
       }
 
-      purchaseItems.push({ itemName, quantity, unit, amountPaidCentavos });
+      const amountPaidCentavos = calculateLineTotalCentavos(unitPriceCentavos, quantityMilliUnits);
+      if (amountPaidCentavos === null || amountPaidCentavos > BigInt(maxCentavos)) {
+        setErrorMessage(`The line total for item ${index + 1} cannot exceed ₱${maxPesoAmount}.`);
+        return;
+      }
+
+      purchaseItems.push({ itemName, quantity, unit, amountPaidCentavos: Number(amountPaidCentavos) });
     }
 
-    const totalPaidCentavos = purchaseItems.reduce((total, item) => total + item.amountPaidCentavos, 0);
-    if (totalPaidCentavos > maxCentavos) {
+    const totalPaidCentavos = purchaseItems.reduce((total, item) => total + BigInt(item.amountPaidCentavos), 0n);
+    if (totalPaidCentavos > BigInt(maxCentavos)) {
       setErrorMessage(`The receipt items total cannot exceed ₱${maxPesoAmount}.`);
       return;
     }
@@ -447,8 +476,8 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
 
   return (
     <form className="flex min-h-0 flex-1 flex-col" onSubmit={handleSubmit}>
-      <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
-          <div className="grid gap-4 sm:grid-cols-2">
+      <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 pb-4 sm:px-6 sm:pb-5">
+          <div className="grid gap-4 pt-4 sm:grid-cols-2 sm:pt-5">
             <Label className={labelClassName}>
               Purchase date
               <Input className={inputClassName} type="date" value={purchasedOn} onChange={(event) => setPurchasedOn(event.target.value)} required disabled={isSaving} />
@@ -589,10 +618,10 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
           )}
 
           <div className="space-y-3">
-            <div className="flex items-center justify-between gap-3">
+            <div className="sticky top-0 z-10 -mx-4 flex items-center justify-between gap-3 border-b bg-background/95 px-4 py-3 shadow-sm backdrop-blur sm:-mx-6 sm:px-6">
               <div className="space-y-1">
                 <h3 className="text-sm font-medium">Receipt items</h3>
-                <p className="text-xs text-muted-foreground">Line amounts help build item cost history.</p>
+                <p className="text-xs text-muted-foreground">Enter the price per unit and quantity for each item.</p>
                 {unitLoadError && (
                   <p className="text-xs leading-5 text-destructive">
                     Could not load saved units: {unitLoadError} You can still enter a unit manually; it will be saved with the purchase.
@@ -605,57 +634,67 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
             </div>
 
             <div className="space-y-3">
-              {items.map((item, index) => (
-                <fieldset key={item.id} className="min-w-0 rounded-lg border bg-muted/20 p-3.5 sm:p-4">
-                  <legend className="sr-only">Receipt item {index + 1}</legend>
-                  <div className="flex items-center justify-between gap-3">
-                    <Badge variant="outline">Item {String(index + 1).padStart(2, '0')}</Badge>
-                    {items.length > 1 && (
-                      <Button type="button" variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => removeItem(item.id)} disabled={isSaving} aria-label={`Remove item ${index + 1}`}>
-                        <Trash2 aria-hidden="true" /> Remove
-                      </Button>
-                    )}
-                  </div>
+              {items.map((item, index) => {
+                const lineTotalCentavos = lineTotalForItem(item);
+                return (
+                  <fieldset key={item.id} className="min-w-0 rounded-lg border bg-muted/20 p-3.5 sm:p-4">
+                    <legend className="sr-only">Receipt item {index + 1}</legend>
+                    <div className="flex items-center justify-between gap-3">
+                      <Badge variant="outline">Item {String(index + 1).padStart(2, '0')}</Badge>
+                      {items.length > 1 && (
+                        <Button type="button" variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => removeItem(item.id)} disabled={isSaving} aria-label={`Remove item ${index + 1}`}>
+                          <Trash2 aria-hidden="true" /> Remove
+                        </Button>
+                      )}
+                    </div>
 
-                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                    <Label className={labelClassName}>
-                      Food name
-                      <CatalogNameInput value={item.itemName} onChange={(itemName) => updateItem(item.id, { itemName })} disabled={isSaving} />
-                    </Label>
-                    <Label className={labelClassName}>
-                      Line amount
-                      <div className="relative">
-                        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground">₱</span>
-                        <Input className={`${inputClassName} pl-8`} type="number" min="0" max={maxPesoAmount} step="0.01" inputMode="decimal" value={item.amountPaid} onChange={(event) => updateItem(item.id, { amountPaid: event.target.value })} placeholder="0.00" required disabled={isSaving} />
-                      </div>
-                    </Label>
-                  </div>
+                    <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                      <Label className={labelClassName}>
+                        Food name
+                        <CatalogNameInput value={item.itemName} onChange={(itemName) => updateItem(item.id, { itemName })} disabled={isSaving} />
+                      </Label>
+                      <Label className={labelClassName}>
+                        Price per unit
+                        <div className="relative">
+                          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground">₱</span>
+                          <Input className={`${inputClassName} pl-8`} type="number" min="0" max={maxPesoAmount} step="0.01" inputMode="decimal" value={item.unitPrice} onChange={(event) => updateItem(item.id, { unitPrice: event.target.value })} placeholder="0.00" required disabled={isSaving} />
+                        </div>
+                      </Label>
+                    </div>
 
-                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                    <Label className={labelClassName}>
-                      Quantity
-                      <Input className={inputClassName} type="number" min="0.001" max="999999999.999" step="0.001" value={item.quantity} onChange={(event) => updateItem(item.id, { quantity: event.target.value })} required disabled={isSaving} />
-                    </Label>
-                    <Label className={labelClassName}>
-                      Unit
-                      <UnitInput
-                        value={item.unit}
-                        units={units}
-                        onChange={(unit) => updateItem(item.id, { unit })}
-                        onAddUnit={saveUnit}
-                        disabled={isSaving || unitsLoading}
-                      />
-                    </Label>
-                  </div>
-                </fieldset>
-              ))}
+                    <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                      <Label className={labelClassName}>
+                        Quantity
+                        <Input className={inputClassName} type="number" min="0.001" max="999999999.999" step="0.001" value={item.quantity} onChange={(event) => updateItem(item.id, { quantity: event.target.value })} required disabled={isSaving} />
+                      </Label>
+                      <Label className={labelClassName}>
+                        Unit
+                        <UnitInput
+                          value={item.unit}
+                          units={units}
+                          onChange={(unit) => updateItem(item.id, { unit })}
+                          onAddUnit={saveUnit}
+                          disabled={isSaving || unitsLoading}
+                        />
+                      </Label>
+                    </div>
+
+                    <div className="mt-3 flex items-center justify-between gap-3 rounded-md bg-muted/40 px-3 py-2 text-sm">
+                      <span className="text-muted-foreground">Line total <span className="text-xs">(quantity × price per unit)</span></span>
+                      <output className="shrink-0 font-semibold tabular-nums">
+                        {lineTotalCentavos === null ? '—' : `₱${formatPesoAmount(lineTotalCentavos)}`}
+                      </output>
+                    </div>
+                  </fieldset>
+                );
+              })}
             </div>
           </div>
 
           <div className="flex items-center justify-between gap-4 rounded-lg border bg-muted/30 px-4 py-3.5" aria-live="polite">
             <span>
               <span className="block text-sm font-medium">Receipt total</span>
-              <span className="block text-xs text-muted-foreground">Calculated from item amounts</span>
+              <span className="block text-xs text-muted-foreground">Sum of each quantity × unit price</span>
             </span>
             <output className="text-lg font-semibold tabular-nums">₱{formatPesoAmount(calculatedTotalCentavos)}</output>
           </div>
@@ -675,7 +714,7 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
           )}
 
           <p className="text-center text-xs leading-5 text-muted-foreground">
-            Line amounts are added together for the receipt total. Quantity units are saved as entered.
+            Each line total is quantity × price per unit. The receipt total adds all line totals.
           </p>
 
       </div>
