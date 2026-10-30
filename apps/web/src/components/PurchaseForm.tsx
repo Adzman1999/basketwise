@@ -193,9 +193,10 @@ function CatalogNameInput({
 
   return (
     <>
-      <Command shouldFilter={false} className="rounded-md border bg-background">
+      <Command shouldFilter={false} className="h-auto overflow-visible rounded-md bg-transparent">
         <CommandInput
-          className={inputClassName}
+          className="h-full w-auto min-w-0 flex-1 bg-transparent px-0 py-0 text-sm shadow-none focus-visible:ring-0"
+          wrapperClassName="h-10 rounded-md border border-input bg-background px-3 shadow-sm ring-offset-background focus-within:ring-1 focus-within:ring-ring"
           value={value}
           onValueChange={(nextValue) => {
             onChange(nextValue);
@@ -210,7 +211,7 @@ function CatalogNameInput({
           disabled={disabled}
         />
         {isOpen && query.length >= 2 && (
-          <CommandList className="border-t">
+          <CommandList className="mt-1 rounded-md border bg-popover shadow-sm">
             {isSearching ? (
               <CommandEmpty>Searching saved grocery items…</CommandEmpty>
             ) : suggestions.length === 0 ? (
@@ -409,9 +410,10 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
             </Label>
             <Label className={labelClassName}>
               Store or shop <span className="font-normal text-muted-foreground">· optional</span>
-              <Command shouldFilter={false} className="rounded-md border bg-background">
+              <Command shouldFilter={false} className="h-auto overflow-visible rounded-md bg-transparent">
                 <CommandInput
-                  className={inputClassName}
+                  className="h-full w-auto min-w-0 flex-1 bg-transparent px-0 py-0 text-sm shadow-none focus-visible:ring-0"
+                  wrapperClassName="h-10 rounded-md border border-input bg-background px-3 shadow-sm ring-offset-background focus-within:ring-1 focus-within:ring-ring"
                   value={storeSearch}
                   onValueChange={(nextValue) => {
                     setStoreSearch(nextValue);
@@ -426,7 +428,7 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
                   disabled={isSaving || storesLoading}
                 />
                 {storeSuggestionsOpen && !storesLoading && (
-                  <CommandList className="border-t">
+                  <CommandList className="mt-1 rounded-md border bg-popover shadow-sm">
                     {storeSearch.trim() ? (
                       <CommandGroup heading="Saved places">
                         {storeSuggestions.map(({ store, rank }) => (
