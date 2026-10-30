@@ -70,10 +70,10 @@ export default function UnitInput({ value, units, onChange, onAddUnit, disabled 
 
   return (
     <div className="min-w-0 space-y-1.5">
-      <Command shouldFilter={false} className="h-auto overflow-visible rounded-md bg-transparent">
+      <Command shouldFilter={false} className="relative h-auto w-full min-w-0 overflow-visible rounded-md bg-transparent">
         <CommandInput
-          className="h-full w-auto min-w-0 flex-1 bg-transparent px-0 py-0 text-base shadow-none focus-visible:ring-0 sm:text-sm"
-          wrapperClassName="h-10 rounded-md border border-input bg-background px-3 shadow-sm ring-offset-background focus-within:ring-1 focus-within:ring-ring"
+          className="h-full w-0 min-w-0 flex-1 bg-transparent px-0 py-0 text-left text-base shadow-none focus-visible:ring-0 sm:text-sm"
+          wrapperClassName="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 shadow-sm ring-offset-background focus-within:ring-1 focus-within:ring-ring"
           onValueChange={(nextValue) => {
             setQuery(nextValue);
             onChange(nextValue);
@@ -93,7 +93,7 @@ export default function UnitInput({ value, units, onChange, onAddUnit, disabled 
           disabled={disabled || isAdding}
         />
         {isOpen && !disabled && (
-          <CommandList className="mt-1 rounded-md border bg-popover shadow-sm">
+          <CommandList className="absolute inset-x-0 top-full z-50 mt-1 max-h-64 w-full rounded-md border bg-popover shadow-lg">
             {suggestions.length > 0 ? (
               <CommandGroup heading="Saved units">
                 {suggestions.map(({ unit }) => (
@@ -113,7 +113,7 @@ export default function UnitInput({ value, units, onChange, onAddUnit, disabled 
             {query && !exactMatch && (
               <CommandItem value={`add ${query}`} onSelect={() => void addUnit()} disabled={isAdding}>
                 <Plus aria-hidden="true" />
-                {isAdding ? 'Adding unit…' : `Add “${query}” unit`}
+                <span className="min-w-0 flex-1 truncate">{isAdding ? 'Adding unit…' : `Add “${query}” unit`}</span>
               </CommandItem>
             )}
           </CommandList>
