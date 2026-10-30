@@ -56,6 +56,12 @@ function parsePesos(value: string): number | null {
   return Number(totalCentavos);
 }
 
+function formatPesoAmount(centavos: number): string {
+  const wholePesos = Math.floor(centavos / 100).toLocaleString('en-PH');
+  const remainingCentavos = String(centavos % 100).padStart(2, '0');
+  return `${wholePesos}.${remainingCentavos}`;
+}
+
 function emptyItem(id: number): DraftItem {
   return { id, itemName: '', quantity: '1', unit: 'item', amountPaid: '' };
 }
@@ -248,7 +254,6 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
   const [newStoreCategory, setNewStoreCategory] = useState<StoreCategory>('supermarket');
   const [storeErrorMessage, setStoreErrorMessage] = useState('');
   const [isAddingStore, setIsAddingStore] = useState(false);
-  const [totalPaid, setTotalPaid] = useState('');
   const [items, setItems] = useState<DraftItem[]>([emptyItem(1)]);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -276,6 +281,10 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
     .filter((entry): entry is { store: Store; rank: number } => entry.rank !== null)
     .sort((left, right) => left.rank - right.rank || left.store.name.localeCompare(right.store.name))
     .slice(0, 8);
+  const calculatedTotalCentavos = items.reduce(
+    (total, item) => total + (parsePesos(item.amountPaid) ?? 0),
+    0
+  );
 
   function updateItem(id: number, changes: Partial<DraftItem>) {
     setItems((current) => current.map((item) => item.id === id ? { ...item, ...changes } : item));
@@ -297,7 +306,6 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
     setStoreSuggestionsOpen(false);
     setStoreEditorOpen(false);
     setNewStoreName('');
-    setTotalPaid('');
     setItems([emptyItem(nextItemId.current++)]);
   }
 
@@ -349,12 +357,6 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
       return;
     }
 
-    const totalPaidCentavos = parsePesos(totalPaid);
-    if (totalPaidCentavos === null) {
-      setErrorMessage(`Enter an amount with up to two decimal places (maximum ₱${maxPesoAmount}).`);
-      return;
-    }
-
     const purchaseItems: CreatePurchaseItem[] = [];
     for (const [index, item] of items.entries()) {
       const itemName = item.itemName.trim();
@@ -375,12 +377,17 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
       purchaseItems.push({ itemName, quantity, unit, amountPaidCentavos });
     }
 
+    const totalPaidCentavos = purchaseItems.reduce((total, item) => total + item.amountPaidCentavos, 0);
+    if (totalPaidCentavos > maxCentavos) {
+      setErrorMessage(`The receipt items total cannot exceed ₱${maxPesoAmount}.`);
+      return;
+    }
+
     setIsSaving(true);
     try {
       await onSubmit({
         purchasedOn,
         ...(selectedStore ? { storeName: selectedStore.name } : {}),
-        totalPaidCentavos,
         items: purchaseItems,
       });
       resetForm();
@@ -534,15 +541,6 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
             </fieldset>
           )}
 
-          <Label className={labelClassName}>
-            Receipt total
-            <div className="relative">
-              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground">₱</span>
-              <Input className={`${inputClassName} pl-8`} type="number" min="0" max={maxPesoAmount} step="0.01" inputMode="decimal" value={totalPaid} onChange={(event) => setTotalPaid(event.target.value)} placeholder="0.00" required disabled={isSaving} />
-            </div>
-            <span className="text-xs font-normal text-muted-foreground">The receipt total is used for spending totals.</span>
-          </Label>
-
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-3">
               <div className="space-y-1">
@@ -605,6 +603,14 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
             </div>
           </div>
 
+          <div className="flex items-center justify-between gap-4 rounded-lg border bg-muted/30 px-4 py-3.5" aria-live="polite">
+            <span>
+              <span className="block text-sm font-medium">Receipt total</span>
+              <span className="block text-xs text-muted-foreground">Calculated from item amounts</span>
+            </span>
+            <output className="text-lg font-semibold tabular-nums">₱{formatPesoAmount(calculatedTotalCentavos)}</output>
+          </div>
+
           {errorMessage && (
             <Alert variant="destructive">
               <AlertTitle>Purchase could not be saved</AlertTitle>
@@ -620,7 +626,7 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
           )}
 
           <p className="text-center text-xs leading-5 text-muted-foreground">
-            Quantity units are saved as entered. Any receipt difference is shown as unallocated.
+            Line amounts are added together for the receipt total. Quantity units are saved as entered.
           </p>
 
       </div>

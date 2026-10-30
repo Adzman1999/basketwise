@@ -18,7 +18,7 @@ A purchase contains:
 - Total paid, recorded from the receipt.
 - One or more line items. Each line has the item name as entered, quantity, unit, and amount paid for that line.
 
-The item name is a receipt-time snapshot. There is no shared product catalog in this first feature, so matching differently named items into one price history is a later feature. Suggested units are `g`, `kg`, `ml`, `l`, `item`, and `pack`; custom unit labels are accepted, and quantities are not converted. The purchase total is authoritative. The API derives `unallocatedAmountCentavos` as the receipt total minus the sum of line amounts, without guessing whether the difference is tax, discount, fee, or rounding.
+The item name is a receipt-time snapshot. There is no shared product catalog in this first feature, so matching differently named items into one price history is a later feature. Suggested units are `g`, `kg`, `ml`, `l`, `item`, and `pack`; custom unit labels are accepted, and quantities are not converted. The receipt total is calculated as the sum of line amounts. The API derives and stores this total from the submitted items so the receipt cannot disagree with its lines.
 
 ## V1 boundaries
 

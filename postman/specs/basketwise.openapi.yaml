@@ -134,8 +134,8 @@ paths:
                     purchasedOn: "2026-10-29"
                     storeName: "Neighborhood Market"
                     currency: "PHP"
-                    totalPaidCentavos: 12550
-                    unallocatedAmountCentavos: 250
+                    totalPaidCentavos: 12300
+                    unallocatedAmountCentavos: 0
                     items:
                       - id: "f557ea81-8e28-4bc0-bf38-92b0a1c3331a"
                         groceryItemId: "b94ab4f4-cb08-48ce-83a9-ff99f6eb488c"
@@ -163,11 +163,9 @@ paths:
         - Purchases
       summary: Record a grocery purchase
       description: |
-        Records the receipt total and one or more receipt line items. The
-        receipt total is authoritative. The API computes the difference between
-        the receipt total and the sum of line amounts as
-        unallocatedAmountCentavos; it does not classify that difference as tax,
-        discount, fee, or rounding.
+        Records one or more receipt line items. The receipt total is calculated
+        by summing each item's amountPaidCentavos and is returned as
+        totalPaidCentavos. The total must fit a signed 32-bit integer.
       requestBody:
         required: true
         content:
@@ -177,7 +175,6 @@ paths:
             example:
               purchasedOn: "2026-10-29"
               storeName: "Neighborhood Market"
-              totalPaidCentavos: 12550
               items:
                 - itemName: "Rice"
                   quantity: 2
@@ -199,8 +196,8 @@ paths:
                 purchasedOn: "2026-10-29"
                 storeName: "Neighborhood Market"
                 currency: "PHP"
-                totalPaidCentavos: 12550
-                unallocatedAmountCentavos: 250
+                totalPaidCentavos: 12300
+                unallocatedAmountCentavos: 0
                 items:
                   - id: "f557ea81-8e28-4bc0-bf38-92b0a1c3331a"
                     groceryItemId: "b94ab4f4-cb08-48ce-83a9-ff99f6eb488c"
@@ -448,7 +445,6 @@ components:
       additionalProperties: false
       required:
         - purchasedOn
-        - totalPaidCentavos
         - items
       properties:
         purchasedOn:
@@ -458,11 +454,6 @@ components:
           type: string
           minLength: 1
           maxLength: 120
-        totalPaidCentavos:
-          type: integer
-          minimum: 0
-          maximum: 2147483647
-          description: Receipt total in PHP centavos.
         items:
           type: array
           minItems: 1

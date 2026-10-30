@@ -14,7 +14,6 @@ export type CreatePurchaseItem = {
 export type CreatePurchaseRequest = {
   purchasedOn: string;
   storeName?: string;
-  totalPaidCentavos: number;
   items: CreatePurchaseItem[];
 };
 

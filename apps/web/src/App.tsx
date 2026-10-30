@@ -240,7 +240,7 @@ export default function App() {
           <DialogContent className="flex max-h-[90dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
             <DialogHeader className="sticky top-0 z-20 shrink-0 border-b bg-background px-6 py-5">
               <DialogTitle>Add a purchase</DialogTitle>
-              <DialogDescription>Enter the receipt total and the items on the receipt.</DialogDescription>
+              <DialogDescription>Enter the receipt date and items. The total is calculated from the item amounts.</DialogDescription>
             </DialogHeader>
             <PurchaseForm onSubmit={savePurchase} onCancel={() => setPurchaseDialogOpen(false)} />
           </DialogContent>

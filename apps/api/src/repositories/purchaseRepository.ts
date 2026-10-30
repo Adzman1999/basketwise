@@ -63,6 +63,7 @@ async function insertPurchaseItems(
 export async function createPurchaseRecord(input: CreatePurchaseInput): Promise<PurchaseRecord> {
   const client = await getPool().connect();
   let transactionStarted = false;
+  const totalPaidCentavos = input.items.reduce((total, item) => total + item.amountPaidCentavos, 0);
 
   try {
     await client.query('BEGIN');
@@ -88,7 +89,7 @@ export async function createPurchaseRecord(input: CreatePurchaseInput): Promise<
        RETURNING id, purchased_on::text AS "purchasedOn", store_name AS "storeName",
                  currency, total_paid_centavos AS "totalPaidCentavos",
                  created_at AS "createdAt"`,
-      [input.purchasedOn, input.storeName ?? null, input.totalPaidCentavos]
+      [input.purchasedOn, input.storeName ?? null, totalPaidCentavos]
     );
     const purchase = purchaseResult.rows[0];
     const items = await insertPurchaseItems(client, purchase.id, input.items);

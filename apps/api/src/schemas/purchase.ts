@@ -26,9 +26,17 @@ export const createPurchaseItemSchema = z.object({
 export const createPurchaseSchema = z.object({
   purchasedOn: calendarDate,
   storeName: z.string().trim().min(1).max(120).optional(),
-  totalPaidCentavos: centavos,
   items: z.array(createPurchaseItemSchema).min(1).max(100),
-}).strict();
+}).strict().superRefine((purchase, context) => {
+  const totalPaidCentavos = purchase.items.reduce((total, item) => total + item.amountPaidCentavos, 0);
+  if (totalPaidCentavos > maxCentavos) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['items'],
+      message: 'The sum of receipt item amounts is too large.',
+    });
+  }
+});
 
 export const purchaseListQuerySchema = z.object({
   page: z.coerce.number().int().min(1).max(1_000_000).default(1),

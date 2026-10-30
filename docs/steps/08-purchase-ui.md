@@ -10,7 +10,7 @@ Let a household record grocery receipts and review stored purchases through the 
 - Per-line name, decimal quantity, unit label, and paid amount; common units are suggested and custom labels are accepted.
 - PHP form values are converted to integer centavos before sending the request.
 - Client-side validation, saving feedback, success/error messages, and item add/remove controls.
-- Newest-first purchase history with item costs, receipt total, unallocated difference, page totals, and pagination.
+- Newest-first purchase history with item costs, calculated receipt total, any historical unallocated difference, page totals, and pagination.
 - API connection indicator with a retry action.
 
 ## Verification

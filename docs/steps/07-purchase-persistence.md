@@ -16,7 +16,7 @@ Implement the Step 06 API contract with PostgreSQL while keeping receipt creatio
 
 - `POST /api/purchases` validates and creates a purchase and all its line items in one transaction.
 - `GET /api/purchases` returns line items newest purchase date first, with stable ordering and page/pageSize pagination.
-- The receipt total remains authoritative. `unallocatedAmountCentavos` is computed from the receipt total minus line amounts.
+- The receipt total is derived from the sum of line amounts. `unallocatedAmountCentavos` remains in purchase responses for compatibility with historical rows.
 - Validation and server errors use the error response shape defined in OpenAPI.
 
 ## Local setup

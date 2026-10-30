@@ -8,7 +8,6 @@ const app = createApp();
 const validPurchase = {
   purchasedOn: '2026-10-29',
   storeName: 'Neighborhood Market',
-  totalPaidCentavos: 12550,
   items: [
     { itemName: 'Rice', quantity: 2, unit: 'kg', amountPaidCentavos: 11000 },
     { itemName: 'Bananas', quantity: 1, unit: 'pack', amountPaidCentavos: 1300 },
@@ -31,8 +30,8 @@ describe('grocery purchases', () => {
 
     expect(response.status).toBe(201);
     expect(response.body.currency).toBe('PHP');
-    expect(response.body.totalPaidCentavos).toBe(12550);
-    expect(response.body.unallocatedAmountCentavos).toBe(250);
+    expect(response.body.totalPaidCentavos).toBe(12300);
+    expect(response.body.unallocatedAmountCentavos).toBe(0);
     expect(response.body.purchasedOn).toBe('2026-10-29');
     expect(response.body.storeName).toBe('Neighborhood Market');
     expect(response.body.items).toHaveLength(2);
