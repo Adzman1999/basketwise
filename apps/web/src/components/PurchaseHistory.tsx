@@ -51,6 +51,16 @@ function formatPurchaseDate(date: string): string {
   }).format(new Date(`${date}T00:00:00.000Z`));
 }
 
+function formatReceiptCount(total: number, pageNumber: number, pageSize: number, isFiltered: boolean): string {
+  const noun = `${isFiltered ? 'matching ' : ''}${total === 1 ? 'receipt' : 'receipts'}`;
+  if (total === 0) return `0 ${noun}`;
+  if (total <= pageSize) return `Showing ${total} ${noun}`;
+
+  const firstReceipt = (pageNumber - 1) * pageSize + 1;
+  const lastReceipt = Math.min(pageNumber * pageSize, total);
+  return `Showing ${firstReceipt}–${lastReceipt} of ${total} ${noun}`;
+}
+
 function HighlightedMatch({ name, query }: { name: string; query: string }) {
   const normalizedQuery = query.trim();
   const index = name.toLowerCase().indexOf(normalizedQuery.toLowerCase());
@@ -212,9 +222,7 @@ export default function PurchaseHistory({
             <Badge variant="outline">Filters not applied</Badge>
           )}
           {pageData && (
-            <p className="text-sm text-muted-foreground">
-              {pageData.total} {hasAppliedCriteria ? 'matching ' : ''}{pageData.total === 1 ? 'receipt' : 'receipts'}
-            </p>
+            <p className="text-sm text-muted-foreground">{formatReceiptCount(pageData.total, pageNumber, pageSize, hasAppliedCriteria)}</p>
           )}
         </div>
       </div>
