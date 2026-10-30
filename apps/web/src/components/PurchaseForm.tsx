@@ -505,38 +505,25 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
                 />
                 {storeSuggestionsOpen && !storesLoading && (
                   <CommandList className="absolute inset-x-0 top-full z-50 mt-1 max-h-64 w-full rounded-md border bg-popover shadow-lg">
-                    {storeSearch.trim() ? (
+                    {storeSuggestions.length > 0 && (
                       <CommandGroup heading="Saved places">
                         {storeSuggestions.map(({ store, rank }) => (
-                          <CommandItem
-                            key={store.id}
-                            value={`${store.name} ${storeCategoryLabels[store.category]}`}
-                            onSelect={() => {
-                              setSelectedStoreId(store.id);
-                              setStoreSearch(store.name);
-                              setStoreSuggestionsOpen(false);
-                            }}
-                          >
-                            <span className="min-w-0 flex-1">
-                              <span className="block truncate font-medium"><HighlightedName name={store.name} query={storeSearch} /></span>
-                              <span className="block truncate text-xs text-muted-foreground">{storeCategoryLabels[store.category]}</span>
-                            </span>
-                            <Badge variant={rank === 0 ? 'default' : 'outline'}>
-                              {rank === 0 ? 'Exact match' : rank >= 4 ? 'Close match' : 'Match'}
-                            </Badge>
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    ) : (
-                      <CommandGroup heading="Saved places">
-                        {storeSuggestions.map(({ store }) => (
                           <CommandItem key={store.id} value={`${store.name} ${storeCategoryLabels[store.category]}`} onSelect={() => {
                             setSelectedStoreId(store.id);
                             setStoreSearch(store.name);
                             setStoreSuggestionsOpen(false);
                           }}>
-                            <span className="min-w-0 flex-1 truncate">{store.name}</span>
-                            <span className="text-xs text-muted-foreground">{storeCategoryLabels[store.category]}</span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate font-medium"><HighlightedName name={store.name} query={storeSearch} /></span>
+                              {!storeSearch.trim() && <span className="block truncate text-xs text-muted-foreground">{storeCategoryLabels[store.category]}</span>}
+                            </span>
+                            {storeSearch.trim() ? (
+                              <Badge variant={rank === 0 ? 'default' : 'outline'}>
+                                {rank === 0 ? 'Exact match' : rank >= 4 ? 'Close match' : 'Match'}
+                              </Badge>
+                            ) : (
+                              <span className="shrink-0 text-xs text-muted-foreground">{storeCategoryLabels[store.category]}</span>
+                            )}
                           </CommandItem>
                         ))}
                       </CommandGroup>
@@ -557,11 +544,12 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
                         setStoreEditorOpen(true);
                         setStoreSuggestionsOpen(false);
                       }}>
-                        <Plus aria-hidden="true" /> Add “{storeSearch.trim()}” as a new place
+                        <Plus aria-hidden="true" />
+                        <span className="min-w-0 flex-1 truncate">Add “{storeSearch.trim()}” as a new place</span>
                       </CommandItem>
                     )}
                     {storeSearch.trim() && storeSuggestions.length === 0 && (
-                      <div className="px-3 py-2 text-xs text-muted-foreground">No exact or close saved place was found.</div>
+                      <div className="px-3 py-2 text-xs text-muted-foreground">No saved place matches your search.</div>
                     )}
                   </CommandList>
                 )}
