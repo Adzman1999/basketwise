@@ -42,7 +42,26 @@ function formatPurchaseDate(date: string): string {
   }).format(new Date(`${date}T00:00:00.000Z`));
 }
 
-function PurchaseCard({ purchase }: { purchase: Purchase }) {
+function HighlightedMatch({ name, query }: { name: string; query: string }) {
+  const normalizedQuery = query.trim();
+  const index = name.toLowerCase().indexOf(normalizedQuery.toLowerCase());
+  if (!normalizedQuery || index < 0) return <>{name}</>;
+
+  return (
+    <>
+      {name.slice(0, index)}
+      <mark className="rounded bg-primary/20 px-0.5 text-foreground">{name.slice(index, index + normalizedQuery.length)}</mark>
+      {name.slice(index + normalizedQuery.length)}
+    </>
+  );
+}
+
+function PurchaseCard({ purchase, searchQuery }: { purchase: Purchase; searchQuery: string }) {
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+  const matchingItems = normalizedSearch
+    ? purchase.items.filter((item) => item.itemName.toLowerCase().includes(normalizedSearch))
+    : [];
+
   return (
     <Card className="overflow-hidden p-0">
       <details className="group">
@@ -53,6 +72,17 @@ function PurchaseCard({ purchase }: { purchase: Purchase }) {
             </p>
             <CardTitle className="truncate text-base">{purchase.storeName || 'Grocery trip'}</CardTitle>
             <p className="text-xs text-muted-foreground">{purchase.items.length} {purchase.items.length === 1 ? 'item' : 'items'}</p>
+            {matchingItems[0] && (
+              <div className="flex min-w-0 items-center gap-1.5 pt-1">
+                <p className="truncate text-xs font-medium">
+                  <HighlightedMatch name={matchingItems[0].itemName} query={searchQuery} />
+                </p>
+                <Badge className="shrink-0" variant={matchingItems[0].itemName.trim().toLowerCase() === normalizedSearch ? 'default' : 'outline'}>
+                  {matchingItems[0].itemName.trim().toLowerCase() === normalizedSearch ? 'Exact match' : 'Close match'}
+                </Badge>
+                {matchingItems.length > 1 && <span className="shrink-0 text-xs text-muted-foreground">+{matchingItems.length - 1}</span>}
+              </div>
+            )}
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <div className="text-right">
@@ -68,8 +98,13 @@ function PurchaseCard({ purchase }: { purchase: Purchase }) {
             {purchase.items.map((item) => (
               <div key={item.id} className="flex items-start justify-between gap-4 py-3 text-sm">
                 <div className="min-w-0">
-                  <p className="truncate font-medium">{item.itemName}</p>
+                  <p className="truncate font-medium"><HighlightedMatch name={item.itemName} query={searchQuery} /></p>
                   <p className="mt-0.5 text-xs text-muted-foreground">{item.quantity} {item.unit}</p>
+                  {normalizedSearch && item.itemName.toLowerCase().includes(normalizedSearch) && (
+                    <Badge className="mt-1 h-5 px-1.5 text-[10px]" variant={item.itemName.trim().toLowerCase() === normalizedSearch ? 'default' : 'outline'}>
+                      {item.itemName.trim().toLowerCase() === normalizedSearch ? 'Exact match' : 'Close match'}
+                    </Badge>
+                  )}
                 </div>
                 <span className="shrink-0 font-medium tabular-nums">{formatCentavos(item.amountPaidCentavos)}</span>
               </div>
@@ -276,7 +311,9 @@ export default function PurchaseHistory({
           </Card>
         )}
 
-        {pageData?.items.map((purchase) => <PurchaseCard key={purchase.id} purchase={purchase} />)}
+        {pageData?.items.map((purchase) => (
+          <PurchaseCard key={purchase.id} purchase={purchase} searchQuery={filtersPending ? '' : filters.search} />
+        ))}
       </div>
 
       {pageData && pageData.total > 0 && totalPages > 1 && (
