@@ -210,20 +210,12 @@ function CatalogNameInput({
     };
   }, [query]);
 
-  const helperMessage = query.length < 2
-    ? 'Type two or more letters to search saved item names.'
-    : isSearching
-      ? 'Searching your saved items…'
-      : suggestions.length > 0
-        ? 'Choose a saved name to keep its price history together.'
-        : 'No match? This name will create a catalog item.';
-
   return (
     <>
-      <Command shouldFilter={false} className="h-auto overflow-visible rounded-md bg-transparent">
+      <Command shouldFilter={false} className="relative h-auto w-full min-w-0 overflow-visible rounded-md bg-transparent">
         <CommandInput
-          className="h-full w-auto min-w-0 flex-1 bg-transparent px-0 py-0 text-base shadow-none focus-visible:ring-0 sm:text-sm"
-          wrapperClassName="h-10 rounded-md border border-input bg-background px-3 shadow-sm ring-offset-background focus-within:ring-1 focus-within:ring-ring"
+          className="h-full w-0 min-w-0 flex-1 bg-transparent px-0 py-0 text-left text-base shadow-none focus-visible:ring-0 sm:text-sm"
+          wrapperClassName="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 shadow-sm ring-offset-background focus-within:ring-1 focus-within:ring-ring"
           value={value}
           onValueChange={(nextValue) => {
             onChange(nextValue);
@@ -238,7 +230,7 @@ function CatalogNameInput({
           disabled={disabled}
         />
         {isOpen && query.length >= 2 && (
-          <CommandList className="mt-1 rounded-md border bg-popover shadow-sm">
+          <CommandList className="absolute inset-x-0 top-full z-50 mt-1 max-h-64 w-full rounded-md border bg-popover shadow-lg">
             {isSearching ? (
               <CommandEmpty>Searching saved grocery items…</CommandEmpty>
             ) : suggestions.length === 0 ? (
@@ -261,8 +253,8 @@ function CatalogNameInput({
           </CommandList>
         )}
       </Command>
-      <span id={helperId} className="block text-xs font-normal leading-5 text-muted-foreground" aria-live="polite">
-        {helperMessage}
+      <span id={helperId} className="block text-xs font-normal leading-5 text-muted-foreground">
+        Choose a saved name to keep its price history together.
       </span>
     </>
   );
