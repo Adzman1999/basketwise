@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { CheckCircle2, Plus, Save, Trash2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -62,28 +63,90 @@ function emptyItem(id: number): DraftItem {
 const inputClassName = 'h-10 w-full min-w-0 rounded-md bg-background text-sm';
 const labelClassName = 'grid min-w-0 gap-2 text-sm font-medium';
 const noStoreValue = 'none';
-const addStoreValue = 'add-store';
 
 function normalizeStoreName(name: string): string {
   return name.trim().replace(/\s+/g, ' ').toLowerCase();
 }
 
+function editDistance(left: string, right: string): number {
+  const previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+  for (let leftIndex = 1; leftIndex <= left.length; leftIndex += 1) {
+    let diagonal = previous[0];
+    previous[0] = leftIndex;
+    for (let rightIndex = 1; rightIndex <= right.length; rightIndex += 1) {
+      const above = previous[rightIndex];
+      previous[rightIndex] = Math.min(
+        previous[rightIndex] + 1,
+        previous[rightIndex - 1] + 1,
+        diagonal + (left[leftIndex - 1] === right[rightIndex - 1] ? 0 : 1)
+      );
+      diagonal = above;
+    }
+  }
+  return previous[right.length];
+}
+
+function storeMatchRank(name: string, query: string): number | null {
+  const normalizedName = normalizeStoreName(name);
+  const normalizedQuery = normalizeStoreName(query);
+  if (!normalizedQuery) return 10;
+  if (normalizedName === normalizedQuery) return 0;
+  if (normalizedName.startsWith(normalizedQuery)) return 1;
+  if (normalizedName.includes(normalizedQuery)) return 2;
+
+  const words = normalizedName.split(' ');
+  if (words.some((word) => word.startsWith(normalizedQuery))) return 3;
+
+  if (normalizedQuery.length < 3) return null;
+  const bestDistance = Math.min(...words.map((word) => editDistance(normalizedQuery, word)));
+  const allowedDistance = normalizedQuery.length >= 6 ? 2 : 1;
+  return bestDistance <= allowedDistance ? 4 + bestDistance : null;
+}
+
+function HighlightedName({ name, query }: { name: string; query: string }) {
+  const normalizedQuery = query.trim();
+  const index = name.toLowerCase().indexOf(normalizedQuery.toLowerCase());
+  if (!normalizedQuery) return <>{name}</>;
+
+  if (index >= 0) {
+    return (
+      <>
+        {name.slice(0, index)}
+        <mark className="rounded bg-primary/20 px-0.5 text-foreground">{name.slice(index, index + normalizedQuery.length)}</mark>
+        {name.slice(index + normalizedQuery.length)}
+      </>
+    );
+  }
+
+  const words = name.split(/(\s+)/);
+  const closestWord = words
+    .filter((word) => word.trim())
+    .sort((left, right) => editDistance(normalizedQuery.toLowerCase(), left.toLowerCase()) - editDistance(normalizedQuery.toLowerCase(), right.toLowerCase()))[0];
+  if (!closestWord) return <>{name}</>;
+  const closestIndex = name.toLowerCase().indexOf(closestWord.toLowerCase());
+  return (
+    <>
+      {name.slice(0, closestIndex)}
+      <mark className="rounded bg-primary/20 px-0.5 text-foreground">{name.slice(closestIndex, closestIndex + closestWord.length)}</mark>
+      {name.slice(closestIndex + closestWord.length)}
+    </>
+  );
+}
+
 function CatalogNameInput({
-  itemId,
   value,
   onChange,
   disabled,
 }: {
-  itemId: number;
   value: string;
   onChange: (value: string) => void;
   disabled: boolean;
 }) {
   const [suggestions, setSuggestions] = useState<GroceryItem[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
   const query = value.trim();
-  const suggestionsId = `grocery-item-suggestions-${itemId}`;
-  const helperId = `grocery-item-helper-${itemId}`;
+  const helperId = useId();
 
   useEffect(() => {
     if (query.length < 2) {
@@ -93,8 +156,9 @@ function CatalogNameInput({
     }
 
     const controller = new AbortController();
+    setSuggestions([]);
+    setIsSearching(true);
     const timeout = window.setTimeout(() => {
-      setIsSearching(true);
       void fetchGroceryItems(1, 8, query, controller.signal)
         .then((page) => {
           if (!controller.signal.aborted) setSuggestions(page.items);
@@ -123,21 +187,46 @@ function CatalogNameInput({
 
   return (
     <>
-      <Input
-        className={inputClassName}
-        type="text"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        maxLength={120}
-        placeholder="e.g. Rice"
-        list={suggestionsId}
-        aria-describedby={helperId}
-        required
-        disabled={disabled}
-      />
-      <datalist id={suggestionsId}>
-        {suggestions.map((item) => <option key={item.id} value={item.name} />)}
-      </datalist>
+      <Command shouldFilter={false} className="rounded-md border bg-background">
+        <CommandInput
+          className={inputClassName}
+          value={value}
+          onValueChange={(nextValue) => {
+            onChange(nextValue);
+            setIsOpen(true);
+          }}
+          onFocus={() => setIsOpen(true)}
+          onBlur={() => window.setTimeout(() => setIsOpen(false), 120)}
+          maxLength={120}
+          placeholder="e.g. Rice"
+          aria-describedby={helperId}
+          required
+          disabled={disabled}
+        />
+        {isOpen && query.length >= 2 && (
+          <CommandList className="border-t">
+            {isSearching ? (
+              <CommandEmpty>Searching saved grocery items…</CommandEmpty>
+            ) : suggestions.length === 0 ? (
+              <CommandEmpty>No saved item matches. This name will create a new catalog item.</CommandEmpty>
+            ) : (
+              <CommandGroup heading="Saved item matches">
+                {suggestions.map((item) => (
+                  <CommandItem key={item.id} value={item.name} onSelect={() => {
+                    onChange(item.name);
+                    setIsOpen(false);
+                  }}>
+                    <span className="min-w-0 flex-1 truncate"><HighlightedName name={item.name} query={query} /></span>
+                    <Badge variant={item.name.toLowerCase() === query.toLowerCase() ? 'default' : 'outline'}>
+                      {item.name.toLowerCase() === query.toLowerCase() ? 'Exact match' : 'Close match'}
+                    </Badge>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            )}
+          </CommandList>
+        )}
+      </Command>
       <span id={helperId} className="block text-xs font-normal leading-5 text-muted-foreground" aria-live="polite">
         {helperMessage}
       </span>
@@ -152,6 +241,8 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
   const [storesLoading, setStoresLoading] = useState(true);
   const [storeLoadError, setStoreLoadError] = useState('');
   const [selectedStoreId, setSelectedStoreId] = useState(noStoreValue);
+  const [storeSearch, setStoreSearch] = useState('');
+  const [storeSuggestionsOpen, setStoreSuggestionsOpen] = useState(false);
   const [storeEditorOpen, setStoreEditorOpen] = useState(false);
   const [newStoreName, setNewStoreName] = useState('');
   const [newStoreCategory, setNewStoreCategory] = useState<StoreCategory>('supermarket');
@@ -180,6 +271,11 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
   }, []);
 
   const selectedStore = stores.find((store) => store.id === selectedStoreId);
+  const storeSuggestions = stores
+    .map((store) => ({ store, rank: storeMatchRank(store.name, storeSearch) }))
+    .filter((entry): entry is { store: Store; rank: number } => entry.rank !== null)
+    .sort((left, right) => left.rank - right.rank || left.store.name.localeCompare(right.store.name))
+    .slice(0, 8);
 
   function updateItem(id: number, changes: Partial<DraftItem>) {
     setItems((current) => current.map((item) => item.id === id ? { ...item, ...changes } : item));
@@ -197,6 +293,10 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
   function resetForm() {
     setPurchasedOn(todayAsLocalDate());
     setSelectedStoreId(noStoreValue);
+    setStoreSearch('');
+    setStoreSuggestionsOpen(false);
+    setStoreEditorOpen(false);
+    setNewStoreName('');
     setTotalPaid('');
     setItems([emptyItem(nextItemId.current++)]);
   }
@@ -211,6 +311,8 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
     const existing = stores.find((store) => normalizeStoreName(store.name) === normalizeStoreName(name));
     if (existing) {
       setSelectedStoreId(existing.id);
+      setStoreSearch(existing.name);
+      setStoreSuggestionsOpen(false);
       setStoreEditorOpen(false);
       setStoreErrorMessage('');
       return;
@@ -222,6 +324,8 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
       const store = await createStore({ name, category: newStoreCategory });
       setStores((current) => [...current, store].sort((left, right) => left.name.localeCompare(right.name)));
       setSelectedStoreId(store.id);
+      setStoreSearch(store.name);
+      setStoreSuggestionsOpen(false);
       setNewStoreName('');
       setStoreEditorOpen(false);
     } catch (error) {
@@ -235,6 +339,15 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
     event.preventDefault();
     setErrorMessage('');
     setSuccessMessage('');
+
+    if (storeEditorOpen || isAddingStore) {
+      setErrorMessage('Save or cancel the new store before saving this purchase.');
+      return;
+    }
+    if (storeSearch.trim() && !selectedStore) {
+      setErrorMessage('Choose a saved store or add this place before saving the purchase.');
+      return;
+    }
 
     const totalPaidCentavos = parsePesos(totalPaid);
     if (totalPaidCentavos === null) {
@@ -289,36 +402,85 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
             </Label>
             <Label className={labelClassName}>
               Store or shop <span className="font-normal text-muted-foreground">· optional</span>
-              <Select
-                value={storeEditorOpen ? addStoreValue : selectedStoreId}
-                onValueChange={(value) => {
-                  if (value === addStoreValue) {
-                    setStoreErrorMessage('');
-                    setStoreEditorOpen(true);
-                    return;
-                  }
-                  setStoreEditorOpen(false);
-                  setSelectedStoreId(value);
-                }}
-                disabled={isSaving || storesLoading}
-              >
-                <SelectTrigger className={inputClassName} aria-label="Choose a store or shop">
-                  <SelectValue placeholder={storesLoading ? 'Loading saved places…' : 'Choose a saved place'} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={noStoreValue}>Not recorded</SelectItem>
-                  {stores.map((store) => (
-                    <SelectItem key={store.id} value={store.id}>
-                      {store.name} · {storeCategoryLabels[store.category]}
-                    </SelectItem>
-                  ))}
-                  <SelectItem value={addStoreValue}>
-                    <span className="inline-flex items-center gap-2">
-                      <Plus className="size-4" aria-hidden="true" /> Add a store or shop…
-                    </span>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
+              <Command shouldFilter={false} className="rounded-md border bg-background">
+                <CommandInput
+                  className={inputClassName}
+                  value={storeSearch}
+                  onValueChange={(nextValue) => {
+                    setStoreSearch(nextValue);
+                    setStoreSuggestionsOpen(true);
+                    if (nextValue !== selectedStore?.name) setSelectedStoreId(noStoreValue);
+                  }}
+                  onFocus={() => setStoreSuggestionsOpen(true)}
+                  onBlur={() => window.setTimeout(() => setStoreSuggestionsOpen(false), 120)}
+                  placeholder={storesLoading ? 'Loading saved places…' : 'Search stores and shops'}
+                  aria-label="Search stores and shops"
+                  aria-expanded={storeSuggestionsOpen}
+                  disabled={isSaving || storesLoading}
+                />
+                {storeSuggestionsOpen && !storesLoading && (
+                  <CommandList className="border-t">
+                    {storeSearch.trim() ? (
+                      <CommandGroup heading="Saved places">
+                        {storeSuggestions.map(({ store, rank }) => (
+                          <CommandItem
+                            key={store.id}
+                            value={`${store.name} ${storeCategoryLabels[store.category]}`}
+                            onSelect={() => {
+                              setSelectedStoreId(store.id);
+                              setStoreSearch(store.name);
+                              setStoreSuggestionsOpen(false);
+                            }}
+                          >
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate font-medium"><HighlightedName name={store.name} query={storeSearch} /></span>
+                              <span className="block truncate text-xs text-muted-foreground">{storeCategoryLabels[store.category]}</span>
+                            </span>
+                            <Badge variant={rank === 0 ? 'default' : 'outline'}>
+                              {rank === 0 ? 'Exact match' : rank >= 4 ? 'Close match' : 'Match'}
+                            </Badge>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    ) : (
+                      <CommandGroup heading="Saved places">
+                        {storeSuggestions.map(({ store }) => (
+                          <CommandItem key={store.id} value={`${store.name} ${storeCategoryLabels[store.category]}`} onSelect={() => {
+                            setSelectedStoreId(store.id);
+                            setStoreSearch(store.name);
+                            setStoreSuggestionsOpen(false);
+                          }}>
+                            <span className="min-w-0 flex-1 truncate">{store.name}</span>
+                            <span className="text-xs text-muted-foreground">{storeCategoryLabels[store.category]}</span>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    )}
+                    {!storeSearch.trim() && (
+                      <CommandItem value="not recorded" onSelect={() => {
+                        setSelectedStoreId(noStoreValue);
+                        setStoreSearch('');
+                        setStoreSuggestionsOpen(false);
+                      }}>
+                        Not recorded
+                      </CommandItem>
+                    )}
+                    {storeSearch.trim() && !stores.some((store) => normalizeStoreName(store.name) === normalizeStoreName(storeSearch)) && (
+                      <CommandItem value={`add ${storeSearch}`} onSelect={() => {
+                        setStoreErrorMessage('');
+                        setNewStoreName(storeSearch.trim());
+                        setStoreEditorOpen(true);
+                        setStoreSuggestionsOpen(false);
+                      }}>
+                        <Plus aria-hidden="true" /> Add “{storeSearch.trim()}” as a new place
+                      </CommandItem>
+                    )}
+                    {storeSearch.trim() && storeSuggestions.length === 0 && (
+                      <div className="px-3 py-2 text-xs text-muted-foreground">No exact or close saved place was found.</div>
+                    )}
+                  </CommandList>
+                )}
+              </Command>
               {storeLoadError && <span className="text-xs font-normal leading-5 text-destructive">{storeLoadError}</span>}
             </Label>
           </div>
@@ -417,7 +579,7 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
                   <div className="mt-4 grid gap-4 sm:grid-cols-2">
                     <Label className={labelClassName}>
                       Food name
-                      <CatalogNameInput itemId={item.id} value={item.itemName} onChange={(itemName) => updateItem(item.id, { itemName })} disabled={isSaving} />
+                      <CatalogNameInput value={item.itemName} onChange={(itemName) => updateItem(item.id, { itemName })} disabled={isSaving} />
                     </Label>
                     <Label className={labelClassName}>
                       Line amount
