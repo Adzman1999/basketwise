@@ -194,7 +194,7 @@ export default function App() {
                         ? 'Browse saved grocery items and compare their recorded prices.'
                         : activeHref === '#stores'
                           ? 'Save the places you shop and choose them when recording a purchase.'
-                          : 'Keep receipts, item costs, and price history organized for your household.'}
+                          : 'Track grocery receipts and item prices.'}
                     </p>
                   </div>
                   {activeHref === '#grocery-spending' && (

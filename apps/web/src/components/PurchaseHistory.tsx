@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, CalendarDays, LoaderCircle, ReceiptText, RotateCcw, Search, SlidersHorizontal, Store } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CalendarDays, ChevronDown, LoaderCircle, ReceiptText, RotateCcw, Search, SlidersHorizontal, Store } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -44,44 +44,46 @@ function formatPurchaseDate(date: string): string {
 
 function PurchaseCard({ purchase }: { purchase: Purchase }) {
   return (
-    <Card>
-      <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3 space-y-0 p-4 sm:p-5">
-        <div className="space-y-1.5">
-          <p className="text-xs text-muted-foreground">
-            <time dateTime={purchase.purchasedOn}>{formatPurchaseDate(purchase.purchasedOn)}</time>
-          </p>
-          <CardTitle className="text-base">{purchase.storeName || 'Grocery trip'}</CardTitle>
-        </div>
-        <div className="text-right">
-          <p className="text-xs text-muted-foreground">Receipt total</p>
-          <p className="mt-1 text-lg font-semibold tabular-nums">{formatCentavos(purchase.totalPaidCentavos)}</p>
-        </div>
-      </CardHeader>
-
-      <CardContent className="px-4 pb-0 sm:px-5">
-        <Separator />
-        <div className="divide-y">
-          {purchase.items.map((item) => (
-            <div key={item.id} className="flex items-start justify-between gap-4 py-3 text-sm">
-              <div className="min-w-0">
-                <p className="truncate font-medium">{item.itemName}</p>
-                <p className="mt-0.5 text-xs text-muted-foreground">{item.quantity} {item.unit}</p>
-              </div>
-              <span className="shrink-0 font-medium tabular-nums">{formatCentavos(item.amountPaidCentavos)}</span>
+    <Card className="overflow-hidden p-0">
+      <details className="group">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 marker:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset [&::-webkit-details-marker]:hidden sm:px-5">
+          <div className="min-w-0 space-y-0.5">
+            <p className="text-xs text-muted-foreground">
+              <time dateTime={purchase.purchasedOn}>{formatPurchaseDate(purchase.purchasedOn)}</time>
+            </p>
+            <CardTitle className="truncate text-base">{purchase.storeName || 'Grocery trip'}</CardTitle>
+            <p className="text-xs text-muted-foreground">{purchase.items.length} {purchase.items.length === 1 ? 'item' : 'items'}</p>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <div className="text-right">
+              <p className="text-xs text-muted-foreground">Receipt total</p>
+              <p className="text-base font-semibold tabular-nums">{formatCentavos(purchase.totalPaidCentavos)}</p>
             </div>
-          ))}
-        </div>
-        <Separator />
-      </CardContent>
+            <ChevronDown aria-hidden="true" className="size-4 text-muted-foreground transition-transform group-open:rotate-180" />
+          </div>
+        </summary>
 
-      <div className="flex items-center justify-between gap-3 px-4 py-3 sm:px-5">
-        <span className="text-xs text-muted-foreground">{purchase.items.length} {purchase.items.length === 1 ? 'item' : 'items'}</span>
-        <Badge variant={purchase.unallocatedAmountCentavos === 0 ? 'secondary' : 'outline'}>
-          {purchase.unallocatedAmountCentavos === 0
-            ? 'Receipt lines match total'
-            : `Unallocated ${formatCentavos(purchase.unallocatedAmountCentavos)}`}
-        </Badge>
-      </div>
+        <CardContent className="border-t bg-muted/10 px-4 py-1 sm:px-5">
+          <div className="divide-y">
+            {purchase.items.map((item) => (
+              <div key={item.id} className="flex items-start justify-between gap-4 py-3 text-sm">
+                <div className="min-w-0">
+                  <p className="truncate font-medium">{item.itemName}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{item.quantity} {item.unit}</p>
+                </div>
+                <span className="shrink-0 font-medium tabular-nums">{formatCentavos(item.amountPaidCentavos)}</span>
+              </div>
+            ))}
+          </div>
+          <div className="flex justify-end border-t py-3">
+            <Badge variant={purchase.unallocatedAmountCentavos === 0 ? 'secondary' : 'outline'}>
+              {purchase.unallocatedAmountCentavos === 0
+                ? 'Receipt lines match total'
+                : `Unallocated ${formatCentavos(purchase.unallocatedAmountCentavos)}`}
+            </Badge>
+          </div>
+        </CardContent>
+      </details>
     </Card>
   );
 }
@@ -100,8 +102,6 @@ export default function PurchaseHistory({
   const dateRangeInvalid = Boolean(filters.from && filters.to && filters.from > filters.to);
   const pageData = state.kind === 'loaded' && !dateRangeInvalid ? state.page : null;
   const totalPages = pageData ? Math.max(1, Math.ceil(pageData.total / pageSize)) : 1;
-  const pageSpend = pageData?.items.reduce((sum, purchase) => sum + purchase.totalPaidCentavos, 0) ?? 0;
-
   function updateFilter(key: keyof PurchaseFilters, value: string) {
     onFiltersChange({ ...filters, [key]: value });
   }
@@ -111,13 +111,9 @@ export default function PurchaseHistory({
   }
 
   return (
-    <section aria-labelledby="purchase-history-title" className="min-w-0 space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div className="space-y-1.5">
-          <Badge variant="secondary" className="w-fit">Your records</Badge>
-          <h2 id="purchase-history-title" className="text-2xl font-semibold tracking-tight">Purchase history</h2>
-          <p className="text-sm text-muted-foreground">Receipts and the prices recorded on each trip.</p>
-        </div>
+    <section aria-labelledby="purchase-history-title" className="min-w-0 space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 id="purchase-history-title" className="text-xl font-semibold tracking-tight">Purchase history</h2>
         <div className="flex items-center gap-2">
           {filtersPending && (
             <Badge variant="secondary" className="gap-1.5">
@@ -217,23 +213,6 @@ export default function PurchaseHistory({
           <AlertTitle>Check the date range</AlertTitle>
           <AlertDescription>The start date must be on or before the end date.</AlertDescription>
         </Alert>
-      )}
-
-      {pageData && pageData.total > 0 && (
-        <div className="grid grid-cols-2 gap-3">
-          <Card>
-            <CardHeader className="p-4 pb-2">
-              <CardDescription>Receipts on this page</CardDescription>
-              <CardTitle className="text-2xl tabular-nums">{pageData.items.length}</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader className="p-4 pb-2">
-              <CardDescription>Spend on this page</CardDescription>
-              <CardTitle className="text-lg tabular-nums sm:text-2xl">{formatCentavos(pageSpend)}</CardTitle>
-            </CardHeader>
-          </Card>
-        </div>
       )}
 
       <div className="space-y-3" aria-live="polite" aria-busy={filtersPending || state.kind === 'loading'}>
