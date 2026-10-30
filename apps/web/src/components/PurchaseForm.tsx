@@ -95,6 +95,7 @@ function emptyItem(id: number): DraftItem {
 const inputClassName = 'h-10 w-full min-w-0 rounded-md bg-background text-base sm:text-sm';
 const labelClassName = 'grid min-w-0 gap-2 text-sm font-medium';
 const noStoreValue = 'none';
+const otherStoreValue = 'other-unknown';
 
 function normalizeStoreName(name: string): string {
   return name.trim().replace(/\s+/g, ' ').toLowerCase();
@@ -420,8 +421,8 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
       setErrorMessage('Save or cancel the new store before saving this purchase.');
       return;
     }
-    if (storeSearch.trim() && !selectedStore) {
-      setErrorMessage('Choose a saved store or add this place before saving the purchase.');
+    if (!selectedStore && selectedStoreId !== otherStoreValue) {
+      setErrorMessage('Choose a saved place, add this place, or select Other if you’re unsure.');
       return;
     }
 
@@ -462,7 +463,7 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
     try {
       await onSubmit({
         purchasedOn,
-        ...(selectedStore ? { storeName: selectedStore.name } : {}),
+        storeName: selectedStore?.name ?? 'Other',
         items: purchaseItems,
       });
       resetForm();
@@ -483,7 +484,7 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
               <Input className={inputClassName} type="date" value={purchasedOn} onChange={(event) => setPurchasedOn(event.target.value)} required disabled={isSaving} />
             </Label>
             <Label className={labelClassName}>
-              Store or shop <span className="font-normal text-muted-foreground">· optional</span>
+              Store or shop
               <Command shouldFilter={false} className="h-auto overflow-visible rounded-md bg-transparent">
                 <CommandInput
                   className="h-full w-auto min-w-0 flex-1 bg-transparent px-0 py-0 text-sm shadow-none focus-visible:ring-0"
@@ -498,6 +499,7 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
                   onBlur={() => window.setTimeout(() => setStoreSuggestionsOpen(false), 120)}
                   placeholder={storesLoading ? 'Loading saved places…' : 'Search stores and shops'}
                   aria-label="Search stores and shops"
+                  aria-required="true"
                   aria-expanded={storeSuggestionsOpen}
                   disabled={isSaving || storesLoading}
                 />
@@ -539,13 +541,13 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
                         ))}
                       </CommandGroup>
                     )}
-                    {!storeSearch.trim() && (
-                      <CommandItem value="not recorded" onSelect={() => {
-                        setSelectedStoreId(noStoreValue);
-                        setStoreSearch('');
+                    {!stores.some((store) => normalizeStoreName(store.name) === 'other') && (
+                      <CommandItem value="other not sure" onSelect={() => {
+                        setSelectedStoreId(otherStoreValue);
+                        setStoreSearch('Other');
                         setStoreSuggestionsOpen(false);
                       }}>
-                        Not recorded
+                        Other <span className="ml-1 text-xs text-muted-foreground">(not sure)</span>
                       </CommandItem>
                     )}
                     {storeSearch.trim() && !stores.some((store) => normalizeStoreName(store.name) === normalizeStoreName(storeSearch)) && (
@@ -564,6 +566,7 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
                   </CommandList>
                 )}
               </Command>
+              <span className="text-xs font-normal text-muted-foreground">Choose a saved place, add one, or select Other if you’re unsure.</span>
               {storeLoadError && <span className="text-xs font-normal leading-5 text-destructive">{storeLoadError}</span>}
             </Label>
           </div>
