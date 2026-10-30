@@ -1,4 +1,5 @@
-import { ArrowLeft, ArrowRight, CalendarDays, ChevronDown, LoaderCircle, ReceiptText, RotateCcw, Search, SlidersHorizontal, Store } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { ArrowLeft, ArrowRight, CalendarDays, ChevronDown, ReceiptText, RotateCcw, Search, SlidersHorizontal, Store } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -22,6 +23,8 @@ type PurchaseHistoryProps = {
   filters: PurchaseFilters;
   filtersPending: boolean;
   onFiltersChange: (filters: PurchaseFilters) => void;
+  onApplyFilters: () => void;
+  onClearFilters: () => void;
   onPageChange: (page: number) => void;
   onRetry: () => void;
 };
@@ -130,20 +133,54 @@ export default function PurchaseHistory({
   filters,
   filtersPending,
   onFiltersChange,
+  onApplyFilters,
+  onClearFilters,
   onPageChange,
   onRetry,
 }: PurchaseHistoryProps) {
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const filtersPopoverRef = useRef<HTMLDivElement>(null);
   const activeFilterCount = [filters.search.trim(), filters.store.trim(), filters.from, filters.to].filter(Boolean).length;
   const hasActiveFilters = activeFilterCount > 0;
   const dateRangeInvalid = Boolean(filters.from && filters.to && filters.from > filters.to);
-  const pageData = state.kind === 'loaded' && !dateRangeInvalid ? state.page : null;
+  const appliedDateRangeInvalid = dateRangeInvalid && !filtersPending;
+  const pageData = state.kind === 'loaded' && !appliedDateRangeInvalid ? state.page : null;
   const totalPages = pageData ? Math.max(1, Math.ceil(pageData.total / pageSize)) : 1;
+
+  useEffect(() => {
+    if (!filtersOpen) return;
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (event.target instanceof Node && !filtersPopoverRef.current?.contains(event.target)) {
+        setFiltersOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setFiltersOpen(false);
+    };
+    document.addEventListener('pointerdown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [filtersOpen]);
+
   function updateFilter(key: keyof PurchaseFilters, value: string) {
     onFiltersChange({ ...filters, [key]: value });
   }
 
+  function applyFilters() {
+    if (dateRangeInvalid) {
+      setFiltersOpen(true);
+      return;
+    }
+    onApplyFilters();
+    setFiltersOpen(false);
+  }
+
   function clearFilters() {
-    onFiltersChange({ search: '', store: '', from: '', to: '' });
+    onClearFilters();
+    setFiltersOpen(false);
   }
 
   return (
@@ -152,9 +189,7 @@ export default function PurchaseHistory({
         <h2 id="purchase-history-title" className="text-xl font-semibold tracking-tight">Purchase history</h2>
         <div className="flex items-center gap-2">
           {filtersPending && (
-            <Badge variant="secondary" className="gap-1.5">
-              <LoaderCircle aria-hidden="true" className="size-3 animate-spin" /> Updating
-            </Badge>
+            <Badge variant="outline">Not applied</Badge>
           )}
           {pageData && (
             <p className="text-sm text-muted-foreground">
@@ -164,95 +199,114 @@ export default function PurchaseHistory({
         </div>
       </div>
 
-      <Card className="overflow-hidden p-0">
-        <details className="group">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 marker:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset [&::-webkit-details-marker]:hidden sm:px-5">
-            <span className="flex min-w-0 items-center gap-3">
-              <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
-                <SlidersHorizontal aria-hidden="true" className="size-4" />
-              </span>
-              <CardTitle className="text-base">Find purchases</CardTitle>
-              {hasActiveFilters && (
-                <Badge variant="secondary">{activeFilterCount} {activeFilterCount === 1 ? 'filter' : 'filters'} active</Badge>
-              )}
-            </span>
-            <ChevronDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
-          </summary>
+      <div className="flex items-center gap-2">
+        <div className="relative min-w-0 flex-1">
+          <Label htmlFor="purchase-item-search" className="sr-only">Search item names</Label>
+          <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            id="purchase-item-search"
+            className="h-10 pl-9"
+            type="search"
+            value={filters.search}
+            onChange={(event) => updateFilter('search', event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault();
+                applyFilters();
+              }
+            }}
+            placeholder="Search item names"
+            maxLength={120}
+            aria-label="Search item names"
+          />
+        </div>
+        <div ref={filtersPopoverRef} className="relative shrink-0">
+          <Button
+            type="button"
+            variant="outline"
+            className="h-10 px-3"
+            aria-expanded={filtersOpen}
+            aria-controls="purchase-filter-panel"
+            aria-label={activeFilterCount > 0 ? `Filters, ${activeFilterCount} active` : 'Filters'}
+            onClick={() => setFiltersOpen((open) => !open)}
+          >
+            <SlidersHorizontal aria-hidden="true" />
+            <span className="hidden sm:inline">Filters</span>
+            {activeFilterCount > 0 && <Badge variant="secondary" className="ml-1">{activeFilterCount}</Badge>}
+          </Button>
 
-          <CardContent className="border-t p-4 sm:p-5">
-            <CardDescription className="mb-3">Search by item, store, or purchase date.</CardDescription>
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-              <Label className="grid min-w-0 gap-2 text-sm font-medium md:col-span-2 xl:col-span-2">
-                Search item names
-                <div className="relative">
-                  <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    className="h-10 pl-9"
-                    type="search"
-                    value={filters.search}
-                    onChange={(event) => updateFilter('search', event.target.value)}
-                    placeholder="e.g. rice"
-                    maxLength={120}
-                    aria-label="Search item names"
-                  />
+          {filtersOpen && (
+            <Card id="purchase-filter-panel" role="region" aria-label="Purchase filters" className="absolute right-0 top-full z-30 mt-2 w-[min(92vw,28rem)] overflow-visible p-4 shadow-lg">
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <h3 className="text-sm font-medium">Filter purchases</h3>
+                  <CardDescription>Choose a store or date range.</CardDescription>
                 </div>
-              </Label>
-              <Label className="grid min-w-0 gap-2 text-sm font-medium md:col-span-2 xl:col-span-1">
-                Shop or store
-                <div className="relative">
-                  <Store aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    className="h-10 pl-9"
-                    type="search"
-                    value={filters.store}
-                    onChange={(event) => updateFilter('store', event.target.value)}
-                    placeholder="Filter by store"
-                    maxLength={120}
-                    aria-label="Filter by shop or store"
-                  />
+                <Label className="grid min-w-0 gap-2 text-sm font-medium">
+                  Shop or store
+                  <div className="relative">
+                    <Store aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      className="h-10 pl-9"
+                      type="search"
+                      value={filters.store}
+                      onChange={(event) => updateFilter('store', event.target.value)}
+                      placeholder="Filter by store"
+                      maxLength={120}
+                      aria-label="Filter by shop or store"
+                    />
+                  </div>
+                </Label>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Label className="grid min-w-0 gap-2 text-sm font-medium">
+                    From
+                    <div className="relative">
+                      <CalendarDays aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        className="h-10 pl-9"
+                        type="date"
+                        value={filters.from}
+                        onChange={(event) => updateFilter('from', event.target.value)}
+                        max={filters.to || undefined}
+                        aria-label="Start date"
+                      />
+                    </div>
+                  </Label>
+                  <Label className="grid min-w-0 gap-2 text-sm font-medium">
+                    To
+                    <div className="relative">
+                      <CalendarDays aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        className="h-10 pl-9"
+                        type="date"
+                        value={filters.to}
+                        onChange={(event) => updateFilter('to', event.target.value)}
+                        min={filters.from || undefined}
+                        aria-label="End date"
+                      />
+                    </div>
+                  </Label>
                 </div>
-              </Label>
-              <Label className="grid min-w-0 gap-2 text-sm font-medium">
-                From
-                <div className="relative">
-                  <CalendarDays aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    className="h-10 pl-9"
-                    type="date"
-                    value={filters.from}
-                    onChange={(event) => updateFilter('from', event.target.value)}
-                    max={filters.to || undefined}
-                    aria-label="Start date"
-                  />
+                {dateRangeInvalid && (
+                  <p className="text-xs text-destructive" role="alert">The start date must be on or before the end date.</p>
+                )}
+                <div className="flex items-center justify-between gap-2 border-t pt-3">
+                  {hasActiveFilters ? (
+                    <Button type="button" variant="ghost" size="sm" onClick={clearFilters}>
+                      <RotateCcw aria-hidden="true" /> Clear
+                    </Button>
+                  ) : <span />}
+                  <Button type="button" size="sm" onClick={applyFilters} disabled={dateRangeInvalid}>
+                    Apply filters
+                  </Button>
                 </div>
-              </Label>
-              <Label className="grid min-w-0 gap-2 text-sm font-medium">
-                To
-                <div className="relative">
-                  <CalendarDays aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    className="h-10 pl-9"
-                    type="date"
-                    value={filters.to}
-                    onChange={(event) => updateFilter('to', event.target.value)}
-                    min={filters.from || undefined}
-                    aria-label="End date"
-                  />
-                </div>
-              </Label>
-            </div>
-            {hasActiveFilters && (
-              <div className="mt-3 flex justify-end">
-                <Button type="button" variant="ghost" size="sm" onClick={clearFilters}>
-                  <RotateCcw aria-hidden="true" /> Clear filters
-                </Button>
               </div>
-            )}
-          </CardContent>
-        </details>
-      </Card>
+            </Card>
+          )}
+        </div>
+      </div>
 
-      {dateRangeInvalid && (
+      {appliedDateRangeInvalid && (
         <Alert variant="destructive">
           <CalendarDays aria-hidden="true" />
           <AlertTitle>Check the date range</AlertTitle>
@@ -261,7 +315,7 @@ export default function PurchaseHistory({
       )}
 
       <div className="space-y-3" aria-live="polite" aria-busy={filtersPending || state.kind === 'loading'}>
-        {state.kind === 'loading' && !dateRangeInvalid && (
+        {state.kind === 'loading' && !appliedDateRangeInvalid && (
           <Card role="status" aria-label="Loading purchase history">
             <CardContent className="space-y-3 p-4 sm:p-5">
               <Skeleton className="h-4 w-28" />
@@ -273,7 +327,7 @@ export default function PurchaseHistory({
           </Card>
         )}
 
-        {state.kind === 'error' && !dateRangeInvalid && (
+        {state.kind === 'error' && !appliedDateRangeInvalid && (
           <Alert variant="destructive">
             <ReceiptText aria-hidden="true" />
             <AlertTitle>History could not load</AlertTitle>
@@ -284,7 +338,7 @@ export default function PurchaseHistory({
           </Alert>
         )}
 
-        {state.kind === 'invalid' && !dateRangeInvalid && (
+        {state.kind === 'invalid' && !appliedDateRangeInvalid && (
           <Alert variant="destructive">
             <CalendarDays aria-hidden="true" />
             <AlertTitle>Check the date range</AlertTitle>

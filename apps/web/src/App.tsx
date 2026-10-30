@@ -93,17 +93,6 @@ export default function App() {
   }, [activeHref, pageNumber, historyRefresh, appliedPurchaseFilters]);
 
   useEffect(() => {
-    if (samePurchaseFilters(purchaseFilters, appliedPurchaseFilters)) return;
-
-    const timeout = window.setTimeout(() => {
-      setAppliedPurchaseFilters(purchaseFilters);
-      setPageNumber(1);
-    }, 250);
-
-    return () => window.clearTimeout(timeout);
-  }, [purchaseFilters, appliedPurchaseFilters]);
-
-  useEffect(() => {
     const updateActiveSection = () => setActiveHref(getActiveHref());
     window.addEventListener('hashchange', updateActiveSection);
     return () => window.removeEventListener('hashchange', updateActiveSection);
@@ -115,6 +104,17 @@ export default function App() {
     setHistoryRefresh((current) => current + 1);
     setCatalogRefresh((current) => current + 1);
     setPurchaseDialogOpen(false);
+  }
+
+  function applyPurchaseFilters() {
+    setAppliedPurchaseFilters(purchaseFilters);
+    setPageNumber(1);
+  }
+
+  function clearPurchaseFilters() {
+    setPurchaseFilters(emptyPurchaseFilters);
+    setAppliedPurchaseFilters(emptyPurchaseFilters);
+    setPageNumber(1);
   }
 
   const connectionLabel = connection.kind === 'connected'
@@ -221,6 +221,8 @@ export default function App() {
                       onFiltersChange={(filters) => {
                         setPurchaseFilters(filters);
                       }}
+                      onApplyFilters={applyPurchaseFilters}
+                      onClearFilters={clearPurchaseFilters}
                       onPageChange={setPageNumber}
                       onRetry={() => setHistoryRefresh((current) => current + 1)}
                     />
