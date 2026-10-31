@@ -546,7 +546,6 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
                   </CommandList>
                 )}
               </Command>
-              <span className="text-xs font-normal text-muted-foreground">Choose a saved place, add one, or select Other if you’re unsure.</span>
               {storeLoadError && <span className="text-xs font-normal leading-5 text-destructive">{storeLoadError}</span>}
             </Label>
           </div>
