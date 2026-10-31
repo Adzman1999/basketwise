@@ -19,21 +19,41 @@ export const createPurchaseItemSchema = z.object({
     .positive()
     .max(maxQuantity)
     .refine((value) => Math.abs(value * 1000 - Math.round(value * 1000)) < 1e-7),
-  unit: z.string().trim().min(1).max(32),
+  unit: z.string().trim().min(1).max(32).transform((value) => value.replace(/\s+/g, ' ')),
   amountPaidCentavos: centavos,
 }).strict();
 
 export const createPurchaseSchema = z.object({
   purchasedOn: calendarDate,
   storeName: z.string().trim().min(1).max(120).optional(),
-  totalPaidCentavos: centavos,
   items: z.array(createPurchaseItemSchema).min(1).max(100),
-}).strict();
+}).strict().superRefine((purchase, context) => {
+  const totalPaidCentavos = purchase.items.reduce((total, item) => total + item.amountPaidCentavos, 0);
+  if (totalPaidCentavos > maxCentavos) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['items'],
+      message: 'The sum of receipt item amounts is too large.',
+    });
+  }
+});
 
 export const purchaseListQuerySchema = z.object({
   page: z.coerce.number().int().min(1).max(1_000_000).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
-}).strict();
+  search: z.string().trim().min(1).max(120).optional(),
+  store: z.string().trim().min(1).max(120).optional(),
+  from: calendarDate.optional(),
+  to: calendarDate.optional(),
+}).strict().superRefine((filters, context) => {
+  if (filters.from && filters.to && filters.from > filters.to) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['to'],
+      message: 'The end date must be on or after the start date.',
+    });
+  }
+});
 
 export type CreatePurchaseInput = z.infer<typeof createPurchaseSchema>;
 export type PurchaseListQuery = z.infer<typeof purchaseListQuerySchema>;

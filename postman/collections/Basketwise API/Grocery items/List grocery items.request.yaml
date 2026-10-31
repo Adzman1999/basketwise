@@ -3,11 +3,15 @@ description: |
   Lists catalog identities created from purchase line names. Matching is exact
   after trimming, lowercasing, and collapsing whitespace; fuzzy matching is not
   performed.
-url: '{{baseUrl}}/api/grocery-items?page=1&pageSize=20'
+url: '{{baseUrl}}/api/grocery-items?search=rice&page=1&pageSize=20'
 method: GET
 headers:
   Accept: application/json
 queryParams:
+  - key: search
+    value: rice
+    disabled: false
+    description: Literal, case-insensitive substring of a normalized grocery item name.
   - key: page
     value: "1"
     disabled: false
@@ -33,4 +37,7 @@ scripts:
         pm.expect(body.pageSize).to.eql(20);
         pm.expect(body.items).to.be.an('array');
         pm.expect(body.total).to.be.a('number');
+        pm.expect(body.items.some(function (item) {
+          return item.name.toLowerCase().includes('rice');
+        })).to.eql(true);
       });

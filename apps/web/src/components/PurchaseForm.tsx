@@ -1,20 +1,45 @@
-import { useRef, useState, type FormEvent } from 'react';
-import type { CreatePurchaseItem, CreatePurchaseRequest } from '../lib/api';
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
+import { CheckCircle2, Plus, Save, Trash2 } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import UnitInput from '@/components/UnitInput';
+import {
+  createUnit,
+  createStore,
+  fetchUnits,
+  fetchGroceryItems,
+  fetchStores,
+  storeCategories,
+  storeCategoryLabels,
+  type CreatePurchaseItem,
+  type CreatePurchaseRequest,
+  type GroceryItem,
+  type MeasurementUnit,
+  type Store,
+  type StoreCategory,
+} from '../lib/api';
 
 type DraftItem = {
   id: number;
   itemName: string;
   quantity: string;
   unit: string;
-  amountPaid: string;
+  unitPrice: string;
 };
 
 type PurchaseFormProps = {
   onSubmit: (purchase: CreatePurchaseRequest) => Promise<void>;
+  onCancel: () => void;
 };
 
 const maxCentavos = 2_147_483_647;
 const maxPesoAmount = (maxCentavos / 100).toFixed(2);
+const maxQuantityMilliUnits = 999_999_999_999n;
 
 function todayAsLocalDate(): string {
   const today = new Date();
@@ -36,22 +61,269 @@ function parsePesos(value: string): number | null {
   return Number(totalCentavos);
 }
 
-function emptyItem(id: number): DraftItem {
-  return { id, itemName: '', quantity: '1', unit: 'item', amountPaid: '' };
+function parseQuantityMilliUnits(value: string): bigint | null {
+  const match = value.trim().match(/^(?:(\d+)(?:\.(\d{0,3}))?|\.(\d{1,3}))$/);
+  if (!match) return null;
+
+  const wholeUnits = BigInt(match[1] || '0');
+  const fractionalMilliUnits = BigInt((match[2] ?? match[3] ?? '').padEnd(3, '0') || '0');
+  const quantityMilliUnits = wholeUnits * 1000n + fractionalMilliUnits;
+  if (quantityMilliUnits <= 0n || quantityMilliUnits > maxQuantityMilliUnits) return null;
+  return quantityMilliUnits;
 }
 
-const inputClassName = 'mt-2 w-full rounded-xl border border-[#dce3d9] bg-white px-3.5 py-3 text-sm text-[#23392f] outline-none transition placeholder:text-[#9ba79e] focus:border-[#47765d] focus:ring-4 focus:ring-[#47765d]/10 disabled:bg-[#f4f6f2]';
-const labelClassName = 'block text-xs font-semibold text-[#40574a]';
+function calculateLineTotalCentavos(unitPriceCentavos: number | null, quantityMilliUnits: bigint | null): bigint | null {
+  if (unitPriceCentavos === null || quantityMilliUnits === null) return null;
+  const productMilliCentavos = BigInt(unitPriceCentavos) * quantityMilliUnits;
+  return (productMilliCentavos + 500n) / 1000n;
+}
 
-export default function PurchaseForm({ onSubmit }: PurchaseFormProps) {
+function lineTotalForItem(item: DraftItem): bigint | null {
+  return calculateLineTotalCentavos(parsePesos(item.unitPrice), parseQuantityMilliUnits(item.quantity));
+}
+
+function formatPesoAmount(centavos: bigint): string {
+  const wholePesos = (centavos / 100n).toLocaleString('en-PH');
+  const remainingCentavos = String(centavos % 100n).padStart(2, '0');
+  return `${wholePesos}.${remainingCentavos}`;
+}
+
+function emptyItem(id: number): DraftItem {
+  return { id, itemName: '', quantity: '1', unit: 'item', unitPrice: '' };
+}
+
+const inputClassName = 'h-10 w-full min-w-0 rounded-md bg-background text-base sm:text-sm';
+const labelClassName = 'grid min-w-0 gap-2 text-sm font-medium';
+const noStoreValue = 'none';
+const otherStoreValue = 'other-unknown';
+
+function normalizeStoreName(name: string): string {
+  return name.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+function editDistance(left: string, right: string): number {
+  const previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+  for (let leftIndex = 1; leftIndex <= left.length; leftIndex += 1) {
+    let diagonal = previous[0];
+    previous[0] = leftIndex;
+    for (let rightIndex = 1; rightIndex <= right.length; rightIndex += 1) {
+      const above = previous[rightIndex];
+      previous[rightIndex] = Math.min(
+        previous[rightIndex] + 1,
+        previous[rightIndex - 1] + 1,
+        diagonal + (left[leftIndex - 1] === right[rightIndex - 1] ? 0 : 1)
+      );
+      diagonal = above;
+    }
+  }
+  return previous[right.length];
+}
+
+function storeMatchRank(name: string, query: string): number | null {
+  const normalizedName = normalizeStoreName(name);
+  const normalizedQuery = normalizeStoreName(query);
+  if (!normalizedQuery) return 10;
+  if (normalizedName === normalizedQuery) return 0;
+  if (normalizedName.startsWith(normalizedQuery)) return 1;
+  if (normalizedName.includes(normalizedQuery)) return 2;
+
+  const words = normalizedName.split(' ');
+  if (words.some((word) => word.startsWith(normalizedQuery))) return 3;
+
+  if (normalizedQuery.length < 3) return null;
+  const bestDistance = Math.min(...words.map((word) => editDistance(normalizedQuery, word)));
+  const allowedDistance = normalizedQuery.length >= 6 ? 2 : 1;
+  return bestDistance <= allowedDistance ? 4 + bestDistance : null;
+}
+
+function HighlightedName({ name, query }: { name: string; query: string }) {
+  const normalizedQuery = query.trim();
+  const index = name.toLowerCase().indexOf(normalizedQuery.toLowerCase());
+  if (!normalizedQuery) return <>{name}</>;
+
+  if (index >= 0) {
+    return (
+      <>
+        {name.slice(0, index)}
+        <mark className="rounded bg-primary/20 px-0.5 text-foreground">{name.slice(index, index + normalizedQuery.length)}</mark>
+        {name.slice(index + normalizedQuery.length)}
+      </>
+    );
+  }
+
+  const words = name.split(/(\s+)/);
+  const closestWord = words
+    .filter((word) => word.trim())
+    .sort((left, right) => editDistance(normalizedQuery.toLowerCase(), left.toLowerCase()) - editDistance(normalizedQuery.toLowerCase(), right.toLowerCase()))[0];
+  if (!closestWord) return <>{name}</>;
+  const closestIndex = name.toLowerCase().indexOf(closestWord.toLowerCase());
+  return (
+    <>
+      {name.slice(0, closestIndex)}
+      <mark className="rounded bg-primary/20 px-0.5 text-foreground">{name.slice(closestIndex, closestIndex + closestWord.length)}</mark>
+      {name.slice(closestIndex + closestWord.length)}
+    </>
+  );
+}
+
+function CatalogNameInput({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  disabled: boolean;
+}) {
+  const [suggestions, setSuggestions] = useState<GroceryItem[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
+  const query = value.trim();
+  const helperId = useId();
+
+  useEffect(() => {
+    if (query.length < 2) {
+      setSuggestions([]);
+      setIsSearching(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    setSuggestions([]);
+    setIsSearching(true);
+    const timeout = window.setTimeout(() => {
+      void fetchGroceryItems(1, 8, query, controller.signal)
+        .then((page) => {
+          if (!controller.signal.aborted) setSuggestions(page.items);
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) setSuggestions([]);
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setIsSearching(false);
+        });
+    }, 250);
+
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [query]);
+
+  return (
+    <>
+      <Command shouldFilter={false} className="relative h-auto w-full min-w-0 overflow-visible rounded-md bg-transparent">
+        <CommandInput
+          className="h-full w-0 min-w-0 flex-1 bg-transparent px-0 py-0 text-left text-base shadow-none focus-visible:ring-0 sm:text-sm"
+          wrapperClassName="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 shadow-sm ring-offset-background focus-within:ring-1 focus-within:ring-ring"
+          value={value}
+          onValueChange={(nextValue) => {
+            onChange(nextValue);
+            setIsOpen(true);
+          }}
+          onFocus={() => setIsOpen(true)}
+          onBlur={() => window.setTimeout(() => setIsOpen(false), 120)}
+          maxLength={120}
+          placeholder="e.g. Rice"
+          aria-describedby={helperId}
+          required
+          disabled={disabled}
+        />
+        {isOpen && query.length >= 2 && (
+          <CommandList className="absolute inset-x-0 top-full z-50 mt-1 max-h-64 w-full rounded-md border bg-popover shadow-lg">
+            {isSearching ? (
+              <CommandEmpty>Searching saved grocery items…</CommandEmpty>
+            ) : suggestions.length === 0 ? (
+              <CommandEmpty>No saved item matches. This name will create a new catalog item.</CommandEmpty>
+            ) : (
+              <CommandGroup heading="Saved item matches">
+                {suggestions.map((item) => (
+                  <CommandItem key={item.id} value={item.name} onSelect={() => {
+                    onChange(item.name);
+                    setIsOpen(false);
+                  }}>
+                    <span className="min-w-0 flex-1 truncate"><HighlightedName name={item.name} query={query} /></span>
+                    <Badge variant={item.name.toLowerCase() === query.toLowerCase() ? 'default' : 'outline'}>
+                      {item.name.toLowerCase() === query.toLowerCase() ? 'Exact match' : 'Close match'}
+                    </Badge>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            )}
+          </CommandList>
+        )}
+      </Command>
+      <span id={helperId} className="block text-xs font-normal leading-5 text-muted-foreground">
+        Choose a saved name to keep its price history together.
+      </span>
+    </>
+  );
+}
+
+export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) {
   const nextItemId = useRef(2);
   const [purchasedOn, setPurchasedOn] = useState(todayAsLocalDate);
-  const [storeName, setStoreName] = useState('');
-  const [totalPaid, setTotalPaid] = useState('');
+  const [stores, setStores] = useState<Store[]>([]);
+  const [storesLoading, setStoresLoading] = useState(true);
+  const [storeLoadError, setStoreLoadError] = useState('');
+  const [units, setUnits] = useState<MeasurementUnit[]>([]);
+  const [unitsLoading, setUnitsLoading] = useState(true);
+  const [unitLoadError, setUnitLoadError] = useState('');
+  const [selectedStoreId, setSelectedStoreId] = useState(noStoreValue);
+  const [storeSearch, setStoreSearch] = useState('');
+  const [storeSuggestionsOpen, setStoreSuggestionsOpen] = useState(false);
+  const [storeEditorOpen, setStoreEditorOpen] = useState(false);
+  const [newStoreName, setNewStoreName] = useState('');
+  const [newStoreCategory, setNewStoreCategory] = useState<StoreCategory>('supermarket');
+  const [storeErrorMessage, setStoreErrorMessage] = useState('');
+  const [isAddingStore, setIsAddingStore] = useState(false);
   const [items, setItems] = useState<DraftItem[]>([emptyItem(1)]);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetchStores(controller.signal)
+      .then((page) => {
+        if (!controller.signal.aborted) setStores(page.items);
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) return;
+        setStoreLoadError(error instanceof Error ? error.message : 'Could not load saved stores.');
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setStoresLoading(false);
+      });
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetchUnits(controller.signal)
+      .then((page) => {
+        if (!controller.signal.aborted) setUnits(page.items);
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) return;
+        setUnitLoadError(error instanceof Error ? error.message : 'Could not load saved units.');
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setUnitsLoading(false);
+      });
+    return () => controller.abort();
+  }, []);
+
+  const selectedStore = stores.find((store) => store.id === selectedStoreId);
+  const storeSuggestions = stores
+    .map((store) => ({ store, rank: storeMatchRank(store.name, storeSearch) }))
+    .filter((entry): entry is { store: Store; rank: number } => entry.rank !== null)
+    .sort((left, right) => left.rank - right.rank || left.store.name.localeCompare(right.store.name))
+    .slice(0, 8);
+  const calculatedTotalCentavos = items.reduce(
+    (total, item) => total + (lineTotalForItem(item) ?? 0n),
+    0n
+  );
 
   function updateItem(id: number, changes: Partial<DraftItem>) {
     setItems((current) => current.map((item) => item.id === id ? { ...item, ...changes } : item));
@@ -68,9 +340,68 @@ export default function PurchaseForm({ onSubmit }: PurchaseFormProps) {
 
   function resetForm() {
     setPurchasedOn(todayAsLocalDate());
-    setStoreName('');
-    setTotalPaid('');
+    setSelectedStoreId(noStoreValue);
+    setStoreSearch('');
+    setStoreSuggestionsOpen(false);
+    setStoreEditorOpen(false);
+    setNewStoreName('');
+    setNewStoreCategory('supermarket');
+    setStoreErrorMessage('');
+    setErrorMessage('');
+    setSuccessMessage('');
     setItems([emptyItem(nextItemId.current++)]);
+  }
+
+  function cancelPurchase() {
+    resetForm();
+    onCancel();
+  }
+
+  async function saveUnit(name: string): Promise<MeasurementUnit> {
+    const normalizedName = name.trim().replace(/\s+/g, ' ').toLowerCase();
+    const existing = units.find((unit) => unit.name.trim().replace(/\s+/g, ' ').toLowerCase() === normalizedName);
+    if (existing) return existing;
+
+    const unit = await createUnit(name);
+    setUnits((current) => [...current, unit].sort((left, right) => {
+      if (left.isPreset !== right.isPreset) return left.isPreset ? -1 : 1;
+      return left.name.localeCompare(right.name);
+    }));
+    return unit;
+  }
+
+  async function saveNewStore() {
+    const name = newStoreName.trim().replace(/\s+/g, ' ');
+    if (!name) {
+      setStoreErrorMessage('Enter a store or shop name.');
+      return;
+    }
+
+    const existing = stores.find((store) => normalizeStoreName(store.name) === normalizeStoreName(name));
+    if (existing) {
+      setSelectedStoreId(existing.id);
+      setStoreSearch(existing.name);
+      setStoreSuggestionsOpen(false);
+      setStoreEditorOpen(false);
+      setStoreErrorMessage('');
+      return;
+    }
+
+    setStoreErrorMessage('');
+    setIsAddingStore(true);
+    try {
+      const store = await createStore({ name, category: newStoreCategory });
+      setStores((current) => [...current, store].sort((left, right) => left.name.localeCompare(right.name)));
+      setSelectedStoreId(store.id);
+      setStoreSearch(store.name);
+      setStoreSuggestionsOpen(false);
+      setNewStoreName('');
+      setStoreEditorOpen(false);
+    } catch (error) {
+      setStoreErrorMessage(error instanceof Error ? error.message : 'Could not save this store or shop.');
+    } finally {
+      setIsAddingStore(false);
+    }
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -78,9 +409,12 @@ export default function PurchaseForm({ onSubmit }: PurchaseFormProps) {
     setErrorMessage('');
     setSuccessMessage('');
 
-    const totalPaidCentavos = parsePesos(totalPaid);
-    if (totalPaidCentavos === null) {
-      setErrorMessage(`Enter a PHP amount with up to two decimal places (maximum ₱${maxPesoAmount}).`);
+    if (storeEditorOpen || isAddingStore) {
+      setErrorMessage('Save or cancel the new store before saving this purchase.');
+      return;
+    }
+    if (!selectedStore && selectedStoreId !== otherStoreValue) {
+      setErrorMessage('Choose a saved place, add this place, or select Other if you’re unsure.');
       return;
     }
 
@@ -89,27 +423,39 @@ export default function PurchaseForm({ onSubmit }: PurchaseFormProps) {
       const itemName = item.itemName.trim();
       const unit = item.unit.trim();
       const quantity = Number(item.quantity);
-      const amountPaidCentavos = parsePesos(item.amountPaid);
+      const quantityMilliUnits = parseQuantityMilliUnits(item.quantity);
+      const unitPriceCentavos = parsePesos(item.unitPrice);
 
-      if (!itemName || !unit || !Number.isFinite(quantity) || quantity <= 0 || amountPaidCentavos === null) {
-        setErrorMessage(`Check the name, quantity, unit, and PHP amount for item ${index + 1}.`);
+      if (!itemName || !unit || unitPriceCentavos === null) {
+        setErrorMessage(`Check the name, unit, and price per unit for item ${index + 1}.`);
         return;
       }
 
-      if (quantity > 999_999_999.999 || Math.abs(quantity * 1000 - Math.round(quantity * 1000)) >= 1e-7) {
+      if (!Number.isFinite(quantity) || quantityMilliUnits === null) {
         setErrorMessage(`Item ${index + 1} quantity must use up to three decimal places.`);
         return;
       }
 
-      purchaseItems.push({ itemName, quantity, unit, amountPaidCentavos });
+      const amountPaidCentavos = calculateLineTotalCentavos(unitPriceCentavos, quantityMilliUnits);
+      if (amountPaidCentavos === null || amountPaidCentavos > BigInt(maxCentavos)) {
+        setErrorMessage(`The line total for item ${index + 1} cannot exceed ₱${maxPesoAmount}.`);
+        return;
+      }
+
+      purchaseItems.push({ itemName, quantity, unit, amountPaidCentavos: Number(amountPaidCentavos) });
+    }
+
+    const totalPaidCentavos = purchaseItems.reduce((total, item) => total + BigInt(item.amountPaidCentavos), 0n);
+    if (totalPaidCentavos > BigInt(maxCentavos)) {
+      setErrorMessage(`The receipt items total cannot exceed ₱${maxPesoAmount}.`);
+      return;
     }
 
     setIsSaving(true);
     try {
       await onSubmit({
         purchasedOn,
-        ...(storeName.trim() ? { storeName: storeName.trim() } : {}),
-        totalPaidCentavos,
+        storeName: selectedStore?.name ?? 'Other',
         items: purchaseItems,
       });
       resetForm();
@@ -122,201 +468,248 @@ export default function PurchaseForm({ onSubmit }: PurchaseFormProps) {
   }
 
   return (
-    <section aria-labelledby="new-purchase-title" className="rounded-[1.75rem] border border-[#dfe6dd] bg-white p-5 shadow-[0_18px_50px_-38px_rgba(23,62,49,0.45)] sm:p-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#6f8874]">Receipt entry</p>
-          <h2 id="new-purchase-title" className="mt-1 text-xl font-semibold tracking-tight text-[#203b30]">Add a purchase</h2>
-        </div>
-        <span className="rounded-full bg-[#edf4e9] px-3 py-1.5 text-[11px] font-semibold text-[#44694e]">PHP · ₱</span>
+    <form className="flex min-h-0 flex-1 flex-col" onSubmit={handleSubmit}>
+      <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 pb-4 sm:px-6 sm:pb-5">
+          <div className="grid gap-4 pt-4 sm:grid-cols-2 sm:pt-5">
+            <Label className={labelClassName}>
+              Purchase date
+              <Input className={inputClassName} type="date" value={purchasedOn} onChange={(event) => setPurchasedOn(event.target.value)} required disabled={isSaving} />
+            </Label>
+            <Label className={labelClassName}>
+              Store or shop
+              <Command shouldFilter={false} className="relative h-auto w-full min-w-0 self-start items-start overflow-visible rounded-md bg-transparent">
+                <CommandInput
+                  className="h-full w-0 min-w-0 flex-1 bg-transparent px-0 py-0 text-left text-sm shadow-none focus-visible:ring-0"
+                  wrapperClassName="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 shadow-sm ring-offset-background focus-within:ring-1 focus-within:ring-ring"
+                  value={storeSearch}
+                  onValueChange={(nextValue) => {
+                    setStoreSearch(nextValue);
+                    setStoreSuggestionsOpen(true);
+                    if (nextValue !== selectedStore?.name) setSelectedStoreId(noStoreValue);
+                  }}
+                  onFocus={() => setStoreSuggestionsOpen(true)}
+                  onBlur={() => window.setTimeout(() => setStoreSuggestionsOpen(false), 120)}
+                  placeholder={storesLoading ? 'Loading saved places…' : 'Search stores and shops'}
+                  aria-label="Search stores and shops"
+                  aria-required="true"
+                  aria-expanded={storeSuggestionsOpen}
+                  disabled={isSaving || storesLoading}
+                />
+                {storeSuggestionsOpen && !storesLoading && (
+                  <CommandList className="absolute inset-x-0 top-full z-50 mt-1 max-h-64 w-full rounded-md border bg-popover shadow-lg">
+                    {storeSuggestions.length > 0 && (
+                      <CommandGroup heading="Saved places">
+                        {storeSuggestions.map(({ store, rank }) => (
+                          <CommandItem key={store.id} value={`${store.name} ${storeCategoryLabels[store.category]}`} onSelect={() => {
+                            setSelectedStoreId(store.id);
+                            setStoreSearch(store.name);
+                            setStoreSuggestionsOpen(false);
+                          }}>
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate font-medium"><HighlightedName name={store.name} query={storeSearch} /></span>
+                              {!storeSearch.trim() && <span className="block truncate text-xs text-muted-foreground">{storeCategoryLabels[store.category]}</span>}
+                            </span>
+                            {storeSearch.trim() ? (
+                              <Badge variant={rank === 0 ? 'default' : 'outline'}>
+                                {rank === 0 ? 'Exact match' : rank >= 4 ? 'Close match' : 'Match'}
+                              </Badge>
+                            ) : (
+                              <span className="shrink-0 text-xs text-muted-foreground">{storeCategoryLabels[store.category]}</span>
+                            )}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    )}
+                    {!stores.some((store) => normalizeStoreName(store.name) === 'other') && (
+                      <CommandItem value="other not sure" onSelect={() => {
+                        setSelectedStoreId(otherStoreValue);
+                        setStoreSearch('Other');
+                        setStoreSuggestionsOpen(false);
+                      }}>
+                        Other <span className="ml-1 text-xs text-muted-foreground">(not sure)</span>
+                      </CommandItem>
+                    )}
+                    {storeSearch.trim() && !stores.some((store) => normalizeStoreName(store.name) === normalizeStoreName(storeSearch)) && (
+                      <CommandItem value={`add ${storeSearch}`} onSelect={() => {
+                        setStoreErrorMessage('');
+                        setNewStoreName(storeSearch.trim());
+                        setStoreEditorOpen(true);
+                        setStoreSuggestionsOpen(false);
+                      }}>
+                        <Plus aria-hidden="true" />
+                        <span className="min-w-0 flex-1 truncate">Add “{storeSearch.trim()}” as a new place</span>
+                      </CommandItem>
+                    )}
+                    {storeSearch.trim() && storeSuggestions.length === 0 && (
+                      <div className="px-3 py-2 text-xs text-muted-foreground">No saved place matches your search.</div>
+                    )}
+                  </CommandList>
+                )}
+              </Command>
+              {storeLoadError && <span className="text-xs font-normal leading-5 text-destructive">{storeLoadError}</span>}
+            </Label>
+          </div>
+
+          {storeEditorOpen && (
+            <fieldset className="space-y-4 rounded-lg border bg-muted/20 p-4">
+              <legend className="px-1 text-sm font-medium">Add a store or shop</legend>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Label htmlFor="purchase-new-store-name" className={labelClassName}>
+                  Name
+                  <Input
+                    id="purchase-new-store-name"
+                    className={inputClassName}
+                    value={newStoreName}
+                    onChange={(event) => setNewStoreName(event.target.value)}
+                    maxLength={120}
+                    placeholder="e.g. Green Market"
+                    disabled={isAddingStore || isSaving}
+                  />
+                </Label>
+                <div className="grid min-w-0 gap-2 text-sm font-medium">
+                  <Label htmlFor="purchase-new-store-category">Category</Label>
+                  <Select
+                    value={newStoreCategory}
+                    onValueChange={(value) => setNewStoreCategory(value as StoreCategory)}
+                    disabled={isAddingStore || isSaving}
+                  >
+                    <SelectTrigger id="purchase-new-store-category" className={inputClassName}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {storeCategories.map((category) => (
+                        <SelectItem key={category} value={category}>{storeCategoryLabels[category]}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              {storeErrorMessage && (
+                <Alert variant="destructive">
+                  <AlertTitle>Store could not be added</AlertTitle>
+                  <AlertDescription>{storeErrorMessage}</AlertDescription>
+                </Alert>
+              )}
+              <div className="flex flex-wrap justify-end gap-2">
+                <Button type="button" variant="ghost" size="sm" onClick={() => setStoreEditorOpen(false)} disabled={isAddingStore || isSaving}>Cancel</Button>
+                <Button type="button" size="sm" onClick={() => void saveNewStore()} disabled={isAddingStore || isSaving || !newStoreName.trim()}>
+                  <Plus aria-hidden="true" /> {isAddingStore ? 'Saving…' : 'Save place'}
+                </Button>
+              </div>
+            </fieldset>
+          )}
+
+          <div className="space-y-3">
+            <div className="sticky top-0 z-10 -mx-4 flex items-center justify-between gap-3 border-b bg-background/95 px-4 py-3 shadow-sm backdrop-blur sm:-mx-6 sm:px-6">
+              <div className="space-y-1">
+                <h3 className="text-sm font-medium">Receipt items</h3>
+                <p className="text-xs text-muted-foreground">Enter the price per unit and quantity for each item.</p>
+                {unitLoadError && (
+                  <p className="text-xs leading-5 text-destructive">
+                    Could not load saved units: {unitLoadError} You can still enter a unit manually; it will be saved with the purchase.
+                  </p>
+                )}
+              </div>
+              <Button type="button" variant="outline" size="sm" onClick={addItem} disabled={isSaving || items.length >= 100}>
+                <Plus aria-hidden="true" /> Add item
+              </Button>
+            </div>
+
+            <div className="space-y-3">
+              {items.map((item, index) => {
+                const lineTotalCentavos = lineTotalForItem(item);
+                return (
+                  <fieldset key={item.id} className="min-w-0 rounded-lg border bg-muted/20 p-3.5 sm:p-4">
+                    <legend className="sr-only">Receipt item {index + 1}</legend>
+                    <div className="flex items-center justify-between gap-3">
+                      <Badge variant="outline">Item {String(index + 1).padStart(2, '0')}</Badge>
+                      {items.length > 1 && (
+                        <Button type="button" variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => removeItem(item.id)} disabled={isSaving} aria-label={`Remove item ${index + 1}`}>
+                          <Trash2 aria-hidden="true" /> Remove
+                        </Button>
+                      )}
+                    </div>
+
+                    <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                      <Label className={labelClassName}>
+                        Food name
+                        <CatalogNameInput value={item.itemName} onChange={(itemName) => updateItem(item.id, { itemName })} disabled={isSaving} />
+                      </Label>
+                      <Label className={labelClassName}>
+                        Price per unit
+                        <div className="relative">
+                          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground">₱</span>
+                          <Input className={`${inputClassName} pl-8`} type="number" min="0" max={maxPesoAmount} step="0.01" inputMode="decimal" value={item.unitPrice} onChange={(event) => updateItem(item.id, { unitPrice: event.target.value })} placeholder="0.00" required disabled={isSaving} />
+                        </div>
+                      </Label>
+                    </div>
+
+                    <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                      <Label className={labelClassName}>
+                        Quantity
+                        <Input className={inputClassName} type="number" min="0.001" max="999999999.999" step="0.001" value={item.quantity} onChange={(event) => updateItem(item.id, { quantity: event.target.value })} required disabled={isSaving} />
+                      </Label>
+                      <Label className={labelClassName}>
+                        Unit
+                        <UnitInput
+                          value={item.unit}
+                          units={units}
+                          onChange={(unit) => updateItem(item.id, { unit })}
+                          onAddUnit={saveUnit}
+                          disabled={isSaving || unitsLoading}
+                        />
+                      </Label>
+                    </div>
+
+                    <div className="mt-3 flex items-center justify-between gap-3 rounded-md bg-muted/40 px-3 py-2 text-sm">
+                      <span className="text-muted-foreground">Line total <span className="text-xs">(quantity × price per unit)</span></span>
+                      <output className="shrink-0 font-semibold tabular-nums">
+                        {lineTotalCentavos === null ? '—' : `₱${formatPesoAmount(lineTotalCentavos)}`}
+                      </output>
+                    </div>
+                  </fieldset>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between gap-4 rounded-lg border bg-muted/30 px-4 py-3.5" aria-live="polite">
+            <span>
+              <span className="block text-sm font-medium">Receipt total</span>
+              <span className="block text-xs text-muted-foreground">Sum of each quantity × unit price</span>
+            </span>
+            <output className="text-lg font-semibold tabular-nums">₱{formatPesoAmount(calculatedTotalCentavos)}</output>
+          </div>
+
+          {errorMessage && (
+            <Alert variant="destructive">
+              <AlertTitle>Purchase could not be saved</AlertTitle>
+              <AlertDescription>{errorMessage}</AlertDescription>
+            </Alert>
+          )}
+          {successMessage && (
+            <Alert className="border-primary/30 bg-primary/5 text-foreground" role="status">
+              <CheckCircle2 aria-hidden="true" className="text-primary" />
+              <AlertTitle>Purchase saved</AlertTitle>
+              <AlertDescription>{successMessage}</AlertDescription>
+            </Alert>
+          )}
+
+          <p className="text-center text-xs leading-5 text-muted-foreground">
+            Each line total is quantity × price per unit. The receipt total adds all line totals.
+          </p>
+
       </div>
 
-      <form className="mt-6 space-y-5" onSubmit={handleSubmit}>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label className={labelClassName}>
-            Purchase date
-            <input
-              className={inputClassName}
-              type="date"
-              value={purchasedOn}
-              onChange={(event) => setPurchasedOn(event.target.value)}
-              required
-              disabled={isSaving}
-            />
-          </label>
-          <label className={labelClassName}>
-            Store <span className="font-normal text-[#849188]">· optional</span>
-            <input
-              className={inputClassName}
-              type="text"
-              value={storeName}
-              onChange={(event) => setStoreName(event.target.value)}
-              maxLength={120}
-              placeholder="Where did you shop?"
-              disabled={isSaving}
-            />
-          </label>
-        </div>
-
-        <label className={labelClassName}>
-          Receipt total <span className="font-normal text-[#849188]">· PHP</span>
-          <div className="relative">
-            <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-[#748378]">₱</span>
-            <input
-              className={`${inputClassName} pl-8`}
-              type="number"
-              min="0"
-              max={maxPesoAmount}
-              step="0.01"
-              inputMode="decimal"
-              value={totalPaid}
-              onChange={(event) => setTotalPaid(event.target.value)}
-              placeholder="0.00"
-              required
-              disabled={isSaving}
-            />
-          </div>
-          <span className="mt-1.5 block text-[11px] font-normal text-[#849188]">The receipt total is the amount used for spending totals.</span>
-        </label>
-
-        <div>
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h3 className="text-sm font-semibold text-[#30483a]">Receipt items</h3>
-              <p className="mt-1 text-[11px] text-[#849188]">Line amounts help build item cost history.</p>
-            </div>
-            <button
-              className="rounded-lg border border-[#d8e2d6] px-3 py-2 text-xs font-semibold text-[#42684c] transition hover:bg-[#f2f7ef] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#47765d] disabled:cursor-not-allowed disabled:opacity-50"
-              type="button"
-              onClick={addItem}
-              disabled={isSaving || items.length >= 100}
-            >
-              + Add item
-            </button>
-          </div>
-
-          <datalist id="purchase-units">
-            <option value="g" />
-            <option value="kg" />
-            <option value="ml" />
-            <option value="l" />
-            <option value="item" />
-            <option value="pack" />
-          </datalist>
-
-          <div className="mt-3 space-y-3">
-            {items.map((item, index) => (
-              <fieldset key={item.id} className="rounded-2xl border border-[#e5eae2] bg-[#fafbf8] p-3.5 sm:p-4">
-                <legend className="sr-only">Receipt item {index + 1}</legend>
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-[#8a978d]">Item {String(index + 1).padStart(2, '0')}</span>
-                  {items.length > 1 && (
-                    <button
-                      type="button"
-                      className="rounded-md px-2 py-1 text-[11px] font-medium text-[#8b5c4e] hover:bg-[#f8ebe6] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#9c5b49]"
-                      onClick={() => removeItem(item.id)}
-                      disabled={isSaving}
-                      aria-label={`Remove item ${index + 1}`}
-                    >
-                      Remove
-                    </button>
-                  )}
-                </div>
-
-                <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                  <label className={labelClassName}>
-                    Food name
-                    <input
-                      className={inputClassName}
-                      type="text"
-                      value={item.itemName}
-                      onChange={(event) => updateItem(item.id, { itemName: event.target.value })}
-                      maxLength={120}
-                      placeholder="e.g. Rice"
-                      required
-                      disabled={isSaving}
-                    />
-                  </label>
-                  <label className={labelClassName}>
-                    Line amount <span className="font-normal text-[#849188]">· PHP</span>
-                    <div className="relative">
-                      <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-[#748378]">₱</span>
-                      <input
-                        className={`${inputClassName} pl-8`}
-                        type="number"
-                        min="0"
-                        max={maxPesoAmount}
-                        step="0.01"
-                        inputMode="decimal"
-                        value={item.amountPaid}
-                        onChange={(event) => updateItem(item.id, { amountPaid: event.target.value })}
-                        placeholder="0.00"
-                        required
-                        disabled={isSaving}
-                      />
-                    </div>
-                  </label>
-                </div>
-
-                <div className="mt-3 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
-                  <label className={labelClassName}>
-                    Quantity
-                    <input
-                      className={inputClassName}
-                      type="number"
-                      min="0.001"
-                      max="999999999.999"
-                      step="0.001"
-                      value={item.quantity}
-                      onChange={(event) => updateItem(item.id, { quantity: event.target.value })}
-                      required
-                      disabled={isSaving}
-                    />
-                  </label>
-                  <label className={labelClassName}>
-                    Unit
-                    <input
-                      className={inputClassName}
-                      type="text"
-                      list="purchase-units"
-                      value={item.unit}
-                      onChange={(event) => updateItem(item.id, { unit: event.target.value })}
-                      maxLength={32}
-                      placeholder="kg, item, pack…"
-                      required
-                      disabled={isSaving}
-                    />
-                  </label>
-                </div>
-              </fieldset>
-            ))}
-          </div>
-        </div>
-
-        {errorMessage && (
-          <p className="rounded-xl border border-[#f1d7cf] bg-[#fff7f4] px-3.5 py-3 text-sm text-[#8c4538]" role="alert">
-            {errorMessage}
-          </p>
-        )}
-        {successMessage && (
-          <p className="rounded-xl border border-[#cfe5d0] bg-[#f2faf0] px-3.5 py-3 text-sm text-[#356445]" role="status">
-            {successMessage}
-          </p>
-        )}
-
-        <button
-          className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#1d503b] px-4 py-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#17412f] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1d503b] disabled:cursor-wait disabled:opacity-70"
-          type="submit"
-          disabled={isSaving}
-        >
+      <div className="sticky bottom-0 z-10 flex shrink-0 flex-col gap-2 border-t bg-background px-4 py-3 sm:flex-row sm:items-center sm:justify-end sm:px-6 sm:py-4">
+        <Button className="w-full sm:w-auto" variant="outline" size="lg" type="button" onClick={cancelPurchase} disabled={isSaving || isAddingStore}>
+          Cancel
+        </Button>
+        <Button className="w-full sm:w-auto" size="lg" type="submit" disabled={isSaving || isAddingStore || unitsLoading}>
+          <Save aria-hidden="true" />
           {isSaving ? 'Saving purchase…' : 'Save purchase'}
-          {!isSaving && <span aria-hidden="true">↗</span>}
-        </button>
-
-        <p className="text-center text-[11px] leading-5 text-[#8a978d]">
-          Quantity units are saved as entered. Any receipt difference is shown as unallocated.
-        </p>
-      </form>
-    </section>
+        </Button>
+      </div>
+    </form>
   );
 }

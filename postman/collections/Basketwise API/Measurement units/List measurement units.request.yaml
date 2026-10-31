@@ -1,0 +1,22 @@
+$kind: http-request
+description: Lists the built-in and saved custom units available for receipt lines.
+url: '{{baseUrl}}/api/units'
+method: GET
+headers:
+  Accept: application/json
+settings: {}
+examples: ./.resources/List measurement units.resources/examples
+order: 1000
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('returns HTTP 200', function () {
+        pm.response.to.have.status(200);
+      });
+
+      pm.test('returns saved measurement units', function () {
+        const body = pm.response.json();
+        pm.expect(body.items).to.be.an('array');
+        pm.expect(body.total).to.eql(body.items.length);
+      });

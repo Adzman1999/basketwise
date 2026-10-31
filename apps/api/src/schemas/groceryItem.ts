@@ -5,7 +5,10 @@ const pagination = {
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
 };
 
-export const groceryItemListQuerySchema = z.object(pagination).strict();
+export const groceryItemListQuerySchema = z.object({
+  ...pagination,
+  search: z.string().trim().min(1).max(120).optional(),
+}).strict();
 
 export const priceHistoryQuerySchema = z.object({
   ...pagination,

@@ -1,14 +1,39 @@
 import { useEffect, useState } from 'react';
-import PurchaseForm from './components/PurchaseForm';
-import PurchaseHistory, { type PurchaseHistoryState } from './components/PurchaseHistory';
-import { createPurchase, fetchHealthStatus, fetchPurchases, type CreatePurchaseRequest, type HealthResponse } from './lib/api';
+import { Activity, ArrowUpRight, CirclePlus, RefreshCw } from 'lucide-react';
+import AppSidebar from '@/components/AppSidebar';
+import GroceryCatalog from '@/components/GroceryCatalog';
+import PurchaseForm from '@/components/PurchaseForm';
+import PurchaseHistory, { type PurchaseHistoryState } from '@/components/PurchaseHistory';
+import StoresAndShops from '@/components/StoresAndShops';
+import ThemeToggle from '@/components/ThemeToggle';
+import { ThemeProvider } from '@/components/ThemeProvider';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Separator } from '@/components/ui/separator';
+import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
+import { createPurchase, fetchHealthStatus, fetchPurchases, type CreatePurchaseRequest, type HealthResponse, type PurchaseFilterOptions, type PurchaseFilters } from '@/lib/api';
 
 type ConnectionState =
   | { kind: 'checking' }
   | { kind: 'connected'; health: HealthResponse }
   | { kind: 'error'; message: string };
 
-const pageSize = 20;
+const pageSize = 10;
+const emptyPurchaseFilterOptions: PurchaseFilterOptions = { store: '', from: '', to: '' };
+
+function samePurchaseFilters(left: PurchaseFilterOptions, right: PurchaseFilterOptions): boolean {
+  return left.store === right.store
+    && left.from === right.from
+    && left.to === right.to;
+}
+
+function getActiveHref(): string {
+  const hash = window.location.hash;
+  if (hash === '#purchase-history' || hash === '#new-purchase') return '#grocery-spending';
+  if (hash === '#grocery-spending' || hash === '#grocery-catalog' || hash === '#stores') return hash;
+  return '#overview';
+}
 
 export default function App() {
   const [connection, setConnection] = useState<ConnectionState>({ kind: 'checking' });
@@ -16,6 +41,13 @@ export default function App() {
   const [history, setHistory] = useState<PurchaseHistoryState>({ kind: 'loading' });
   const [pageNumber, setPageNumber] = useState(1);
   const [historyRefresh, setHistoryRefresh] = useState(0);
+  const [itemSearch, setItemSearch] = useState('');
+  const [appliedItemSearch, setAppliedItemSearch] = useState('');
+  const [purchaseFilters, setPurchaseFilters] = useState<PurchaseFilterOptions>(emptyPurchaseFilterOptions);
+  const [appliedPurchaseFilters, setAppliedPurchaseFilters] = useState<PurchaseFilterOptions>(emptyPurchaseFilterOptions);
+  const [catalogRefresh, setCatalogRefresh] = useState(0);
+  const [activeHref, setActiveHref] = useState(getActiveHref);
+  const [purchaseDialogOpen, setPurchaseDialogOpen] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -37,10 +69,17 @@ export default function App() {
   }, [connectionCheck]);
 
   useEffect(() => {
+    if (activeHref !== '#grocery-spending') return;
+    if (appliedPurchaseFilters.from && appliedPurchaseFilters.to && appliedPurchaseFilters.from > appliedPurchaseFilters.to) {
+      setHistory({ kind: 'invalid', message: 'The start date must be on or before the end date.' });
+      return;
+    }
+
     const controller = new AbortController();
     setHistory({ kind: 'loading' });
 
-    void fetchPurchases(pageNumber, pageSize, controller.signal)
+    const appliedFilters: PurchaseFilters = { search: appliedItemSearch, ...appliedPurchaseFilters };
+    void fetchPurchases(pageNumber, pageSize, appliedFilters, controller.signal)
       .then((data) => {
         if (!controller.signal.aborted) setHistory({ kind: 'loaded', page: data });
       })
@@ -53,12 +92,61 @@ export default function App() {
       });
 
     return () => controller.abort();
-  }, [pageNumber, historyRefresh]);
+  }, [activeHref, pageNumber, historyRefresh, appliedItemSearch, appliedPurchaseFilters]);
+
+  useEffect(() => {
+    const nextSearch = itemSearch.trim();
+    if (nextSearch === appliedItemSearch) return;
+
+    const timeout = window.setTimeout(() => {
+      setHistory({ kind: 'loading' });
+      setAppliedItemSearch(nextSearch);
+      setPageNumber(1);
+    }, 250);
+
+    return () => window.clearTimeout(timeout);
+  }, [itemSearch, appliedItemSearch]);
+
+  useEffect(() => {
+    const updateActiveSection = () => setActiveHref(getActiveHref());
+    window.addEventListener('hashchange', updateActiveSection);
+    return () => window.removeEventListener('hashchange', updateActiveSection);
+  }, []);
 
   async function savePurchase(input: CreatePurchaseRequest) {
     await createPurchase(input);
     setPageNumber(1);
     setHistoryRefresh((current) => current + 1);
+    setCatalogRefresh((current) => current + 1);
+    setPurchaseDialogOpen(false);
+  }
+
+  function applyPurchaseFilters() {
+    const filtersChanged = !samePurchaseFilters(purchaseFilters, appliedPurchaseFilters);
+    const pageChanged = pageNumber !== 1;
+    if (filtersChanged || pageChanged) {
+      setHistory({ kind: 'loading' });
+      if (filtersChanged) setAppliedPurchaseFilters(purchaseFilters);
+    }
+    setPageNumber(1);
+  }
+
+  function clearPurchaseFilters() {
+    const filtersChanged = !samePurchaseFilters(emptyPurchaseFilterOptions, appliedPurchaseFilters);
+    const pageChanged = pageNumber !== 1;
+    if (filtersChanged || pageChanged) setHistory({ kind: 'loading' });
+    setPurchaseFilters(emptyPurchaseFilterOptions);
+    if (filtersChanged) setAppliedPurchaseFilters(emptyPurchaseFilterOptions);
+    setPageNumber(1);
+  }
+
+  function clearItemSearch() {
+    const searchChanged = appliedItemSearch !== '' || itemSearch.trim() !== '';
+    const pageChanged = pageNumber !== 1;
+    if (searchChanged || pageChanged) setHistory({ kind: 'loading' });
+    setItemSearch('');
+    if (appliedItemSearch !== '') setAppliedItemSearch('');
+    setPageNumber(1);
   }
 
   const connectionLabel = connection.kind === 'connected'
@@ -66,85 +154,139 @@ export default function App() {
     : connection.kind === 'checking'
       ? 'Checking API'
       : 'API unavailable';
+  const currentSectionLabel = activeHref === '#grocery-spending'
+    ? 'Grocery spending'
+    : activeHref === '#grocery-catalog'
+      ? 'Items & prices'
+      : activeHref === '#stores'
+        ? 'Stores & shops'
+        : 'Overview';
+  const purchaseFiltersPending = !samePurchaseFilters(purchaseFilters, appliedPurchaseFilters);
+  const itemSearchPending = itemSearch.trim() !== appliedItemSearch;
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#f5f6ef] text-[#1d342b]">
-      <div className="pointer-events-none absolute -left-40 top-44 h-80 w-80 rounded-full bg-[#e3eddb] opacity-70 blur-3xl" />
-      <div className="pointer-events-none absolute -right-40 top-[38rem] h-96 w-96 rounded-full bg-[#e8ead9] opacity-70 blur-3xl" />
+    <ThemeProvider>
+      <SidebarProvider defaultOpen className="min-h-screen w-full bg-background">
+        <AppSidebar activeHref={activeHref} />
+        <SidebarInset className="min-h-screen bg-background">
+          <header className="sticky top-0 z-30 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:px-7 lg:px-9">
+            <div className="mx-auto flex min-h-16 max-w-[1600px] items-center justify-between gap-4">
+              <div className="flex min-w-0 items-center gap-3">
+                <SidebarTrigger className="shrink-0" />
+                <Separator orientation="vertical" className="hidden h-6 sm:block" />
+                <div className="min-w-0">
+                  <p className="truncate text-xs text-muted-foreground">Basketwise workspace</p>
+                  <p className="truncate text-sm font-medium">{currentSectionLabel}</p>
+                </div>
+              </div>
 
-      <div className="relative mx-auto min-h-screen max-w-7xl px-4 sm:px-7 lg:px-9">
-        <header className="flex items-center justify-between border-b border-[#d9e0d5] py-4 sm:py-5">
-          <a href="/" className="flex items-center gap-3 rounded-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#2d6a4f]">
-            <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#dcebdc] sm:h-11 sm:w-11">
-              <svg aria-hidden="true" viewBox="0 0 40 40" className="h-6 w-6 sm:h-7 sm:w-7" fill="none">
-                <path d="M8 16h24l-2.2 15H10.2L8 16Z" stroke="#285E49" strokeWidth="2.2" strokeLinejoin="round" />
-                <path d="m14 16 4-8m8 8-4-8M9.2 22h21.6M15 22v7m5-7v7m5-7v7" stroke="#285E49" strokeWidth="2.2" strokeLinecap="round" />
-              </svg>
-            </span>
-            <span>
-              <span className="block text-base font-semibold tracking-tight sm:text-lg">Basketwise</span>
-              <span className="block text-[9px] font-semibold uppercase tracking-[0.2em] text-[#6d7c70]">Home food costs</span>
-            </span>
-          </a>
-
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setConnectionCheck((current) => current + 1)}
-              disabled={connection.kind === 'checking'}
-              className="inline-flex items-center gap-2 rounded-full border border-[#d9e0d5] bg-white/70 px-3 py-2 text-[11px] font-medium text-[#53645a] transition hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#47765d] disabled:cursor-wait"
-              aria-live="polite"
-              title={connection.kind === 'error' ? connection.message : 'Check API connection'}
-            >
-              <span className={`h-2 w-2 rounded-full ${connection.kind === 'connected' ? 'bg-[#5c9666]' : connection.kind === 'checking' ? 'animate-pulse bg-[#b18a2f]' : 'bg-[#bd5b49]'}`} />
-              <span className="hidden sm:inline">{connectionLabel}</span>
-              <span className="sm:hidden">{connection.kind === 'connected' ? 'Online' : connection.kind === 'checking' ? 'Checking' : 'Offline'}</span>
-            </button>
-            <a href="#purchase-history" className="hidden rounded-full bg-[#1d503b] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-[#17412f] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1d503b] sm:inline-flex">
-              View history
-            </a>
-          </div>
-        </header>
-
-        <main className="pb-12 pt-8 sm:pb-16 sm:pt-12">
-          <section className="mb-8 flex flex-col justify-between gap-5 sm:mb-10 sm:flex-row sm:items-end">
-            <div className="max-w-2xl">
-              <p className="inline-flex items-center gap-2 rounded-full bg-[#e5eddf] px-3.5 py-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#41664d]">
-                <span className="h-1.5 w-1.5 rounded-full bg-[#6a9c70]" />
-                Your grocery notebook
-              </p>
-              <h1 className="mt-4 text-4xl font-semibold leading-[1.05] tracking-[-0.05em] text-[#203b30] sm:text-5xl lg:text-6xl">
-                Every shop, at a glance.
-              </h1>
-              <p className="mt-4 max-w-xl text-sm leading-6 text-[#617066] sm:text-base sm:leading-7">
-                Save a receipt total and its item costs. Your history makes food spending easier to follow, one shop at a time.
-              </p>
+              <div className="flex shrink-0 items-center gap-2">
+                <Badge
+                  variant={connection.kind === 'error' ? 'destructive' : 'secondary'}
+                  className="gap-1.5 px-2.5 py-1"
+                  aria-live="polite"
+                  title={connection.kind === 'error' ? connection.message : 'Check API connection'}
+                >
+                  <Activity className={`size-3 ${connection.kind === 'checking' ? 'animate-pulse' : ''}`} aria-hidden="true" />
+                  <span className="hidden sm:inline">{connectionLabel}</span>
+                  <span className="sm:hidden">{connection.kind === 'connected' ? 'Online' : connection.kind === 'checking' ? 'Checking' : 'Offline'}</span>
+                </Badge>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setConnectionCheck((current) => current + 1)}
+                  disabled={connection.kind === 'checking'}
+                  aria-label="Refresh API status"
+                  title="Refresh API status"
+                >
+                  <span className="sr-only">Refresh API status</span>
+                  <RefreshCw className="size-4" aria-hidden="true" />
+                </Button>
+                <ThemeToggle />
+              </div>
             </div>
-            <div className="flex items-center gap-2 text-xs text-[#77847a]">
-              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-white text-[#477253] shadow-sm" aria-hidden="true">₱</span>
-              <span>Amounts recorded in Philippine pesos</span>
-            </div>
-          </section>
+          </header>
 
-          <div className="grid items-start gap-7 lg:grid-cols-[minmax(320px,0.9fr)_minmax(0,1.1fr)] lg:gap-9">
-            <PurchaseForm onSubmit={savePurchase} />
-            <div id="purchase-history" className="scroll-mt-6">
-              <PurchaseHistory
-                state={history}
-                pageNumber={pageNumber}
-                pageSize={pageSize}
-                onPageChange={setPageNumber}
-                onRetry={() => setHistoryRefresh((current) => current + 1)}
-              />
-            </div>
-          </div>
-        </main>
+          <main className="mx-auto w-full max-w-[1600px] flex-1 px-4 pb-10 pt-7 sm:px-7 sm:pb-14 sm:pt-9 lg:px-9 lg:pt-10">
+            {activeHref !== '#overview' && (
+              <>
+                <section className="mb-7 flex scroll-mt-24 flex-col justify-between gap-4 sm:mb-9 sm:flex-row sm:items-end">
+                  <div>
+                    <p className="text-xs font-medium text-primary">
+                      {activeHref === '#grocery-catalog' ? 'Items & prices' : activeHref === '#stores' ? 'Places' : 'Household'}
+                    </p>
+                    <h1 className="mt-1.5 text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">
+                      {activeHref === '#grocery-catalog'
+                        ? 'Grocery items'
+                        : activeHref === '#stores'
+                          ? 'Stores & shops'
+                          : 'Grocery spending'}
+                    </h1>
+                    <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
+                      {activeHref === '#grocery-catalog'
+                        ? 'Browse saved grocery items and compare their recorded prices.'
+                        : activeHref === '#stores'
+                          ? 'Save the places you shop and choose them when recording a purchase.'
+                          : 'Track grocery receipts and item prices.'}
+                    </p>
+                  </div>
+                  {activeHref === '#grocery-spending' && (
+                    <Button onClick={() => setPurchaseDialogOpen(true)}>
+                      <CirclePlus aria-hidden="true" />
+                      Add a purchase
+                      <ArrowUpRight aria-hidden="true" />
+                    </Button>
+                  )}
+                </section>
 
-        <footer className="flex flex-col gap-2 border-t border-[#d9e0d5] py-5 text-[11px] text-[#849087] sm:flex-row sm:items-center sm:justify-between">
-          <span>Basketwise · A personal food cost system</span>
-          <span>PHP amounts · Units saved as entered</span>
-        </footer>
-      </div>
-    </div>
+                {activeHref === '#grocery-catalog' ? (
+                  <GroceryCatalog refreshKey={catalogRefresh} />
+                ) : activeHref === '#stores' ? (
+                  <StoresAndShops />
+                ) : (
+                  <div id="grocery-spending" className="scroll-mt-24">
+                    <PurchaseHistory
+                      state={history}
+                      pageNumber={pageNumber}
+                      pageSize={pageSize}
+                      filters={purchaseFilters}
+                      appliedFilters={appliedPurchaseFilters}
+                      itemSearch={itemSearch}
+                      appliedSearch={appliedItemSearch}
+                      filtersPending={purchaseFiltersPending}
+                      searchPending={itemSearchPending}
+                      onFiltersChange={(filters) => {
+                        setPurchaseFilters(filters);
+                      }}
+                      onItemSearchChange={setItemSearch}
+                      onApplyFilters={applyPurchaseFilters}
+                      onClearFilters={clearPurchaseFilters}
+                      onClearSearch={clearItemSearch}
+                      onPageChange={setPageNumber}
+                      onRetry={() => setHistoryRefresh((current) => current + 1)}
+                    />
+                  </div>
+                )}
+
+                <Separator className="my-8" />
+                <footer className="flex flex-col gap-2 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+                  <span>Basketwise · A personal food cost system</span>
+                  <span>Saved units reused across purchases</span>
+                </footer>
+              </>
+            )}
+          </main>
+        </SidebarInset>
+        <Dialog open={purchaseDialogOpen} onOpenChange={setPurchaseDialogOpen}>
+          <DialogContent className="flex h-[100dvh] max-h-[100dvh] w-screen max-w-none flex-col gap-0 overflow-hidden rounded-none p-0 sm:h-[min(90dvh,900px)] sm:max-h-[90dvh] sm:w-[calc(100vw-2rem)] sm:max-w-3xl sm:rounded-lg">
+            <DialogHeader className="sticky top-0 z-20 shrink-0 border-b bg-background px-4 py-4 sm:px-6 sm:py-5">
+              <DialogTitle>Add a purchase</DialogTitle>
+              <DialogDescription>Enter the receipt date and items. The total is calculated from the item amounts.</DialogDescription>
+            </DialogHeader>
+            <PurchaseForm onSubmit={savePurchase} onCancel={() => setPurchaseDialogOpen(false)} />
+          </DialogContent>
+        </Dialog>
+      </SidebarProvider>
+    </ThemeProvider>
   );
 }

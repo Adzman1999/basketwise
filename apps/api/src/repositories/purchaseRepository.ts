@@ -43,13 +43,23 @@ async function insertPurchaseItems(
          ON CONFLICT (normalized_name)
          DO UPDATE SET normalized_name = EXCLUDED.normalized_name
          RETURNING id
+       ), unit_record AS (
+         INSERT INTO measurement_units (name, normalized_name, is_preset)
+         VALUES (
+           btrim(regexp_replace($5, '[[:space:]]+', ' ', 'g')),
+           btrim(regexp_replace(lower(btrim($5)), '[[:space:]]+', ' ', 'g')),
+           FALSE
+         )
+         ON CONFLICT (normalized_name)
+         DO UPDATE SET normalized_name = EXCLUDED.normalized_name
+         RETURNING id
        )
        INSERT INTO purchase_items (
-         purchase_id, position, grocery_item_id, item_name, quantity, unit,
-         amount_paid_centavos
+         purchase_id, position, grocery_item_id, unit_id, item_name, quantity,
+         unit, amount_paid_centavos
        )
-       SELECT $1, $2, catalog_item.id, $3, $4, $5, $6
-       FROM catalog_item
+       SELECT $1, $2, catalog_item.id, unit_record.id, $3, $4, $5, $6
+       FROM catalog_item, unit_record
        RETURNING id, grocery_item_id AS "groceryItemId", item_name AS "itemName", quantity, unit,
                  amount_paid_centavos AS "amountPaidCentavos"`,
       [purchaseId, position, item.itemName, item.quantity, item.unit, item.amountPaidCentavos]
@@ -63,10 +73,25 @@ async function insertPurchaseItems(
 export async function createPurchaseRecord(input: CreatePurchaseInput): Promise<PurchaseRecord> {
   const client = await getPool().connect();
   let transactionStarted = false;
+  const totalPaidCentavos = input.items.reduce((total, item) => total + item.amountPaidCentavos, 0);
 
   try {
     await client.query('BEGIN');
     transactionStarted = true;
+
+    if (input.storeName) {
+      await client.query(
+        `INSERT INTO stores (name, normalized_name, category)
+         VALUES (
+           btrim(regexp_replace($1, '[[:space:]]+', ' ', 'g')),
+           btrim(regexp_replace(lower(btrim($1)), '[[:space:]]+', ' ', 'g')),
+           'other'
+         )
+         ON CONFLICT (normalized_name)
+         DO UPDATE SET normalized_name = EXCLUDED.normalized_name`,
+        [input.storeName]
+      );
+    }
 
     const purchaseResult = await client.query<PurchaseRow>(
       `INSERT INTO purchases (purchased_on, store_name, total_paid_centavos)
@@ -74,7 +99,7 @@ export async function createPurchaseRecord(input: CreatePurchaseInput): Promise<
        RETURNING id, purchased_on::text AS "purchasedOn", store_name AS "storeName",
                  currency, total_paid_centavos AS "totalPaidCentavos",
                  created_at AS "createdAt"`,
-      [input.purchasedOn, input.storeName ?? null, input.totalPaidCentavos]
+      [input.purchasedOn, input.storeName ?? null, totalPaidCentavos]
     );
     const purchase = purchaseResult.rows[0];
     const items = await insertPurchaseItems(client, purchase.id, input.items);
@@ -102,15 +127,48 @@ export async function listPurchaseRecords(input: PurchaseListQuery): Promise<{
   total: number;
 }> {
   const offset = (input.page - 1) * input.pageSize;
-  const countResult = await query<{ total: string }>('SELECT COUNT(*) AS total FROM purchases');
+  const filterValues: string[] = [];
+  const conditions: string[] = [];
+  const addValue = (value: string) => {
+    filterValues.push(value);
+    return `$${filterValues.length}`;
+  };
+  const escapeLike = (value: string) => value.replace(/[\\%_]/g, '\\$&');
+
+  if (input.search) {
+    const searchParameter = addValue(`%${escapeLike(input.search)}%`);
+    conditions.push(`EXISTS (
+      SELECT 1
+      FROM purchase_items pi
+      WHERE pi.purchase_id = p.id
+        AND pi.item_name ILIKE ${searchParameter} ESCAPE E'\\\\'
+    )`);
+  }
+
+  if (input.store) {
+    const storeParameter = addValue(`%${escapeLike(input.store)}%`);
+    conditions.push(`p.store_name ILIKE ${storeParameter} ESCAPE E'\\\\'`);
+  }
+
+  if (input.from) conditions.push(`p.purchased_on >= ${addValue(input.from)}::date`);
+  if (input.to) conditions.push(`p.purchased_on <= ${addValue(input.to)}::date`);
+
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+  const countResult = await query<{ total: string }>(
+    `SELECT COUNT(*) AS total FROM purchases p ${whereClause}`,
+    filterValues
+  );
+  const pageSizeParameter = `$${filterValues.length + 1}`;
+  const offsetParameter = `$${filterValues.length + 2}`;
   const purchaseResult = await query<PurchaseRow>(
-    `SELECT id, purchased_on::text AS "purchasedOn", store_name AS "storeName",
-            currency, total_paid_centavos AS "totalPaidCentavos",
-            created_at AS "createdAt"
-     FROM purchases
-     ORDER BY purchased_on DESC, created_at DESC, id DESC
-     LIMIT $1 OFFSET $2`,
-    [input.pageSize, offset]
+    `SELECT p.id, p.purchased_on::text AS "purchasedOn", p.store_name AS "storeName",
+            p.currency, p.total_paid_centavos AS "totalPaidCentavos",
+            p.created_at AS "createdAt"
+     FROM purchases p
+     ${whereClause}
+     ORDER BY p.purchased_on DESC, p.created_at DESC, p.id DESC
+     LIMIT ${pageSizeParameter} OFFSET ${offsetParameter}`,
+    [...filterValues, input.pageSize, offset]
   );
 
   const purchaseRows = purchaseResult.rows;

@@ -6,6 +6,8 @@ import { config } from './config';
 import healthRoutes from './routes/health';
 import groceryItemRoutes from './routes/groceryItems';
 import purchaseRoutes from './routes/purchases';
+import storeRoutes from './routes/stores';
+import unitRoutes from './routes/units';
 
 export function createApp() {
   const app = express();
@@ -20,6 +22,8 @@ export function createApp() {
 
   app.use('/api', purchaseRoutes);
   app.use('/api', groceryItemRoutes);
+  app.use('/api', storeRoutes);
+  app.use('/api', unitRoutes);
   app.use('/api', healthRoutes);
 
   app.use((error: unknown, _req: Request, res: Response, next: NextFunction) => {

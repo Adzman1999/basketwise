@@ -8,7 +8,6 @@ const app = createApp();
 const validPurchase = {
   purchasedOn: '2026-10-29',
   storeName: 'Neighborhood Market',
-  totalPaidCentavos: 12550,
   items: [
     { itemName: 'Rice', quantity: 2, unit: 'kg', amountPaidCentavos: 11000 },
     { itemName: 'Bananas', quantity: 1, unit: 'pack', amountPaidCentavos: 1300 },
@@ -16,7 +15,8 @@ const validPurchase = {
 };
 
 beforeEach(async () => {
-  await query('TRUNCATE TABLE purchase_items, purchases, grocery_items RESTART IDENTITY CASCADE');
+  await query('TRUNCATE TABLE purchase_items, purchases, grocery_items, stores RESTART IDENTITY CASCADE');
+  await query('DELETE FROM measurement_units WHERE is_preset = FALSE');
 });
 
 afterAll(async () => {
@@ -31,8 +31,8 @@ describe('grocery purchases', () => {
 
     expect(response.status).toBe(201);
     expect(response.body.currency).toBe('PHP');
-    expect(response.body.totalPaidCentavos).toBe(12550);
-    expect(response.body.unallocatedAmountCentavos).toBe(250);
+    expect(response.body.totalPaidCentavos).toBe(12300);
+    expect(response.body.unallocatedAmountCentavos).toBe(0);
     expect(response.body.purchasedOn).toBe('2026-10-29');
     expect(response.body.storeName).toBe('Neighborhood Market');
     expect(response.body.items).toHaveLength(2);
@@ -73,6 +73,12 @@ describe('grocery purchases', () => {
     expect(catalog.body.total).toBe(2);
     expect(catalog.body.items.map((item: { name: string }) => item.name))
       .toEqual(['Bananas', 'Rice']);
+
+    const searchResults = await request(app)
+      .get('/api/grocery-items?search=%20rIcE%20&page=1&pageSize=20');
+    expect(searchResults.status).toBe(200);
+    expect(searchResults.body.total).toBe(1);
+    expect(searchResults.body.items[0].name).toBe('Rice');
 
     const history = await request(app)
       .get(`/api/grocery-items/${riceId}/price-history?unit=kg`);
@@ -118,6 +124,69 @@ describe('grocery purchases', () => {
     expect(secondPage.status).toBe(200);
     expect(secondPage.body.items.map((purchase: { purchasedOn: string }) => purchase.purchasedOn))
       .toEqual(['2026-10-27']);
+  });
+
+  it('filters item names, stores, and inclusive dates before paginating', async () => {
+    for (const purchase of [
+      { purchasedOn: '2026-10-27', storeName: 'City Grocery', itemName: 'Rice' },
+      { purchasedOn: '2026-10-28', storeName: 'Neighborhood Market', itemName: 'Rice' },
+      { purchasedOn: '2026-10-29', storeName: 'Neighborhood Market', itemName: 'Bananas' },
+      { purchasedOn: '2026-10-30', storeName: 'Neighborhood Market', itemName: 'Rice' },
+    ]) {
+      await request(app)
+        .post('/api/purchases')
+        .send({
+          ...validPurchase,
+          purchasedOn: purchase.purchasedOn,
+          storeName: purchase.storeName,
+          items: [{ itemName: purchase.itemName, quantity: 1, unit: 'kg', amountPaidCentavos: 5000 }],
+        })
+        .expect(201);
+    }
+
+    const filters = 'search=ri&store=market&from=2026-10-28&to=2026-10-30';
+    const firstPage = await request(app)
+      .get(`/api/purchases?${filters}&page=1&pageSize=1`);
+
+    expect(firstPage.status).toBe(200);
+    expect(firstPage.body).toMatchObject({ page: 1, pageSize: 1, total: 2 });
+    expect(firstPage.body.items[0]).toMatchObject({
+      purchasedOn: '2026-10-30',
+      storeName: 'Neighborhood Market',
+      items: [{ itemName: 'Rice' }],
+    });
+
+    const secondPage = await request(app)
+      .get(`/api/purchases?${filters}&page=2&pageSize=1`);
+    expect(secondPage.status).toBe(200);
+    expect(secondPage.body.total).toBe(2);
+    expect(secondPage.body.items[0].purchasedOn).toBe('2026-10-28');
+  });
+
+  it('rejects reversed purchase date ranges', async () => {
+    const response = await request(app)
+      .get('/api/purchases?from=2026-10-30&to=2026-10-01');
+
+    expect(response.status).toBe(400);
+    expect(response.body.error.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('treats search wildcard characters as literal item-name text', async () => {
+    for (const itemName of ['Rice 50% off', 'Rice 50 off']) {
+      await request(app)
+        .post('/api/purchases')
+        .send({
+          ...validPurchase,
+          items: [{ itemName, quantity: 1, unit: 'pack', amountPaidCentavos: 5000 }],
+        })
+        .expect(201);
+    }
+
+    const response = await request(app).get('/api/purchases?search=%25');
+
+    expect(response.status).toBe(200);
+    expect(response.body.total).toBe(1);
+    expect(response.body.items[0].items[0].itemName).toBe('Rice 50% off');
   });
 
   it('rejects invalid purchase input without storing it', async () => {

@@ -23,14 +23,21 @@ export async function listGroceryItemRecords(input: GroceryItemListQuery): Promi
   total: number;
 }> {
   const offset = (input.page - 1) * input.pageSize;
+  const search = input.search?.trim().replace(/\s+/g, ' ').toLowerCase() ?? null;
   const [countResult, itemResult] = await Promise.all([
-    query<{ total: string }>('SELECT COUNT(*) AS total FROM grocery_items'),
+    query<{ total: string }>(
+      `SELECT COUNT(*) AS total
+       FROM grocery_items
+       WHERE $1::text IS NULL OR position($1 in normalized_name) > 0`,
+      [search]
+    ),
     query<GroceryItemRecord>(
       `SELECT id, name
        FROM grocery_items
+       WHERE $1::text IS NULL OR position($1 in normalized_name) > 0
        ORDER BY name, normalized_name, id
-       LIMIT $1 OFFSET $2`,
-      [input.pageSize, offset]
+       LIMIT $2 OFFSET $3`,
+      [search, input.pageSize, offset]
     ),
   ]);
 

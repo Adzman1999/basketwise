@@ -10,6 +10,107 @@ servers:
   - url: http://localhost:4000
     description: Local development
 paths:
+  /api/units:
+    get:
+      operationId: listMeasurementUnits
+      tags:
+        - Measurement units
+      summary: List saved measurement units
+      description: Returns preset and custom units for reuse on purchase receipt lines.
+      responses:
+        "200":
+          description: Saved measurement units.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MeasurementUnitPage"
+              example:
+                items:
+                  - id: "b94ab4f4-cb08-48ce-83a9-ff99f6eb488c"
+                    name: "kg"
+                    isPreset: true
+                    createdAt: "2026-10-29T08:00:00.000Z"
+                total: 1
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    post:
+      operationId: createMeasurementUnit
+      tags:
+        - Measurement units
+      summary: Save a measurement unit
+      description: Adds a custom unit for reuse. Names are unique after trimming, lowercasing, and collapsing whitespace.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateMeasurementUnitRequest"
+            example:
+              name: "dozen"
+      responses:
+        "201":
+          description: The measurement unit was saved.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MeasurementUnit"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/DuplicateUnit"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/stores:
+    get:
+      operationId: listStores
+      tags:
+        - Stores
+      summary: List saved stores and shops
+      description: Returns saved places in alphabetical order for selection on a grocery purchase.
+      responses:
+        "200":
+          description: Saved stores and shops.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StorePage"
+              example:
+                items:
+                  - id: "7ef38c55-13ec-4e49-9b50-7d97eb8f5001"
+                    name: "Neighborhood Market"
+                    category: neighborhood_grocery
+                    createdAt: "2026-10-29T08:00:00.000Z"
+                total: 1
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    post:
+      operationId: createStore
+      tags:
+        - Stores
+      summary: Save a store or shop
+      description: Adds a place to the saved list. Names are unique after trimming, lowercasing, and collapsing whitespace.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateStoreRequest"
+            example:
+              name: "Green Market"
+              category: neighborhood_grocery
+      responses:
+        "201":
+          description: The store or shop was saved.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Store"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/DuplicateStore"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
   /api/purchases:
     get:
       operationId: listPurchases
@@ -18,7 +119,9 @@ paths:
       summary: List grocery purchases
       description: |
         Returns purchases by purchase date descending, then creation time
-        descending, then ID descending, with receipt line items.
+        descending, then ID descending, with receipt line items. Optional item
+        and store substring searches and inclusive purchase-date bounds are
+        applied before pagination; total reports the number of matching receipts.
       parameters:
         - name: page
           in: query
@@ -38,6 +141,36 @@ paths:
             minimum: 1
             maximum: 100
             default: 20
+        - name: search
+          in: query
+          required: false
+          description: Case-insensitive literal substring matched against receipt item names.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 120
+        - name: store
+          in: query
+          required: false
+          description: Case-insensitive literal substring matched against the store name.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 120
+        - name: from
+          in: query
+          required: false
+          description: Inclusive start purchase date in YYYY-MM-DD format.
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          required: false
+          description: Inclusive end purchase date in YYYY-MM-DD format; must be on or after from.
+          schema:
+            type: string
+            format: date
       responses:
         "200":
           description: A page of purchases.
@@ -51,8 +184,8 @@ paths:
                     purchasedOn: "2026-10-29"
                     storeName: "Neighborhood Market"
                     currency: "PHP"
-                    totalPaidCentavos: 12550
-                    unallocatedAmountCentavos: 250
+                    totalPaidCentavos: 12300
+                    unallocatedAmountCentavos: 0
                     items:
                       - id: "f557ea81-8e28-4bc0-bf38-92b0a1c3331a"
                         groceryItemId: "b94ab4f4-cb08-48ce-83a9-ff99f6eb488c"
@@ -80,11 +213,9 @@ paths:
         - Purchases
       summary: Record a grocery purchase
       description: |
-        Records the receipt total and one or more receipt line items. The
-        receipt total is authoritative. The API computes the difference between
-        the receipt total and the sum of line amounts as
-        unallocatedAmountCentavos; it does not classify that difference as tax,
-        discount, fee, or rounding.
+        Records one or more receipt line items. The receipt total is calculated
+        by summing each item's amountPaidCentavos and is returned as
+        totalPaidCentavos. The total must fit a signed 32-bit integer.
       requestBody:
         required: true
         content:
@@ -94,7 +225,6 @@ paths:
             example:
               purchasedOn: "2026-10-29"
               storeName: "Neighborhood Market"
-              totalPaidCentavos: 12550
               items:
                 - itemName: "Rice"
                   quantity: 2
@@ -116,8 +246,8 @@ paths:
                 purchasedOn: "2026-10-29"
                 storeName: "Neighborhood Market"
                 currency: "PHP"
-                totalPaidCentavos: 12550
-                unallocatedAmountCentavos: 250
+                totalPaidCentavos: 12300
+                unallocatedAmountCentavos: 0
                 items:
                   - id: "f557ea81-8e28-4bc0-bf38-92b0a1c3331a"
                     groceryItemId: "b94ab4f4-cb08-48ce-83a9-ff99f6eb488c"
@@ -145,8 +275,18 @@ paths:
       description: |
         Lists catalog items in name order. Items are created from purchase line
         item names. Names that match after trimming, lowercasing, and collapsing
-        whitespace share one catalog identity; fuzzy matches are not made.
+        whitespace share one catalog identity; fuzzy matches are not made. The
+        optional search term matches a literal, case-insensitive substring of
+        the normalized catalog name.
       parameters:
+        - name: search
+          in: query
+          required: false
+          description: Literal substring to search for in normalized item names.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 120
         - name: page
           in: query
           required: false
@@ -296,12 +436,108 @@ paths:
                 timestamp: "2026-10-29T00:00:00.000Z"
 components:
   schemas:
+    CreateMeasurementUnitRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 32
+    MeasurementUnit:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - name
+        - isPreset
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        isPreset:
+          type: boolean
+          description: True for the built-in units g, kg, ml, l, item, and pack.
+        createdAt:
+          type: string
+          format: date-time
+    MeasurementUnitPage:
+      type: object
+      additionalProperties: false
+      required:
+        - items
+        - total
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/MeasurementUnit"
+        total:
+          type: integer
+    StoreCategory:
+      type: string
+      enum:
+        - supermarket
+        - public_market
+        - convenience_store
+        - neighborhood_grocery
+        - online_grocery
+        - other
+    CreateStoreRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+        - category
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        category:
+          $ref: "#/components/schemas/StoreCategory"
+    Store:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - name
+        - category
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        category:
+          $ref: "#/components/schemas/StoreCategory"
+        createdAt:
+          type: string
+          format: date-time
+    StorePage:
+      type: object
+      additionalProperties: false
+      required:
+        - items
+        - total
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Store"
+        total:
+          type: integer
     CreatePurchaseRequest:
       type: object
       additionalProperties: false
       required:
         - purchasedOn
-        - totalPaidCentavos
         - items
       properties:
         purchasedOn:
@@ -311,11 +547,6 @@ components:
           type: string
           minLength: 1
           maxLength: 120
-        totalPaidCentavos:
-          type: integer
-          minimum: 0
-          maximum: 2147483647
-          description: Receipt total in PHP centavos.
         items:
           type: array
           minItems: 1
@@ -547,6 +778,26 @@ components:
             message:
               type: string
   responses:
+    DuplicateUnit:
+      description: A measurement unit with this normalized name already exists.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+          example:
+            error:
+              code: "DUPLICATE_UNIT"
+              message: "This unit is already saved."
+    DuplicateStore:
+      description: A store or shop with this normalized name already exists.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+          example:
+            error:
+              code: "DUPLICATE_STORE"
+              message: "A store or shop with this name already exists."
     BadRequest:
       description: The request is invalid.
       content:

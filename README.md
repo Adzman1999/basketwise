@@ -4,12 +4,12 @@ Basketwise is a home food cost system for tracking grocery spending, food prices
 
 ## Project status
 
-The repository foundation, CI checks, database-backed grocery purchase API, purchase entry/history UI, normalized grocery item catalog, and price-history API are ready. The next checkpoint is catalog browsing and price-history views in the UI.
+The repository foundation, CI checks, database-backed grocery purchase API, purchase entry/history UI, normalized grocery item catalog, and catalog/price-history UI are ready. The next product workflow can be selected after reviewing this checkpoint.
 
 ## Planned stack
 
 - pnpm workspaces with `apps/api`, `apps/web`, and `packages/shared`
-- Web: React, TypeScript, Vite, and Tailwind CSS
+- Web: React, TypeScript, Vite, Tailwind CSS 3, shadcn/ui components, and persistent light/dark themes
 - API: Node.js, Express, TypeScript, and Zod
 - Database: PostgreSQL, with migrations and seeds
 - Backend flow: HTTP routes → controllers → services → repositories → database

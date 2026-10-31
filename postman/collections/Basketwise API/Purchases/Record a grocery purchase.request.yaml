@@ -1,10 +1,7 @@
 $kind: http-request
 description: |
-  Records the receipt total and one or more receipt line items. The
-  receipt total is authoritative. The API computes the difference between
-  the receipt total and the sum of line amounts as
-  unallocatedAmountCentavos; it does not classify that difference as tax,
-  discount, fee, or rounding.
+  Records one or more receipt line items. The API calculates the receipt total
+  by summing each item's amountPaidCentavos.
 url: '{{baseUrl}}/api/purchases'
 method: POST
 headers:
@@ -16,7 +13,6 @@ body:
     {
       "purchasedOn": "2026-10-29",
       "storeName": "Neighborhood Market",
-      "totalPaidCentavos": 12550,
       "items": [
         {
           "itemName": "Rice",
@@ -43,11 +39,14 @@ scripts:
         pm.response.to.have.status(201);
       });
 
-      pm.test('returns the saved PHP purchase and unallocated amount', function () {
+      pm.test('returns a purchase total calculated from its line items', function () {
         const body = pm.response.json();
         pm.expect(body.currency).to.eql('PHP');
-        pm.expect(body.totalPaidCentavos).to.eql(12550);
-        pm.expect(body.unallocatedAmountCentavos).to.eql(250);
+        pm.expect(body.totalPaidCentavos).to.eql(12300);
+        pm.expect(body.unallocatedAmountCentavos).to.eql(0);
+        pm.expect(body.totalPaidCentavos).to.eql(body.items.reduce(function (total, item) {
+          return total + item.amountPaidCentavos;
+        }, 0));
         pm.expect(body.items).to.have.lengthOf(2);
         pm.expect(body.items[0].groceryItemId).to.be.a('string');
         pm.collectionVariables.set('lastCreatedPurchaseId', body.id);

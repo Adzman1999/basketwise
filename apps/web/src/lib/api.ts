@@ -14,7 +14,6 @@ export type CreatePurchaseItem = {
 export type CreatePurchaseRequest = {
   purchasedOn: string;
   storeName?: string;
-  totalPaidCentavos: number;
   items: CreatePurchaseItem[];
 };
 
@@ -36,6 +35,92 @@ export type Purchase = {
 
 export type PurchasePage = {
   items: Purchase[];
+  page: number;
+  pageSize: number;
+  total: number;
+};
+
+export type PurchaseFilterOptions = {
+  store: string;
+  from: string;
+  to: string;
+};
+
+export type PurchaseFilters = PurchaseFilterOptions & {
+  search: string;
+};
+
+export type GroceryItem = {
+  id: string;
+  name: string;
+};
+
+export const storeCategories = [
+  'supermarket',
+  'public_market',
+  'convenience_store',
+  'neighborhood_grocery',
+  'online_grocery',
+  'other',
+] as const;
+
+export type StoreCategory = (typeof storeCategories)[number];
+
+export const storeCategoryLabels: Record<StoreCategory, string> = {
+  supermarket: 'Supermarket',
+  public_market: 'Public market',
+  convenience_store: 'Convenience store',
+  neighborhood_grocery: 'Neighborhood grocery',
+  online_grocery: 'Online grocery',
+  other: 'Other',
+};
+
+export type Store = {
+  id: string;
+  name: string;
+  category: StoreCategory;
+  createdAt: string;
+};
+
+export type StorePage = {
+  items: Store[];
+  total: number;
+};
+
+export type MeasurementUnit = {
+  id: string;
+  name: string;
+  isPreset: boolean;
+  createdAt: string;
+};
+
+export type MeasurementUnitPage = {
+  items: MeasurementUnit[];
+  total: number;
+};
+
+export type GroceryItemPage = {
+  items: GroceryItem[];
+  page: number;
+  pageSize: number;
+  total: number;
+};
+
+export type PriceObservation = {
+  purchaseItemId: string;
+  purchaseId: string;
+  purchasedOn: string;
+  storeName?: string;
+  itemName: string;
+  quantity: number;
+  unit: string;
+  amountPaidCentavos: number;
+  unitPriceCentavos: number;
+};
+
+export type PriceHistoryPage = {
+  groceryItem: GroceryItem;
+  items: PriceObservation[];
   page: number;
   pageSize: number;
   total: number;
@@ -82,13 +167,81 @@ export async function fetchHealthStatus(signal: AbortSignal): Promise<HealthResp
 export async function fetchPurchases(
   page: number,
   pageSize: number,
+  filters: PurchaseFilters,
   signal: AbortSignal
 ): Promise<PurchasePage> {
   const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+  if (filters.search.trim()) params.set('search', filters.search.trim());
+  if (filters.store.trim()) params.set('store', filters.store.trim());
+  if (filters.from) params.set('from', filters.from);
+  if (filters.to) params.set('to', filters.to);
   return sendRequest<PurchasePage>(`/api/purchases?${params.toString()}`, {
     headers: { Accept: 'application/json' },
     signal,
   });
+}
+
+export async function fetchGroceryItems(
+  page: number,
+  pageSize: number,
+  search: string,
+  signal: AbortSignal
+): Promise<GroceryItemPage> {
+  const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+  if (search.trim()) params.set('search', search.trim());
+  return sendRequest<GroceryItemPage>(`/api/grocery-items?${params.toString()}`, {
+    headers: { Accept: 'application/json' },
+    signal,
+  });
+}
+
+export async function fetchStores(signal: AbortSignal): Promise<StorePage> {
+  return sendRequest<StorePage>('/api/stores', {
+    headers: { Accept: 'application/json' },
+    signal,
+  });
+}
+
+export async function createStore(input: { name: string; category: StoreCategory }): Promise<Store> {
+  return sendRequest<Store>('/api/stores', {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(input),
+  });
+}
+
+export async function fetchUnits(signal: AbortSignal): Promise<MeasurementUnitPage> {
+  return sendRequest<MeasurementUnitPage>('/api/units', {
+    headers: { Accept: 'application/json' },
+    signal,
+  });
+}
+
+export async function createUnit(name: string): Promise<MeasurementUnit> {
+  return sendRequest<MeasurementUnit>('/api/units', {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ name }),
+  });
+}
+
+export async function fetchGroceryItemPriceHistory(
+  groceryItemId: string,
+  page: number,
+  pageSize: number,
+  signal: AbortSignal
+): Promise<PriceHistoryPage> {
+  const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+  return sendRequest<PriceHistoryPage>(
+    `/api/grocery-items/${encodeURIComponent(groceryItemId)}/price-history?${params.toString()}`,
+    { headers: { Accept: 'application/json' }, signal }
+  );
 }
 
 export async function createPurchase(input: CreatePurchaseRequest): Promise<Purchase> {
