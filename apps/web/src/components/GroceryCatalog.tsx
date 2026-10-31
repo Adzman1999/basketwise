@@ -52,6 +52,20 @@ function formatQuantity(quantity: number): string {
   return new Intl.NumberFormat('en-PH', { maximumFractionDigits: 3 }).format(quantity);
 }
 
+function HighlightedCatalogName({ name, query }: { name: string; query: string }) {
+  const normalizedQuery = query.trim().replace(/\s+/g, ' ');
+  const index = name.toLowerCase().indexOf(normalizedQuery.toLowerCase());
+  if (!normalizedQuery || index < 0) return <>{name}</>;
+
+  return (
+    <>
+      {name.slice(0, index)}
+      <mark className="rounded bg-primary/20 px-0.5 text-foreground">{name.slice(index, index + normalizedQuery.length)}</mark>
+      {name.slice(index + normalizedQuery.length)}
+    </>
+  );
+}
+
 function formatPurchaseDate(date: string): string {
   return new Intl.DateTimeFormat('en-PH', {
     dateStyle: 'medium',
@@ -184,6 +198,7 @@ export default function GroceryCatalog({ refreshKey }: { refreshKey: number }) {
   const catalogPage = catalogState.kind === 'loaded' ? catalogState.page : null;
   const priceHistoryPage = priceHistoryState.kind === 'loaded' ? priceHistoryState.page : null;
   const selectedItem = catalogPage?.items.find((item) => item.id === selectedItemId) ?? null;
+  const normalizedSearchQuery = searchQuery.trim().replace(/\s+/g, ' ').toLowerCase();
 
   function selectItem(id: string) {
     setSelectedItemId(id);
@@ -248,6 +263,8 @@ export default function GroceryCatalog({ refreshKey }: { refreshKey: number }) {
               )}
               {catalogPage?.items.map((item) => {
                 const isSelected = item.id === selectedItemId;
+                const isExactMatch = normalizedSearchQuery !== ''
+                  && item.name.trim().replace(/\s+/g, ' ').toLowerCase() === normalizedSearchQuery;
                 return (
                   <Button
                     key={item.id}
@@ -257,8 +274,17 @@ export default function GroceryCatalog({ refreshKey }: { refreshKey: number }) {
                     onClick={() => selectItem(item.id)}
                     className={`h-auto w-full justify-between whitespace-normal px-3.5 py-3 text-left ${isSelected ? 'border-primary bg-primary/5 ring-1 ring-primary/20' : ''}`}
                   >
-                    <span className="min-w-0">
-                      <span className="block truncate text-sm font-medium">{item.name}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        <span className="block min-w-0 flex-1 truncate text-sm font-medium">
+                          <HighlightedCatalogName name={item.name} query={searchQuery} />
+                        </span>
+                        {normalizedSearchQuery && (
+                          <Badge className="shrink-0" variant={isExactMatch ? 'default' : 'outline'}>
+                            {isExactMatch ? 'Exact match' : 'Close match'}
+                          </Badge>
+                        )}
+                      </span>
                       <span className="mt-0.5 block text-xs font-normal text-muted-foreground">View price history</span>
                     </span>
                     <ChevronRight aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
