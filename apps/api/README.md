@@ -14,6 +14,8 @@ pnpm dev:api
 
 The health endpoint is available at `http://localhost:4000/api/health`.
 
+Monthly grocery budgets are stored per calendar month. Use `GET` and `PUT /api/budgets/{month}` to read and set a target, or `DELETE /api/budgets/{month}` to remove the target while preserving receipts. The API calculates spending from receipt totals and purchase dates.
+
 ## Database
 
 Purchase records use PostgreSQL. Copy `apps/api/.env.example` to `apps/api/.env`, replace `YOUR_LOCAL_DB_USER` with your PostgreSQL role, create the local databases, and apply migrations:

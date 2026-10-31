@@ -3,6 +3,7 @@ import express, { type NextFunction, type Request, type Response } from 'express
 import helmet from 'helmet';
 import morgan from 'morgan';
 import { config } from './config';
+import budgetRoutes from './routes/budgets';
 import healthRoutes from './routes/health';
 import groceryItemRoutes from './routes/groceryItems';
 import purchaseRoutes from './routes/purchases';
@@ -21,6 +22,7 @@ export function createApp() {
   }
 
   app.use('/api', purchaseRoutes);
+  app.use('/api', budgetRoutes);
   app.use('/api', groceryItemRoutes);
   app.use('/api', storeRoutes);
   app.use('/api', unitRoutes);

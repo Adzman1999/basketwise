@@ -1,0 +1,30 @@
+$kind: http-example
+name: The monthly budget was saved.
+request:
+  url: '{{baseUrl}}/api/budgets/{{month}}'
+  method: PUT
+  headers:
+    Content-Type: application/json
+    Accept: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "budgetCentavos": 5000000
+      }
+response:
+  statusCode: 200
+  statusText: OK
+  headers:
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "month": "2026-10",
+        "currency": "PHP",
+        "budgetCentavos": 5000000,
+        "spentCentavos": 2350000,
+        "remainingCentavos": 2650000
+      }
+order: 1000

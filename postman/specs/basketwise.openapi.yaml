@@ -111,6 +111,91 @@ paths:
           $ref: "#/components/responses/DuplicateStore"
         "500":
           $ref: "#/components/responses/InternalServerError"
+  /api/budgets/{month}:
+    parameters:
+      - name: month
+        in: path
+        required: true
+        description: Calendar month in YYYY-MM format.
+        schema:
+          type: string
+          pattern: "^[0-9]{4}-(0[1-9]|1[0-2])$"
+        example: "2026-10"
+    get:
+      operationId: getMonthlyGroceryBudget
+      tags:
+        - Monthly budgets
+      summary: Get a month's grocery budget and spending
+      description: |
+        Returns the configured household-wide budget target, if any, and the
+        sum of receipt totals by purchase date for the requested calendar month.
+        The current MVP has one shared household budget per month and is not
+        scoped by a user or household ID.
+      responses:
+        "200":
+          description: The monthly target and receipt spending summary.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MonthlyBudgetSummary"
+              example:
+                month: "2026-10"
+                currency: "PHP"
+                budgetCentavos: 5000000
+                spentCentavos: 2350000
+                remainingCentavos: 2650000
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    put:
+      operationId: setMonthlyGroceryBudget
+      tags:
+        - Monthly budgets
+      summary: Set or update a month's grocery budget
+      description: Stores one positive budget target for the selected calendar month. Repeating the request replaces that month's target.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetMonthlyBudgetRequest"
+            example:
+              budgetCentavos: 5000000
+      responses:
+        "200":
+          description: The updated monthly target and spending summary.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MonthlyBudgetSummary"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    delete:
+      operationId: removeMonthlyGroceryBudget
+      tags:
+        - Monthly budgets
+      summary: Remove a month's grocery budget target
+      description: Removes the target while preserving receipts and returns the month's spending summary.
+      responses:
+        "200":
+          description: The spending summary after removing the target.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MonthlyBudgetSummary"
+              example:
+                month: "2026-10"
+                currency: "PHP"
+                budgetCentavos: null
+                spentCentavos: 2350000
+                remainingCentavos: null
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
   /api/purchases:
     get:
       operationId: listPurchases
@@ -533,6 +618,49 @@ components:
             $ref: "#/components/schemas/Store"
         total:
           type: integer
+    SetMonthlyBudgetRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - budgetCentavos
+      properties:
+        budgetCentavos:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+          description: Monthly target in PHP centavos.
+    MonthlyBudgetSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - month
+        - currency
+        - budgetCentavos
+        - spentCentavos
+        - remainingCentavos
+      properties:
+        month:
+          type: string
+          pattern: "^[0-9]{4}-(0[1-9]|1[0-2])$"
+        currency:
+          type: string
+          enum:
+            - PHP
+        budgetCentavos:
+          oneOf:
+            - type: integer
+              minimum: 1
+              maximum: 2147483647
+            - type: "null"
+        spentCentavos:
+          type: integer
+          minimum: 0
+          description: Sum of saved receipt totals for the month.
+        remainingCentavos:
+          oneOf:
+            - type: integer
+            - type: "null"
+          description: Target minus receipt spending; negative when over budget, null when no target is set.
     CreatePurchaseRequest:
       type: object
       additionalProperties: false

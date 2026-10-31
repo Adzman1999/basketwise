@@ -1,0 +1,26 @@
+$kind: http-example
+name: A monthly budget summary.
+request:
+  url: '{{baseUrl}}/api/budgets/{{month}}'
+  method: GET
+  headers:
+    Accept: application/json
+  body:
+    type: text
+    content: ""
+response:
+  statusCode: 200
+  statusText: OK
+  headers:
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "month": "2026-10",
+        "currency": "PHP",
+        "budgetCentavos": 5000000,
+        "spentCentavos": 2350000,
+        "remainingCentavos": 2650000
+      }
+order: 1000

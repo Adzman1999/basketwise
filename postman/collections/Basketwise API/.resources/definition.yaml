@@ -5,3 +5,4 @@ description: |
   check database readiness.
 variables:
   baseUrl: http://localhost:4000
+  month: "2026-10"

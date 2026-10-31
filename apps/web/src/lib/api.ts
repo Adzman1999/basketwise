@@ -50,6 +50,14 @@ export type PurchaseFilters = PurchaseFilterOptions & {
   search: string;
 };
 
+export type MonthlyBudgetSummary = {
+  month: string;
+  currency: 'PHP';
+  budgetCentavos: number | null;
+  spentCentavos: number;
+  remainingCentavos: number | null;
+};
+
 export type GroceryItem = {
   id: string;
   name: string;
@@ -178,6 +186,31 @@ export async function fetchPurchases(
   return sendRequest<PurchasePage>(`/api/purchases?${params.toString()}`, {
     headers: { Accept: 'application/json' },
     signal,
+  });
+}
+
+export async function fetchMonthlyBudget(month: string, signal: AbortSignal): Promise<MonthlyBudgetSummary> {
+  return sendRequest<MonthlyBudgetSummary>(`/api/budgets/${encodeURIComponent(month)}`, {
+    headers: { Accept: 'application/json' },
+    signal,
+  });
+}
+
+export async function saveMonthlyBudget(month: string, budgetCentavos: number): Promise<MonthlyBudgetSummary> {
+  return sendRequest<MonthlyBudgetSummary>(`/api/budgets/${encodeURIComponent(month)}`, {
+    method: 'PUT',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ budgetCentavos }),
+  });
+}
+
+export async function deleteMonthlyBudget(month: string): Promise<MonthlyBudgetSummary> {
+  return sendRequest<MonthlyBudgetSummary>(`/api/budgets/${encodeURIComponent(month)}`, {
+    method: 'DELETE',
+    headers: { Accept: 'application/json' },
   });
 }
 

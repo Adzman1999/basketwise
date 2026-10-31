@@ -1,0 +1,26 @@
+$kind: http-example
+name: The target was removed.
+request:
+  url: '{{baseUrl}}/api/budgets/{{month}}'
+  method: DELETE
+  headers:
+    Accept: application/json
+  body:
+    type: text
+    content: ""
+response:
+  statusCode: 200
+  statusText: OK
+  headers:
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "month": "2026-10",
+        "currency": "PHP",
+        "budgetCentavos": null,
+        "spentCentavos": 2350000,
+        "remainingCentavos": null
+      }
+order: 1000

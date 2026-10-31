@@ -1,0 +1,9 @@
+$kind: http-request
+description: Removes the selected month's target while retaining receipts and returning the current spending summary.
+url: '{{baseUrl}}/api/budgets/{{month}}'
+method: DELETE
+headers:
+  Accept: application/json
+settings: {}
+examples: ./.resources/Remove a monthly grocery budget.resources/examples
+order: 3000
