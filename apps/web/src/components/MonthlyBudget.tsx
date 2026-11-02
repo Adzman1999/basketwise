@@ -283,7 +283,7 @@ export default function MonthlyBudget() {
             <Select value={anchorDate.slice(0, 4)} onValueChange={(year) => setAnchorDate(`${year}-01-01`)} disabled={isSaving}>
               <SelectTrigger id="budget-year" className="h-10 w-full"><SelectValue /></SelectTrigger>
               <SelectContent>
-                {Array.from({ length: 151 }, (_, index) => 1950 + index).map((year) => (
+                {Array.from({ length: 201 }, (_, index) => 1900 + index).map((year) => (
                   <SelectItem key={year} value={String(year)}>{year}</SelectItem>
                 ))}
               </SelectContent>
