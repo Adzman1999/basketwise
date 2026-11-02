@@ -9,6 +9,7 @@ Let the household review grocery receipt spending by day, week, month, year, or 
 - This MVP has one household-wide target for each exact period, consistent with the current single-household data model. Targets are not scoped to user or household IDs until authentication and household membership are designed.
 - Weekly periods run Monday through Sunday. Day, month, and year use calendar boundaries. Custom date ranges include both their start and end dates.
 - Each period has its own optional target. Weekly and daily targets are not prorated from a monthly target.
+- Targets can only be created or updated for periods ending today or later in Asia/Manila; past periods remain available for spending review.
 - Spending sums saved receipt totals by purchase date and includes a receipt count. It does not calculate recipe or ingredient food cost; recipe costing is a separate future workflow.
 - Existing monthly targets are preserved and migrated into the generalized period table.
 

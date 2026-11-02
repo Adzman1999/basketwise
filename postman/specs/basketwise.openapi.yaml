@@ -172,7 +172,7 @@ paths:
       tags:
         - Grocery budgets
       summary: Set or update a period budget target
-      description: Stores a positive target for the exact selected period. Repeating the request replaces that period's target.
+      description: Stores a positive target for the exact selected period if it ends today or later in Asia/Manila. Repeating the request replaces that period's target. Historical periods remain available for spending review.
       requestBody:
         required: true
         content:
@@ -190,6 +190,8 @@ paths:
                 $ref: "#/components/schemas/GroceryBudgetSummary"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "422":
+          $ref: "#/components/responses/PastBudgetPeriod"
         "500":
           $ref: "#/components/responses/InternalServerError"
     delete:
@@ -971,6 +973,16 @@ components:
             error:
               code: "VALIDATION_ERROR"
               message: "The request is invalid."
+    PastBudgetPeriod:
+      description: A budget target cannot be set for a period that ended before today in Asia/Manila.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+          example:
+            error:
+              code: "PAST_BUDGET_PERIOD"
+              message: "Budget targets can only be set for today or a future period."
     InternalServerError:
       description: The server could not complete the request.
       content:

@@ -7,6 +7,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { philippineDateString } from '@/lib/dates';
 import UnitInput from '@/components/UnitInput';
 import {
   createUnit,
@@ -44,11 +45,7 @@ const maxPesoAmount = (maxCentavos / 100).toFixed(2);
 const maxQuantityMilliUnits = 999_999_999_999n;
 
 function todayAsLocalDate(): string {
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = String(today.getMonth() + 1).padStart(2, '0');
-  const day = String(today.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  return philippineDateString();
 }
 
 function parsePesos(value: string): number | null {

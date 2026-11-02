@@ -1,0 +1,29 @@
+$kind: http-example
+name: A past budget target was rejected.
+request:
+  url: '{{baseUrl}}/api/budgets/month/2026-10-01/2026-10-31'
+  method: PUT
+  headers:
+    Content-Type: application/json
+    Accept: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "budgetCentavos": 5000000
+      }
+response:
+  statusCode: 422
+  statusText: Unprocessable Entity
+  headers:
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "error": {
+          "code": "PAST_BUDGET_PERIOD",
+          "message": "Budget targets can only be set for today or a future period."
+        }
+      }
+order: 2000

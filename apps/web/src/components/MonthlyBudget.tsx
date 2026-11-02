@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { philippineDateString } from '@/lib/dates';
 import {
   deleteGroceryBudget,
   fetchGroceryBudget,
@@ -48,10 +49,6 @@ function localDateString(date: Date): string {
 function parseLocalDate(value: string): Date {
   const [year, month, day] = value.split('-').map(Number);
   return new Date(year, month - 1, day);
-}
-
-function currentLocalDate(): string {
-  return localDateString(new Date());
 }
 
 function shiftAnchorDate(dateValue: string, periodType: BudgetPeriodType, direction: -1 | 1): string {
@@ -127,7 +124,7 @@ function parseBudgetCentavos(value: string): number | null {
 }
 
 export default function MonthlyBudget() {
-  const today = currentLocalDate();
+  const today = philippineDateString();
   const [periodType, setPeriodType] = useState<BudgetPeriodType>('month');
   const [anchorDate, setAnchorDate] = useState(today);
   const [customStartsOn, setCustomStartsOn] = useState(today);
@@ -147,6 +144,7 @@ export default function MonthlyBudget() {
     : periodType === 'custom' && customStartsOn > customEndsOn
       ? 'The end date must be on or after the start date.'
       : '';
+  const periodIsPast = Boolean(period && period.endsOn < today);
 
   useEffect(() => {
     if (!period) {
@@ -181,6 +179,10 @@ export default function MonthlyBudget() {
     setFormError('');
     setNotice('');
     if (!period) return;
+    if (periodIsPast) {
+      setFormError('A budget target can only be set for today or a future period.');
+      return;
+    }
 
     const budgetCentavos = parseBudgetCentavos(budgetAmount);
     if (budgetCentavos === null) {
@@ -420,11 +422,15 @@ export default function MonthlyBudget() {
                       onChange={(event) => setBudgetAmount(event.target.value)}
                       placeholder="0.00"
                       required
-                      disabled={isSaving || !period}
+                      disabled={isSaving || !period || periodIsPast}
                     />
                   </div>
                 </Label>
-                <p className="text-xs text-muted-foreground">Targets are saved separately for each selected period.</p>
+                <p className="text-xs text-muted-foreground">
+                  {periodIsPast
+                    ? 'Past spending remains available to review, but targets can only be set for today or future periods.'
+                    : 'Targets are saved separately for each selected period.'}
+                </p>
                 {formError && (
                   <Alert variant="destructive">
                     <AlertCircle aria-hidden="true" />
@@ -433,7 +439,7 @@ export default function MonthlyBudget() {
                 )}
                 {notice && <p className="text-sm text-primary" role="status">{notice}</p>}
                 <div className="flex flex-wrap gap-2">
-                  <Button type="submit" disabled={isSaving || !period}>
+                  <Button type="submit" disabled={isSaving || !period || periodIsPast}>
                     <Save aria-hidden="true" /> {isSaving ? 'Saving…' : hasBudget ? 'Update target' : 'Set target'}
                   </Button>
                   {hasBudget && (
