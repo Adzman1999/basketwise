@@ -160,7 +160,7 @@ export default function App() {
     : activeHref === '#grocery-catalog'
       ? 'Items & prices'
       : activeHref === '#budget'
-        ? 'Monthly budget'
+        ? 'Budget & spending'
         : activeHref === '#stores'
           ? 'Stores & shops'
           : 'Overview';
@@ -222,7 +222,7 @@ export default function App() {
                       {activeHref === '#grocery-catalog'
                         ? 'Grocery items'
                         : activeHref === '#budget'
-                          ? 'Monthly budget'
+                          ? 'Budget & spending'
                           : activeHref === '#stores'
                             ? 'Stores & shops'
                             : 'Grocery spending'}
@@ -231,7 +231,7 @@ export default function App() {
                       {activeHref === '#grocery-catalog'
                         ? 'Browse saved grocery items and compare their recorded prices.'
                         : activeHref === '#budget'
-                          ? 'Set a grocery spending target and track it against your receipts.'
+                          ? 'Review grocery spend by day, week, month, year, or a custom range.'
                           : activeHref === '#stores'
                             ? 'Save the places you shop and choose them when recording a purchase.'
                             : 'Track grocery receipts and item prices.'}

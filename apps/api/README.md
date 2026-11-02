@@ -14,7 +14,7 @@ pnpm dev:api
 
 The health endpoint is available at `http://localhost:4000/api/health`.
 
-Monthly grocery budgets are stored per calendar month. Use `GET` and `PUT /api/budgets/{month}` to read and set a target, or `DELETE /api/budgets/{month}` to remove the target while preserving receipts. The API calculates spending from receipt totals and purchase dates.
+Grocery budgets are stored per exact day, Monday-to-Sunday week, calendar month, calendar year, or custom date range. Use `GET`, `PUT`, and `DELETE /api/budgets/{periodType}/{startsOn}/{endsOn}` to read, set, or remove a target. The API calculates spending and receipt count from receipt totals and inclusive purchase dates.
 
 ## Database
 

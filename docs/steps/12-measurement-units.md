@@ -8,4 +8,4 @@ The API also creates a directory entry when a purchase is submitted with a unit 
 
 ## Next checkpoint
 
-Add monthly grocery budget targets and compare them with receipt totals as documented in [Step 13](13-monthly-grocery-budget.md).
+Add grocery budget targets and spending summaries for selected periods as documented in [Step 13](13-monthly-grocery-budget.md).

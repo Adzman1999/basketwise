@@ -1,7 +1,7 @@
 $kind: http-example
-name: The target was removed.
+name: The weekly target was removed.
 request:
-  url: '{{baseUrl}}/api/budgets/{{month}}'
+  url: '{{baseUrl}}/api/budgets/{{periodType}}/{{startsOn}}/{{endsOn}}'
   method: DELETE
   headers:
     Accept: application/json
@@ -17,10 +17,13 @@ response:
     type: json
     content: |-
       {
-        "month": "2026-10",
+        "periodType": "week",
+        "startsOn": "2026-11-02",
+        "endsOn": "2026-11-08",
         "currency": "PHP",
         "budgetCentavos": null,
         "spentCentavos": 2350000,
+        "receiptCount": 8,
         "remainingCentavos": null
       }
 order: 1000

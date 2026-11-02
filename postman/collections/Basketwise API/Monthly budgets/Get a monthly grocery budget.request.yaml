@@ -1,9 +1,0 @@
-$kind: http-request
-description: Returns the monthly grocery budget target, receipt spending, and remaining amount for the selected month.
-url: '{{baseUrl}}/api/budgets/{{month}}'
-method: GET
-headers:
-  Accept: application/json
-settings: {}
-examples: ./.resources/Get a monthly grocery budget.resources/examples
-order: 1000

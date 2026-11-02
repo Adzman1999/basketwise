@@ -111,86 +111,108 @@ paths:
           $ref: "#/components/responses/DuplicateStore"
         "500":
           $ref: "#/components/responses/InternalServerError"
-  /api/budgets/{month}:
+  /api/budgets/{periodType}/{startsOn}/{endsOn}:
     parameters:
-      - name: month
+      - name: periodType
         in: path
         required: true
-        description: Calendar month in YYYY-MM format.
+        description: Day, Monday-to-Sunday week, calendar month, calendar year, or custom date range.
         schema:
           type: string
-          pattern: "^[0-9]{4}-(0[1-9]|1[0-2])$"
-        example: "2026-10"
+          enum: [day, week, month, year, custom]
+        example: week
+      - name: startsOn
+        in: path
+        required: true
+        description: Inclusive period start date.
+        schema:
+          type: string
+          format: date
+        example: "2026-11-02"
+      - name: endsOn
+        in: path
+        required: true
+        description: Inclusive period end date. Must match the selected period type, except for custom ranges.
+        schema:
+          type: string
+          format: date
+        example: "2026-11-08"
     get:
-      operationId: getMonthlyGroceryBudget
+      operationId: getGroceryBudgetPeriod
       tags:
-        - Monthly budgets
-      summary: Get a month's grocery budget and spending
+        - Grocery budgets
+      summary: Get grocery spending and budget for a period
       description: |
-        Returns the configured household-wide budget target, if any, and the
-        sum of receipt totals by purchase date for the requested calendar month.
-        The current MVP has one shared household budget per month and is not
-        scoped by a user or household ID.
+        Returns receipt spending and count for the inclusive date period, plus
+        its optional target. Weekly periods begin on Monday. The MVP stores one
+        shared household target for each exact period key; targets are not
+        prorated between period types or scoped by a user or household ID.
       responses:
         "200":
-          description: The monthly target and receipt spending summary.
+          description: The budget and receipt spending summary for the selected period.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/MonthlyBudgetSummary"
+                $ref: "#/components/schemas/GroceryBudgetSummary"
               example:
-                month: "2026-10"
+                periodType: week
+                startsOn: "2026-11-02"
+                endsOn: "2026-11-08"
                 currency: "PHP"
                 budgetCentavos: 5000000
                 spentCentavos: 2350000
+                receiptCount: 8
                 remainingCentavos: 2650000
         "400":
           $ref: "#/components/responses/BadRequest"
         "500":
           $ref: "#/components/responses/InternalServerError"
     put:
-      operationId: setMonthlyGroceryBudget
+      operationId: setGroceryBudgetPeriod
       tags:
-        - Monthly budgets
-      summary: Set or update a month's grocery budget
-      description: Stores one positive budget target for the selected calendar month. Repeating the request replaces that month's target.
+        - Grocery budgets
+      summary: Set or update a period budget target
+      description: Stores a positive target for the exact selected period. Repeating the request replaces that period's target.
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/SetMonthlyBudgetRequest"
+              $ref: "#/components/schemas/SetBudgetRequest"
             example:
               budgetCentavos: 5000000
       responses:
         "200":
-          description: The updated monthly target and spending summary.
+          description: The updated target and spending summary.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/MonthlyBudgetSummary"
+                $ref: "#/components/schemas/GroceryBudgetSummary"
         "400":
           $ref: "#/components/responses/BadRequest"
         "500":
           $ref: "#/components/responses/InternalServerError"
     delete:
-      operationId: removeMonthlyGroceryBudget
+      operationId: removeGroceryBudgetPeriod
       tags:
-        - Monthly budgets
-      summary: Remove a month's grocery budget target
-      description: Removes the target while preserving receipts and returns the month's spending summary.
+        - Grocery budgets
+      summary: Remove a period budget target
+      description: Removes the target while preserving receipts and returns the period spending summary.
       responses:
         "200":
           description: The spending summary after removing the target.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/MonthlyBudgetSummary"
+                $ref: "#/components/schemas/GroceryBudgetSummary"
               example:
-                month: "2026-10"
+                periodType: week
+                startsOn: "2026-11-02"
+                endsOn: "2026-11-08"
                 currency: "PHP"
                 budgetCentavos: null
                 spentCentavos: 2350000
+                receiptCount: 8
                 remainingCentavos: null
         "400":
           $ref: "#/components/responses/BadRequest"
@@ -618,7 +640,7 @@ components:
             $ref: "#/components/schemas/Store"
         total:
           type: integer
-    SetMonthlyBudgetRequest:
+    SetBudgetRequest:
       type: object
       additionalProperties: false
       required:
@@ -628,20 +650,29 @@ components:
           type: integer
           minimum: 1
           maximum: 2147483647
-          description: Monthly target in PHP centavos.
-    MonthlyBudgetSummary:
+          description: Target for the selected period in PHP centavos.
+    GroceryBudgetSummary:
       type: object
       additionalProperties: false
       required:
-        - month
+        - periodType
+        - startsOn
+        - endsOn
         - currency
         - budgetCentavos
         - spentCentavos
+        - receiptCount
         - remainingCentavos
       properties:
-        month:
+        periodType:
           type: string
-          pattern: "^[0-9]{4}-(0[1-9]|1[0-2])$"
+          enum: [day, week, month, year, custom]
+        startsOn:
+          type: string
+          format: date
+        endsOn:
+          type: string
+          format: date
         currency:
           type: string
           enum:
@@ -655,7 +686,11 @@ components:
         spentCentavos:
           type: integer
           minimum: 0
-          description: Sum of saved receipt totals for the month.
+          description: Sum of saved receipt totals for the selected inclusive dates.
+        receiptCount:
+          type: integer
+          minimum: 0
+          description: Number of receipts in the selected period.
         remainingCentavos:
           oneOf:
             - type: integer

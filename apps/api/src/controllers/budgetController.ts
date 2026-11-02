@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express';
-import { monthlyBudgetParamsSchema, setMonthlyBudgetSchema } from '../schemas/budget';
-import { deleteMonthlyBudget, getMonthlyBudget, saveMonthlyBudget } from '../services/budgetService';
+import { budgetPeriodParamsSchema, setBudgetSchema } from '../schemas/budget';
+import { deleteBudget, getBudget, saveBudget } from '../services/budgetService';
 
 const invalidRequest = {
   error: {
@@ -16,39 +16,39 @@ const internalError = {
   },
 };
 
-export async function getMonthlyBudgetHandler(req: Request, res: Response) {
-  const parsed = monthlyBudgetParamsSchema.safeParse(req.params);
+export async function getBudgetHandler(req: Request, res: Response) {
+  const parsed = budgetPeriodParamsSchema.safeParse(req.params);
   if (!parsed.success) return res.status(400).json(invalidRequest);
 
   try {
-    return res.status(200).json(await getMonthlyBudget(parsed.data.month));
+    return res.status(200).json(await getBudget(parsed.data));
   } catch (error) {
-    console.error('Failed to get monthly grocery budget:', error);
+    console.error('Failed to get grocery budget:', error);
     return res.status(500).json(internalError);
   }
 }
 
-export async function saveMonthlyBudgetHandler(req: Request, res: Response) {
-  const parsedParams = monthlyBudgetParamsSchema.safeParse(req.params);
-  const parsedBody = setMonthlyBudgetSchema.safeParse(req.body);
-  if (!parsedParams.success || !parsedBody.success) return res.status(400).json(invalidRequest);
+export async function saveBudgetHandler(req: Request, res: Response) {
+  const parsedPeriod = budgetPeriodParamsSchema.safeParse(req.params);
+  const parsedBody = setBudgetSchema.safeParse(req.body);
+  if (!parsedPeriod.success || !parsedBody.success) return res.status(400).json(invalidRequest);
 
   try {
-    return res.status(200).json(await saveMonthlyBudget(parsedParams.data.month, parsedBody.data));
+    return res.status(200).json(await saveBudget(parsedPeriod.data, parsedBody.data));
   } catch (error) {
-    console.error('Failed to save monthly grocery budget:', error);
+    console.error('Failed to save grocery budget:', error);
     return res.status(500).json(internalError);
   }
 }
 
-export async function deleteMonthlyBudgetHandler(req: Request, res: Response) {
-  const parsed = monthlyBudgetParamsSchema.safeParse(req.params);
+export async function deleteBudgetHandler(req: Request, res: Response) {
+  const parsed = budgetPeriodParamsSchema.safeParse(req.params);
   if (!parsed.success) return res.status(400).json(invalidRequest);
 
   try {
-    return res.status(200).json(await deleteMonthlyBudget(parsed.data.month));
+    return res.status(200).json(await deleteBudget(parsed.data));
   } catch (error) {
-    console.error('Failed to remove monthly grocery budget:', error);
+    console.error('Failed to remove grocery budget:', error);
     return res.status(500).json(internalError);
   }
 }

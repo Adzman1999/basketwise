@@ -1,14 +1,14 @@
 import { Router } from 'express';
 import {
-  deleteMonthlyBudgetHandler,
-  getMonthlyBudgetHandler,
-  saveMonthlyBudgetHandler,
+  deleteBudgetHandler,
+  getBudgetHandler,
+  saveBudgetHandler,
 } from '../controllers/budgetController';
 
 const router = Router();
 
-router.get('/budgets/:month', getMonthlyBudgetHandler);
-router.put('/budgets/:month', saveMonthlyBudgetHandler);
-router.delete('/budgets/:month', deleteMonthlyBudgetHandler);
+router.get('/budgets/:periodType/:startsOn/:endsOn', getBudgetHandler);
+router.put('/budgets/:periodType/:startsOn/:endsOn', saveBudgetHandler);
+router.delete('/budgets/:periodType/:startsOn/:endsOn', deleteBudgetHandler);
 
 export default router;

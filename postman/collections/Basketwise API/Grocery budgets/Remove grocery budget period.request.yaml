@@ -1,0 +1,9 @@
+$kind: http-request
+description: Removes the selected period's target while retaining receipts and returning the spending summary.
+url: '{{baseUrl}}/api/budgets/{{periodType}}/{{startsOn}}/{{endsOn}}'
+method: DELETE
+headers:
+  Accept: application/json
+settings: {}
+examples: ./.resources/Remove grocery budget period.resources/examples
+order: 3000

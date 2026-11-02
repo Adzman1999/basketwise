@@ -1,7 +1,7 @@
 $kind: http-example
-name: The monthly budget was saved.
+name: The weekly budget was saved.
 request:
-  url: '{{baseUrl}}/api/budgets/{{month}}'
+  url: '{{baseUrl}}/api/budgets/{{periodType}}/{{startsOn}}/{{endsOn}}'
   method: PUT
   headers:
     Content-Type: application/json
@@ -21,10 +21,13 @@ response:
     type: json
     content: |-
       {
-        "month": "2026-10",
+        "periodType": "week",
+        "startsOn": "2026-11-02",
+        "endsOn": "2026-11-08",
         "currency": "PHP",
         "budgetCentavos": 5000000,
         "spentCentavos": 2350000,
+        "receiptCount": 8,
         "remainingCentavos": 2650000
       }
 order: 1000

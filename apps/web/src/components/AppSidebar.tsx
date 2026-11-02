@@ -16,7 +16,7 @@ import {
 const navigationItems = [
   { href: '#overview', label: 'Overview', icon: LayoutDashboard },
   { href: '#grocery-spending', label: 'Grocery spending', icon: ReceiptText },
-  { href: '#budget', label: 'Monthly budget', icon: PiggyBank },
+  { href: '#budget', label: 'Budget & spending', icon: PiggyBank },
   { href: '#grocery-catalog', label: 'Items & prices', icon: Tags },
   { href: '#stores', label: 'Stores & shops', icon: Store },
 ];

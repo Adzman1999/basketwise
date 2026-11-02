@@ -50,11 +50,19 @@ export type PurchaseFilters = PurchaseFilterOptions & {
   search: string;
 };
 
-export type MonthlyBudgetSummary = {
-  month: string;
+export type BudgetPeriodType = 'day' | 'week' | 'month' | 'year' | 'custom';
+
+export type BudgetPeriod = {
+  periodType: BudgetPeriodType;
+  startsOn: string;
+  endsOn: string;
+};
+
+export type GroceryBudgetSummary = BudgetPeriod & {
   currency: 'PHP';
   budgetCentavos: number | null;
   spentCentavos: number;
+  receiptCount: number;
   remainingCentavos: number | null;
 };
 
@@ -189,15 +197,19 @@ export async function fetchPurchases(
   });
 }
 
-export async function fetchMonthlyBudget(month: string, signal: AbortSignal): Promise<MonthlyBudgetSummary> {
-  return sendRequest<MonthlyBudgetSummary>(`/api/budgets/${encodeURIComponent(month)}`, {
+function budgetPath(period: BudgetPeriod): string {
+  return `/api/budgets/${period.periodType}/${encodeURIComponent(period.startsOn)}/${encodeURIComponent(period.endsOn)}`;
+}
+
+export async function fetchGroceryBudget(period: BudgetPeriod, signal: AbortSignal): Promise<GroceryBudgetSummary> {
+  return sendRequest<GroceryBudgetSummary>(budgetPath(period), {
     headers: { Accept: 'application/json' },
     signal,
   });
 }
 
-export async function saveMonthlyBudget(month: string, budgetCentavos: number): Promise<MonthlyBudgetSummary> {
-  return sendRequest<MonthlyBudgetSummary>(`/api/budgets/${encodeURIComponent(month)}`, {
+export async function saveGroceryBudget(period: BudgetPeriod, budgetCentavos: number): Promise<GroceryBudgetSummary> {
+  return sendRequest<GroceryBudgetSummary>(budgetPath(period), {
     method: 'PUT',
     headers: {
       Accept: 'application/json',
@@ -207,8 +219,8 @@ export async function saveMonthlyBudget(month: string, budgetCentavos: number): 
   });
 }
 
-export async function deleteMonthlyBudget(month: string): Promise<MonthlyBudgetSummary> {
-  return sendRequest<MonthlyBudgetSummary>(`/api/budgets/${encodeURIComponent(month)}`, {
+export async function deleteGroceryBudget(period: BudgetPeriod): Promise<GroceryBudgetSummary> {
+  return sendRequest<GroceryBudgetSummary>(budgetPath(period), {
     method: 'DELETE',
     headers: { Accept: 'application/json' },
   });

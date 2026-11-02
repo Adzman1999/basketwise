@@ -1,25 +1,27 @@
-# Step 13: Monthly grocery budget
+# Step 13: Grocery budgets and spending periods
 
 ## Goal
 
-Let the household set a grocery spending target for each calendar month and compare it with saved receipts.
+Let the household review grocery receipt spending by day, week, month, year, or a custom date range, and optionally set a target for that exact period.
 
 ## Decisions
 
-- This MVP has one household-wide budget target per month, consistent with the current single-household data model. It is not scoped to users or household IDs until authentication and household membership are designed.
-- Monthly spending sums each saved receipt's `total_paid_centavos`, grouped by `purchased_on` in the selected month. Receipt items and store names do not affect budget totals.
-- Budget targets are stored in PHP centavos, must be positive, and can be updated or removed independently for each month.
-- The budget summary remains available when a month has no target; its `budgetCentavos` and `remainingCentavos` are `null` while receipt spending is still reported.
+- This MVP has one household-wide target for each exact period, consistent with the current single-household data model. Targets are not scoped to user or household IDs until authentication and household membership are designed.
+- Weekly periods run Monday through Sunday. Day, month, and year use calendar boundaries. Custom date ranges include both their start and end dates.
+- Each period has its own optional target. Weekly and daily targets are not prorated from a monthly target.
+- Spending sums saved receipt totals by purchase date and includes a receipt count. It does not calculate recipe or ingredient food cost; recipe costing is a separate future workflow.
+- Existing monthly targets are preserved and migrated into the generalized period table.
 
 ## Added
 
-- Migration `005_monthly_budgets.sql` stores one target per month.
-- `GET /api/budgets/{month}` returns the target and month-to-date receipt spending.
-- `PUT /api/budgets/{month}` creates or replaces the target.
-- `DELETE /api/budgets/{month}` removes only the target and retains receipts.
-- OpenAPI and local Postman collection entries describe the monthly budget operations and response examples.
-- A Monthly budget sidebar page lets the user choose a month, set or edit a target, remove it, and see spending progress and remaining/over-budget amount.
-- README status and this checkpoint describe the implemented workflow and the single-household scope.
+- Migration `005_monthly_budgets.sql` created the first monthly target table; migration `006_budget_periods.sql` generalizes it while preserving any saved monthly targets.
+- `GET /api/budgets/{periodType}/{startsOn}/{endsOn}` returns spending, receipt count, and the optional target for an inclusive period.
+- `PUT /api/budgets/{periodType}/{startsOn}/{endsOn}` creates or replaces that period's positive target.
+- `DELETE /api/budgets/{periodType}/{startsOn}/{endsOn}` removes a target while retaining receipts.
+- API validation and database constraints enforce canonical day, week, month, and year bounds. Custom ranges accept any valid inclusive date range.
+- OpenAPI and the local Postman collection describe all three operations and their response examples.
+- The Budget & spending page provides period selection, previous/next navigation, receipt totals, receipt counts, optional targets, and remaining or over-target progress.
+- Receipt spending is separate from future recipe and ingredient costing.
 
 ## Verification
 
@@ -27,9 +29,9 @@ Let the household set a grocery spending target for each calendar month and comp
 - `pnpm build` passed for the API and web app.
 - `postman collection lint 'postman/collections/Basketwise API'` passed with no issues.
 - OpenAPI syntax lint passed with `postman spec lint --issueType=syntax postman/specs/basketwise.openapi.yaml`.
-- Migration `005_monthly_budgets.sql` was applied to the local `basketwise_dev` database; it only adds the monthly budget table.
+- Migration `006_budget_periods.sql` was applied to the local `basketwise_dev` database after implementation.
 - API behavior tests were not run in this session.
 
 ## Follow-up
 
-Review the monthly budget flow, then choose between pantry stock tracking and food waste tracking for the next household workflow.
+Review period totals in the app, then choose the next household workflow, such as pantry stock or food waste tracking. Recipe and ingredient food costing remains a separate future feature.
