@@ -12,8 +12,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { fetchGroceryBudget, fetchGroceryBudgetCalendar, fetchGroceryItems, fetchPurchases } from '@/lib/api';
-import type { GroceryBudgetCalendar, GroceryBudgetSummary, Purchase, PurchasePage } from '@/lib/api';
+import { fetchGroceryBudget, fetchGroceryItems, fetchPurchases } from '@/lib/api';
+import type { GroceryBudgetSummary, Purchase, PurchasePage } from '@/lib/api';
 import { philippineDateString } from '@/lib/dates';
 
 type LoadState<T> =
@@ -102,78 +102,82 @@ function budgetDetail(summary: GroceryBudgetSummary): string {
   return `${formatPeso(summary.remainingCentavos)} remaining`;
 }
 
-function SpendingTrendCard({ state, month }: { state: LoadState<GroceryBudgetCalendar>; month: string }) {
-  const days = state.kind === 'loaded' ? state.value.days : [];
-  const totalSpent = days.reduce((total, day) => total + day.spentCentavos, 0);
-  const maxSpent = Math.max(0, ...days.map((day) => day.spentCentavos));
-  const highestSpendDay = days.find((day) => day.spentCentavos === maxSpent && maxSpent > 0);
+function SmartSuggestionsCard({ state, currentDate }: { state: LoadState<GroceryBudgetSummary>; currentDate: string }) {
+  const [year, month, dayOfMonth] = currentDate.split('-').map(Number);
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const daysRemaining = Math.max(1, daysInMonth - dayOfMonth + 1);
+  const monthName = new Intl.DateTimeFormat('en-PH', { month: 'long' }).format(new Date(year, month - 1, 1));
 
   return (
     <Card className="min-w-0">
-      <CardHeader className="p-4 sm:p-5">
-        <CardTitle className="text-lg">Daily spending trend</CardTitle>
-        <CardDescription className="mt-1">Receipt totals by date for {formatMonth(month)}.</CardDescription>
+      <CardHeader className="flex flex-row items-start gap-3 p-4 sm:p-5">
+        <span className="rounded-md bg-primary/10 p-2 text-primary"><PiggyBank className="size-4" aria-hidden="true" /></span>
+        <div className="min-w-0">
+          <CardTitle className="text-lg">Smart suggestions</CardTitle>
+          <CardDescription className="mt-1">A practical grocery plan based on your current-month budget.</CardDescription>
+        </div>
       </CardHeader>
       <CardContent className="space-y-4 p-4 pt-0 sm:p-5 sm:pt-0">
         {state.kind === 'loading' ? (
-          <div className="flex h-36 items-end gap-1" role="status" aria-label="Loading daily spending trend">
-            {Array.from({ length: 30 }, (_, index) => (
-              <Skeleton key={index} className="min-w-0 flex-1 rounded-t-sm" style={{ height: `${18 + ((index * 23) % 64)}%` }} />
-            ))}
+          <div className="space-y-3" role="status" aria-label="Loading smart suggestions">
+            <Skeleton className="h-5 w-3/4" />
+            <div className="grid grid-cols-2 gap-3"><Skeleton className="h-20" /><Skeleton className="h-20" /></div>
+            <Skeleton className="h-4 w-1/2" />
           </div>
         ) : state.kind === 'error' ? (
           <Alert variant="destructive">
-            <AlertTitle>Spending trend could not load</AlertTitle>
+            <AlertTitle>Suggestions could not load</AlertTitle>
             <AlertDescription>{state.message}</AlertDescription>
           </Alert>
-        ) : totalSpent === 0 ? (
-          <div className="flex min-h-36 items-center justify-center rounded-md border border-dashed px-4 text-center">
-            <p className="max-w-xs text-sm text-muted-foreground">No grocery spending has been recorded this month yet.</p>
+        ) : state.value.budgetCentavos === null ? (
+          <div className="space-y-3 rounded-md border border-dashed p-4">
+            <div>
+              <p className="text-sm font-medium">Set a monthly grocery target</p>
+              <p className="mt-1 text-sm leading-5 text-muted-foreground">A budget lets Basketwise suggest a daily and weekly spending pace for {monthName}.</p>
+            </div>
+            <Button variant="outline" size="sm" asChild>
+              <a href="#budget">Set monthly target <ArrowRight aria-hidden="true" /></a>
+            </Button>
+          </div>
+        ) : (state.value.remainingCentavos ?? 0) < 0 ? (
+          <div className="space-y-3 rounded-md border border-destructive/30 bg-destructive/5 p-4">
+            <div>
+              <p className="text-sm font-medium">You’re {formatPeso(Math.abs(state.value.remainingCentavos ?? 0))} over this month’s target.</p>
+              <p className="mt-1 text-sm leading-5 text-muted-foreground">Review recent receipts to plan the next grocery trip and set a target that fits your household’s needs.</p>
+            </div>
+            <Button variant="outline" size="sm" asChild>
+              <a href="#grocery-spending">Review purchases <ArrowRight aria-hidden="true" /></a>
+            </Button>
+          </div>
+        ) : (state.value.remainingCentavos ?? 0) === 0 ? (
+          <div className="space-y-3 rounded-md border border-dashed p-4">
+            <div>
+              <p className="text-sm font-medium">This month’s target is fully used.</p>
+              <p className="mt-1 text-sm leading-5 text-muted-foreground">You’ve recorded {formatPeso(state.value.spentCentavos)} against your {formatPeso(state.value.budgetCentavos)} target. Review the budget before planning another trip.</p>
+            </div>
+            <Button variant="outline" size="sm" asChild>
+              <a href="#budget">Review budget <ArrowRight aria-hidden="true" /></a>
+            </Button>
           </div>
         ) : (
           <>
-            <div className="flex flex-wrap items-end justify-between gap-3">
-              <div>
-                <p className="text-xs text-muted-foreground">Month total</p>
-                <p className="mt-0.5 text-xl font-semibold tabular-nums">{formatPeso(totalSpent)}</p>
+            <div>
+              <p className="text-sm font-medium">You have {formatPeso(state.value.remainingCentavos ?? 0)} left for {monthName}.</p>
+              <p className="mt-1 text-sm leading-5 text-muted-foreground">Keep upcoming grocery spending near this pace to stay within your target.</p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-md bg-muted/60 p-3">
+                <p className="text-xs text-muted-foreground">Suggested daily pace</p>
+                <p className="mt-1 text-lg font-semibold tabular-nums">{formatPeso(Math.floor((state.value.remainingCentavos ?? 0) / daysRemaining))}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">For {daysRemaining} {daysRemaining === 1 ? 'day' : 'days'} left</p>
               </div>
-              {highestSpendDay && (
-                <div className="text-right">
-                  <p className="text-xs text-muted-foreground">Highest spend day</p>
-                  <p className="mt-0.5 text-sm font-medium tabular-nums">
-                    {formatPurchaseDate(highestSpendDay.date)} · {formatPeso(highestSpendDay.spentCentavos)}
-                  </p>
-                </div>
-              )}
+              <div className="rounded-md bg-muted/60 p-3">
+                <p className="text-xs text-muted-foreground">Next 7 days</p>
+                <p className="mt-1 text-lg font-semibold tabular-nums">{formatPeso(Math.floor((state.value.remainingCentavos ?? 0) * Math.min(7, daysRemaining) / daysRemaining))}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">Suggested grocery cap</p>
+              </div>
             </div>
-            <div
-              role="img"
-              aria-label={`Daily grocery spending for ${formatMonth(month)}. Month total ${formatPeso(totalSpent)}.${highestSpendDay ? ` Highest spend was ${formatPeso(highestSpendDay.spentCentavos)} on ${formatPurchaseDate(highestSpendDay.date)}.` : ''}`}
-              className="flex h-36 items-end gap-1 border-b border-l px-1"
-            >
-              {days.map((day) => {
-                const heightPercent = maxSpent === 0 ? 0 : (day.spentCentavos / maxSpent) * 100;
-                return (
-                  <div
-                    key={day.date}
-                    className="flex h-full min-w-0 flex-1 items-end justify-center"
-                    title={`${formatPurchaseDate(day.date)} · ${formatPeso(day.spentCentavos)} · ${day.receiptCount} ${day.receiptCount === 1 ? 'receipt' : 'receipts'}`}
-                  >
-                    <span
-                      className={`w-full max-w-3 rounded-t-sm transition-colors hover:bg-primary ${day.spentCentavos === maxSpent ? 'bg-primary' : 'bg-primary/50'}`}
-                      style={{ height: `${Math.max(day.spentCentavos > 0 ? 5 : 0, heightPercent)}%` }}
-                    />
-                  </div>
-                );
-              })}
-            </div>
-            <div className="flex justify-between px-1 text-[10px] text-muted-foreground" aria-hidden="true">
-              <span>1</span>
-              <span>7</span>
-              <span>14</span>
-              <span>21</span>
-              <span>{days.length}</span>
-            </div>
+            <a href="#grocery-catalog" className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline">Compare saved item prices <ArrowRight className="size-4" aria-hidden="true" /></a>
           </>
         )}
       </CardContent>
@@ -186,7 +190,6 @@ export default function Overview({ refreshKey }: OverviewProps) {
   const [budgetState, setBudgetState] = useState<LoadState<GroceryBudgetSummary>>({ kind: 'loading' });
   const [purchaseState, setPurchaseState] = useState<LoadState<PurchasePage>>({ kind: 'loading' });
   const [catalogState, setCatalogState] = useState<LoadState<number>>({ kind: 'loading' });
-  const [trendState, setTrendState] = useState<LoadState<GroceryBudgetCalendar>>({ kind: 'loading' });
 
   useEffect(() => {
     const controller = new AbortController();
@@ -195,7 +198,6 @@ export default function Overview({ refreshKey }: OverviewProps) {
     setBudgetState({ kind: 'loading' });
     setPurchaseState({ kind: 'loading' });
     setCatalogState({ kind: 'loading' });
-    setTrendState({ kind: 'loading' });
 
     void fetchGroceryBudget(period, signal)
       .then((value) => {
@@ -227,17 +229,6 @@ export default function Overview({ refreshKey }: OverviewProps) {
         if (!signal.aborted) setCatalogState({
           kind: 'error',
           message: error instanceof Error ? error.message : 'Could not load saved grocery items.',
-        });
-      });
-
-    void fetchGroceryBudgetCalendar(currentMonth, signal)
-      .then((value) => {
-        if (!signal.aborted) setTrendState({ kind: 'loaded', value });
-      })
-      .catch((error: unknown) => {
-        if (!signal.aborted) setTrendState({
-          kind: 'error',
-          message: error instanceof Error ? error.message : 'Could not load daily grocery spending.',
         });
       });
 
@@ -337,7 +328,7 @@ export default function Overview({ refreshKey }: OverviewProps) {
           </CardContent>
         </Card>
 
-        <SpendingTrendCard state={trendState} month={currentMonth} />
+        <SmartSuggestionsCard state={budgetState} currentDate={philippineDateString()} />
       </div>
     </section>
   );
