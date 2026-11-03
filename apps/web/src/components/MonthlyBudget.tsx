@@ -239,6 +239,7 @@ export default function MonthlyBudget() {
   }
 
   function selectCalendarDate(date: string) {
+    setPeriodType('day');
     setAnchorDate(date);
     window.requestAnimationFrame(() => {
       document.getElementById('budget-period-details')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -325,7 +326,7 @@ export default function MonthlyBudget() {
           </Label>
         )}
 
-        {periodType !== 'custom' && periodType !== 'day' && (
+        {periodType !== 'custom' && periodType !== 'day' && periodType !== 'month' && (
           <div className="flex items-end gap-2">
             <Button type="button" variant="outline" size="icon" onClick={() => changePeriod(-1)} disabled={isSaving} aria-label={`Previous ${periodType}`}>
               <ChevronLeft aria-hidden="true" />
@@ -338,10 +339,10 @@ export default function MonthlyBudget() {
         )}
       </div>
 
-      {periodType === 'day' && (
+      {(periodType === 'day' || periodType === 'month') && (
         <BudgetCalendar
           month={anchorDate.slice(0, 7)}
-          selectedDate={anchorDate}
+          selectedDate={periodType === 'day' ? anchorDate : ''}
           onSelectDate={selectCalendarDate}
           onMonthChange={(direction) => setAnchorDate((current) => shiftCalendarMonth(current, direction))}
           refreshKey={calendarRefreshKey}
