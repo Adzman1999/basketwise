@@ -16,6 +16,8 @@ The health endpoint is available at `http://localhost:4000/api/health`.
 
 Grocery budgets are stored per exact day, Monday-to-Sunday week, calendar month, calendar year, or custom date range. Use `GET`, `PUT`, and `DELETE /api/budgets/{periodType}/{startsOn}/{endsOn}` to read, set, or remove a target. The API calculates spending and receipt count from receipt totals and inclusive purchase dates.
 
+`GET /api/budgets/calendar/{month}` returns daily target and receipt summaries for every date in a calendar month, including whether each daily target has remaining funds, is at its limit, or is exceeded.
+
 ## Database
 
 Purchase records use PostgreSQL. Copy `apps/api/.env.example` to `apps/api/.env`, replace `YOUR_LOCAL_DB_USER` with your PostgreSQL role, create the local databases, and apply migrations:

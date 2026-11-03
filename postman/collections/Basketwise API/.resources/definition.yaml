@@ -5,6 +5,7 @@ description: |
   check database readiness.
 variables:
   baseUrl: http://localhost:4000
+  calendarMonth: "2026-11"
   periodType: week
   startsOn: "2026-11-02"
   endsOn: "2026-11-08"

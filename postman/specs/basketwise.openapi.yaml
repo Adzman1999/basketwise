@@ -111,6 +111,60 @@ paths:
           $ref: "#/components/responses/DuplicateStore"
         "500":
           $ref: "#/components/responses/InternalServerError"
+  /api/budgets/calendar/{month}:
+    parameters:
+      - name: month
+        in: path
+        required: true
+        description: Calendar month in YYYY-MM format.
+        schema:
+          type: string
+          pattern: "^[0-9]{4}-(0[1-9]|1[0-2])$"
+        example: "2026-11"
+    get:
+      operationId: getGroceryBudgetCalendar
+      tags:
+        - Grocery budgets
+      summary: Get daily grocery budgets and spending for a month
+      description: Returns one entry for every date in the requested month, including daily target, receipt spending, receipt count, remaining amount, and target status.
+      responses:
+        "200":
+          description: Daily budget and spending summaries for the calendar month.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroceryBudgetCalendar"
+              example:
+                month: "2026-11"
+                days:
+                  - date: "2026-11-01"
+                    budgetCentavos: 500000
+                    spentCentavos: 235000
+                    receiptCount: 1
+                    remainingCentavos: 265000
+                    status: remaining
+                  - date: "2026-11-02"
+                    budgetCentavos: null
+                    spentCentavos: 0
+                    receiptCount: 0
+                    remainingCentavos: null
+                    status: no_target
+                  - date: "2026-11-03"
+                    budgetCentavos: 300000
+                    spentCentavos: 300000
+                    receiptCount: 1
+                    remainingCentavos: 0
+                    status: at_limit
+                  - date: "2026-11-04"
+                    budgetCentavos: 300000
+                    spentCentavos: 350000
+                    receiptCount: 2
+                    remainingCentavos: -50000
+                    status: exceeded
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
   /api/budgets/{periodType}/{startsOn}/{endsOn}:
     parameters:
       - name: periodType
@@ -698,6 +752,57 @@ components:
             - type: integer
             - type: "null"
           description: Target minus receipt spending; negative when over budget, null when no target is set.
+    GroceryBudgetCalendar:
+      type: object
+      additionalProperties: false
+      required:
+        - month
+        - days
+      properties:
+        month:
+          type: string
+          pattern: "^[0-9]{4}-(0[1-9]|1[0-2])$"
+        days:
+          type: array
+          description: One entry for every calendar date in the requested month.
+          items:
+            $ref: "#/components/schemas/GroceryBudgetCalendarDay"
+    GroceryBudgetCalendarDay:
+      type: object
+      additionalProperties: false
+      required:
+        - date
+        - budgetCentavos
+        - spentCentavos
+        - receiptCount
+        - remainingCentavos
+        - status
+      properties:
+        date:
+          type: string
+          format: date
+        budgetCentavos:
+          oneOf:
+            - type: integer
+              minimum: 1
+              maximum: 2147483647
+            - type: "null"
+          description: Daily target, if one is set.
+        spentCentavos:
+          type: integer
+          minimum: 0
+          description: Sum of receipt totals for this date.
+        receiptCount:
+          type: integer
+          minimum: 0
+        remainingCentavos:
+          oneOf:
+            - type: integer
+            - type: "null"
+          description: Daily target minus spend, or null when no target is set.
+        status:
+          type: string
+          enum: [no_target, remaining, at_limit, exceeded]
     CreatePurchaseRequest:
       type: object
       additionalProperties: false

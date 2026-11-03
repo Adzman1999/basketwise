@@ -7,6 +7,59 @@ export type BudgetRecord = BudgetPeriod & {
   receiptCount: number;
 };
 
+export type BudgetCalendarRecord = {
+  date: string;
+  budgetCentavos: number | null;
+  spentCentavos: number;
+  receiptCount: number;
+};
+
+export async function getBudgetCalendarRecords(month: string): Promise<BudgetCalendarRecord[]> {
+  const result = await query<{
+    date: string;
+    budgetCentavos: number | null;
+    spentCentavos: string;
+    receiptCount: string;
+  }>(
+    `WITH calendar_days AS (
+       SELECT generated_date::date AS purchase_date
+       FROM generate_series(
+         $1::date,
+         ($1::date + INTERVAL '1 month' - INTERVAL '1 day')::date,
+         INTERVAL '1 day'
+       ) AS generated_dates(generated_date)
+     ), daily_spending AS (
+       SELECT purchased_on,
+              SUM(total_paid_centavos) AS total_centavos,
+              COUNT(*) AS receipt_count
+       FROM purchases
+       WHERE purchased_on >= $1::date
+         AND purchased_on < $1::date + INTERVAL '1 month'
+       GROUP BY purchased_on
+     )
+     SELECT calendar_days.purchase_date::text AS date,
+            budget.budget_centavos AS "budgetCentavos",
+            COALESCE(daily_spending.total_centavos, 0)::text AS "spentCentavos",
+            COALESCE(daily_spending.receipt_count, 0)::text AS "receiptCount"
+     FROM calendar_days
+     LEFT JOIN grocery_budgets budget
+       ON budget.period_type = 'day'
+      AND budget.period_start = calendar_days.purchase_date
+      AND budget.period_end = calendar_days.purchase_date
+     LEFT JOIN daily_spending
+       ON daily_spending.purchased_on = calendar_days.purchase_date
+     ORDER BY calendar_days.purchase_date`,
+    [`${month}-01`]
+  );
+
+  return result.rows.map((row) => ({
+    date: row.date,
+    budgetCentavos: row.budgetCentavos,
+    spentCentavos: Number(row.spentCentavos),
+    receiptCount: Number(row.receiptCount),
+  }));
+}
+
 export async function getBudgetRecord(period: BudgetPeriod): Promise<BudgetRecord> {
   const result = await query<{
     budgetCentavos: number | null;

@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express';
-import { budgetPeriodParamsSchema, setBudgetSchema } from '../schemas/budget';
-import { deleteBudget, getBudget, saveBudget } from '../services/budgetService';
+import { budgetCalendarParamsSchema, budgetPeriodParamsSchema, setBudgetSchema } from '../schemas/budget';
+import { deleteBudget, getBudget, getBudgetCalendar, saveBudget } from '../services/budgetService';
 
 const invalidRequest = {
   error: {
@@ -46,6 +46,18 @@ export async function getBudgetHandler(req: Request, res: Response) {
     return res.status(200).json(await getBudget(parsed.data));
   } catch (error) {
     console.error('Failed to get grocery budget:', error);
+    return res.status(500).json(internalError);
+  }
+}
+
+export async function getBudgetCalendarHandler(req: Request, res: Response) {
+  const parsed = budgetCalendarParamsSchema.safeParse(req.params);
+  if (!parsed.success) return res.status(400).json(invalidRequest);
+
+  try {
+    return res.status(200).json(await getBudgetCalendar(parsed.data.month));
+  } catch (error) {
+    console.error('Failed to get grocery budget calendar:', error);
     return res.status(500).json(internalError);
   }
 }

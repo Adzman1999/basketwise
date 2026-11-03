@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import BudgetCalendar from '@/components/BudgetCalendar';
 import { philippineDateString } from '@/lib/dates';
 import {
   deleteGroceryBudget,
@@ -58,6 +59,15 @@ function shiftAnchorDate(dateValue: string, periodType: BudgetPeriodType, direct
   if (periodType === 'month') date.setMonth(date.getMonth() + direction, 1);
   if (periodType === 'year') date.setFullYear(date.getFullYear() + direction, 0, 1);
   return localDateString(date);
+}
+
+function shiftCalendarMonth(dateValue: string, direction: -1 | 1): string {
+  const selectedDate = parseLocalDate(dateValue);
+  const dayOfMonth = selectedDate.getDate();
+  const nextMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + direction, 1);
+  const lastDayOfMonth = new Date(nextMonth.getFullYear(), nextMonth.getMonth() + 1, 0).getDate();
+  nextMonth.setDate(Math.min(dayOfMonth, lastDayOfMonth));
+  return localDateString(nextMonth);
 }
 
 function resolveBudgetPeriod(
@@ -130,6 +140,7 @@ export default function MonthlyBudget() {
   const [customStartsOn, setCustomStartsOn] = useState(today);
   const [customEndsOn, setCustomEndsOn] = useState(today);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [calendarRefreshKey, setCalendarRefreshKey] = useState(0);
   const [budgetState, setBudgetState] = useState<BudgetState>({ kind: 'loading' });
   const [budgetAmount, setBudgetAmount] = useState('');
   const [formError, setFormError] = useState('');
@@ -196,6 +207,7 @@ export default function MonthlyBudget() {
       setBudgetState({ kind: 'loaded', summary });
       setBudgetAmount((summary.budgetCentavos! / 100).toFixed(2));
       setNotice(`${formatBudgetPeriod(period)} target saved.`);
+      setCalendarRefreshKey((current) => current + 1);
     } catch (error) {
       setFormError(error instanceof Error ? error.message : 'Could not save this grocery budget.');
     } finally {
@@ -213,6 +225,7 @@ export default function MonthlyBudget() {
       setBudgetState({ kind: 'loaded', summary });
       setBudgetAmount('');
       setNotice(`${formatBudgetPeriod(period)} target removed.`);
+      setCalendarRefreshKey((current) => current + 1);
     } catch (error) {
       setFormError(error instanceof Error ? error.message : 'Could not remove this grocery budget.');
     } finally {
@@ -223,6 +236,13 @@ export default function MonthlyBudget() {
   function changePeriod(direction: -1 | 1) {
     if (periodType === 'custom') return;
     setAnchorDate((current) => shiftAnchorDate(current, periodType, direction));
+  }
+
+  function selectCalendarDate(date: string) {
+    setAnchorDate(date);
+    window.requestAnimationFrame(() => {
+      document.getElementById('budget-period-details')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
   }
 
   const summary = budgetState.kind === 'loaded' ? budgetState.summary : null;
@@ -291,16 +311,21 @@ export default function MonthlyBudget() {
               </SelectContent>
             </Select>
           </div>
+        ) : periodType === 'day' ? (
+          <div className="grid min-w-0 gap-2 text-sm font-medium">
+            <span>Selected date</span>
+            <p className="flex h-10 items-center rounded-md border px-3 text-sm font-normal">{selectedPeriodTitle}</p>
+          </div>
         ) : (
           <Label htmlFor="budget-anchor-date" className="grid min-w-0 gap-2 text-sm font-medium">
-            {periodType === 'week' ? 'Date in week' : 'Day'}
+            Date in week
             <Input id="budget-anchor-date" type="date" className="h-10" value={anchorDate} onChange={(event) => {
               if (/^\d{4}-\d{2}-\d{2}$/.test(event.target.value)) setAnchorDate(event.target.value);
             }} disabled={isSaving} />
           </Label>
         )}
 
-        {periodType !== 'custom' && (
+        {periodType !== 'custom' && periodType !== 'day' && (
           <div className="flex items-end gap-2">
             <Button type="button" variant="outline" size="icon" onClick={() => changePeriod(-1)} disabled={isSaving} aria-label={`Previous ${periodType}`}>
               <ChevronLeft aria-hidden="true" />
@@ -312,6 +337,16 @@ export default function MonthlyBudget() {
           </div>
         )}
       </div>
+
+      {periodType === 'day' && (
+        <BudgetCalendar
+          month={anchorDate.slice(0, 7)}
+          selectedDate={anchorDate}
+          onSelectDate={selectCalendarDate}
+          onMonthChange={(direction) => setAnchorDate((current) => shiftCalendarMonth(current, direction))}
+          refreshKey={calendarRefreshKey}
+        />
+      )}
 
       {budgetState.kind === 'loading' && (
         <div className="grid gap-5 xl:grid-cols-2" role="status" aria-label="Loading grocery spending period">
@@ -342,7 +377,7 @@ export default function MonthlyBudget() {
       )}
 
       {summary && (
-        <div className="grid min-w-0 gap-5 xl:grid-cols-2">
+        <div id="budget-period-details" className="grid min-w-0 scroll-mt-24 gap-5 xl:grid-cols-2">
           <Card className="min-w-0">
             <CardHeader className="p-4 sm:p-5">
               <CardDescription>Grocery spending</CardDescription>

@@ -66,6 +66,22 @@ export type GroceryBudgetSummary = BudgetPeriod & {
   remainingCentavos: number | null;
 };
 
+export type BudgetCalendarDayStatus = 'no_target' | 'remaining' | 'at_limit' | 'exceeded';
+
+export type GroceryBudgetCalendarDay = {
+  date: string;
+  budgetCentavos: number | null;
+  spentCentavos: number;
+  receiptCount: number;
+  remainingCentavos: number | null;
+  status: BudgetCalendarDayStatus;
+};
+
+export type GroceryBudgetCalendar = {
+  month: string;
+  days: GroceryBudgetCalendarDay[];
+};
+
 export type GroceryItem = {
   id: string;
   name: string;
@@ -203,6 +219,16 @@ function budgetPath(period: BudgetPeriod): string {
 
 export async function fetchGroceryBudget(period: BudgetPeriod, signal: AbortSignal): Promise<GroceryBudgetSummary> {
   return sendRequest<GroceryBudgetSummary>(budgetPath(period), {
+    headers: { Accept: 'application/json' },
+    signal,
+  });
+}
+
+export async function fetchGroceryBudgetCalendar(
+  month: string,
+  signal: AbortSignal
+): Promise<GroceryBudgetCalendar> {
+  return sendRequest<GroceryBudgetCalendar>(`/api/budgets/calendar/${encodeURIComponent(month)}`, {
     headers: { Accept: 'application/json' },
     signal,
   });

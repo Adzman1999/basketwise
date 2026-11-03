@@ -1,0 +1,53 @@
+$kind: http-example
+name: Daily budget status examples.
+request:
+  url: '{{baseUrl}}/api/budgets/calendar/{{calendarMonth}}'
+  method: GET
+  headers:
+    Accept: application/json
+response:
+  statusCode: 200
+  statusText: OK
+  headers:
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "month": "2026-11",
+        "days": [
+          {
+            "date": "2026-11-01",
+            "budgetCentavos": 500000,
+            "spentCentavos": 235000,
+            "receiptCount": 1,
+            "remainingCentavos": 265000,
+            "status": "remaining"
+          },
+          {
+            "date": "2026-11-02",
+            "budgetCentavos": null,
+            "spentCentavos": 0,
+            "receiptCount": 0,
+            "remainingCentavos": null,
+            "status": "no_target"
+          },
+          {
+            "date": "2026-11-03",
+            "budgetCentavos": 300000,
+            "spentCentavos": 300000,
+            "receiptCount": 1,
+            "remainingCentavos": 0,
+            "status": "at_limit"
+          },
+          {
+            "date": "2026-11-04",
+            "budgetCentavos": 300000,
+            "spentCentavos": 350000,
+            "receiptCount": 2,
+            "remainingCentavos": -50000,
+            "status": "exceeded"
+          }
+        ]
+      }
+order: 1000
