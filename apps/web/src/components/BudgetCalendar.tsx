@@ -4,6 +4,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { philippineDateString } from '@/lib/dates';
 import {
   fetchGroceryBudgetCalendar,
   type BudgetCalendarDayStatus,
@@ -77,15 +78,24 @@ function formatLongDate(date: string): string {
   }).format(parseLocalDate(date));
 }
 
+function budgetUsagePercent(day: GroceryBudgetCalendarDay): number | null {
+  if (day.budgetCentavos === null) return null;
+  if (day.status === 'at_limit') return 100;
+  const percent = Math.round((day.spentCentavos / day.budgetCentavos) * 100);
+  if (day.status === 'exceeded') return Math.max(101, percent);
+  return Math.min(99, percent);
+}
+
 function dayDescription(day: GroceryBudgetCalendarDay): string {
   const spend = `Spent ${formatPeso(day.spentCentavos)} across ${day.receiptCount} ${day.receiptCount === 1 ? 'receipt' : 'receipts'}`;
   if (day.budgetCentavos === null) return `${statusLabels[day.status]}. ${spend}.`;
+  const percentUsed = budgetUsagePercent(day);
   const balance = day.remainingCentavos! < 0
     ? `Over by ${formatPeso(Math.abs(day.remainingCentavos!))}`
     : day.remainingCentavos === 0
       ? 'No budget remains'
       : `${formatPeso(day.remainingCentavos!)} remains`;
-  return `${statusLabels[day.status]}. Target ${formatPeso(day.budgetCentavos)}. ${spend}. ${balance}.`;
+  return `${statusLabels[day.status]}. Target ${formatPeso(day.budgetCentavos)}. ${percentUsed}% used. ${spend}. ${balance}.`;
 }
 
 function StatusLegend({ status }: { status: BudgetCalendarDayStatus }) {
@@ -98,6 +108,7 @@ function StatusLegend({ status }: { status: BudgetCalendarDayStatus }) {
 }
 
 export default function BudgetCalendar({ month, selectedDate, onSelectDate, onMonthChange, refreshKey }: BudgetCalendarProps) {
+  const today = philippineDateString();
   const [refreshAttempt, setRefreshAttempt] = useState(0);
   const [calendarState, setCalendarState] = useState<CalendarState>({ kind: 'loading' });
 
@@ -154,7 +165,7 @@ export default function BudgetCalendar({ month, selectedDate, onSelectDate, onMo
             </Button>
           </div>
         </div>
-        <p className="text-xs text-muted-foreground">Each date shows its target amount, or spend when no target is set. The dot shows the target status.</p>
+        <p className="text-xs text-muted-foreground">Dates with targets show the target amount and percent used. Dates without a target show spend; the dot marks budget status.</p>
       </CardHeader>
       <CardContent className="space-y-4 p-3 pt-0 sm:p-5 sm:pt-0">
         {calendarState.kind === 'error' && (
@@ -169,18 +180,28 @@ export default function BudgetCalendar({ month, selectedDate, onSelectDate, onMo
           </Alert>
         )}
 
-        <div className="grid grid-cols-7 gap-1 sm:gap-2" aria-busy={calendarState.kind === 'loading'}>
+        <div className="grid grid-cols-7 border-l border-t" aria-busy={calendarState.kind === 'loading'}>
           {weekdays.map((weekday) => (
-            <div key={weekday} className="pb-1 text-center text-[10px] font-medium text-muted-foreground sm:text-xs">{weekday}</div>
+            <div key={weekday} className="border-b border-r bg-muted/30 py-2 text-center text-[10px] font-medium text-muted-foreground sm:text-xs">{weekday}</div>
           ))}
           {dateCells.map((date, index) => {
-            if (!date) return <div key={`blank-${index}`} aria-hidden="true" />;
+            if (!date) return <div key={`blank-${index}`} className="min-h-[78px] border-b border-r bg-muted/10 sm:min-h-[112px]" aria-hidden="true" />;
 
             const day = daysByDate.get(date);
             const isSelected = date === selectedDate;
+            const isToday = date === today;
             const amount = day?.budgetCentavos ?? (day && day.spentCentavos > 0 ? day.spentCentavos : null);
             const description = day ? dayDescription(day) : formatLongDate(date);
             const status = day?.status ?? 'no_target';
+            const percentUsed = day ? budgetUsagePercent(day) : null;
+            const hasIndicator = Boolean(day && (day.budgetCentavos !== null || day.spentCentavos > 0));
+            const statusTextClass = status === 'exceeded'
+              ? 'text-destructive'
+              : status === 'at_limit'
+                ? 'text-amber-600 dark:text-amber-400'
+                : status === 'remaining'
+                  ? 'text-primary'
+                  : 'text-muted-foreground';
 
             return (
               <Button
@@ -191,17 +212,33 @@ export default function BudgetCalendar({ month, selectedDate, onSelectDate, onMo
                 aria-pressed={isSelected}
                 aria-label={`${formatLongDate(date)}. ${description}`}
                 title={description}
-                className={`h-[68px] min-w-0 flex-col items-stretch justify-between gap-1 rounded-md border p-1.5 text-left font-normal hover:border-border sm:h-[82px] sm:p-2 ${isSelected ? 'border-primary bg-primary/10 hover:bg-primary/10' : 'border-transparent'}`}
+                className={`h-auto min-h-[78px] min-w-0 flex-col items-stretch justify-start gap-1.5 rounded-none border-b border-r p-1.5 text-left font-normal hover:bg-muted/40 sm:min-h-[112px] sm:p-2 ${day?.budgetCentavos !== null && day?.budgetCentavos !== undefined ? 'bg-primary/5' : 'bg-background'} ${isSelected ? 'relative z-10 bg-primary/10 ring-2 ring-inset ring-primary hover:bg-primary/10' : ''}`}
               >
-                <span className="flex w-full items-center justify-between text-xs font-medium tabular-nums sm:text-sm">
-                  {Number(date.slice(-2))}
-                  {calendarState.kind === 'loaded' && (
+                <span className="flex w-full items-center justify-between">
+                  <span className={`inline-flex size-6 shrink-0 items-center justify-center rounded-full text-[11px] font-medium tabular-nums sm:size-7 sm:text-sm ${isSelected ? 'bg-primary text-primary-foreground' : isToday ? 'ring-1 ring-primary text-primary' : 'text-foreground'}`}>
+                    {Number(date.slice(-2))}
+                  </span>
+                  {calendarState.kind === 'loaded' && hasIndicator && (
                     <span className={`size-2 shrink-0 rounded-full ${statusDotClasses[status]}`} aria-hidden="true" />
                   )}
                 </span>
-                <span className="w-full truncate text-[9px] leading-tight text-muted-foreground sm:text-[11px]">
-                  {calendarState.kind === 'loading' ? <Skeleton className="h-2.5 w-4/5" /> : amount === null ? '—' : formatCompactPeso(amount)}
-                </span>
+                {calendarState.kind === 'loading' ? (
+                  <div className="w-full space-y-1.5 pt-1">
+                    <Skeleton className="h-2.5 w-4/5" />
+                    <Skeleton className="h-2 w-3/5" />
+                  </div>
+                ) : amount !== null ? (
+                  <div className="w-full min-w-0 space-y-0.5 text-left leading-tight">
+                    <p className="truncate text-[9px] font-medium tabular-nums text-foreground sm:text-xs">
+                      {formatCompactPeso(amount)}
+                    </p>
+                    <p className={`truncate text-[9px] tabular-nums sm:text-[11px] ${statusTextClass}`}>
+                      {percentUsed === null ? 'No target' : `${percentUsed}% used`}
+                    </p>
+                  </div>
+                ) : (
+                  <span className="h-5 w-full" aria-hidden="true" />
+                )}
               </Button>
             );
           })}
