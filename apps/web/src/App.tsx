@@ -3,6 +3,7 @@ import { Activity, ArrowUpRight, CirclePlus, RefreshCw } from 'lucide-react';
 import AppSidebar from '@/components/AppSidebar';
 import GroceryCatalog from '@/components/GroceryCatalog';
 import MonthlyBudget from '@/components/MonthlyBudget';
+import Overview from '@/components/Overview';
 import PurchaseForm from '@/components/PurchaseForm';
 import PurchaseHistory, { type PurchaseHistoryState } from '@/components/PurchaseHistory';
 import StoresAndShops from '@/components/StoresAndShops';
@@ -211,7 +212,9 @@ export default function App() {
           </header>
 
           <main className="mx-auto w-full max-w-[1600px] flex-1 px-4 pb-10 pt-7 sm:px-7 sm:pb-14 sm:pt-9 lg:px-9 lg:pt-10">
-            {activeHref !== '#overview' && (
+            {activeHref === '#overview' ? (
+              <Overview refreshKey={historyRefresh} onAddPurchase={() => setPurchaseDialogOpen(true)} />
+            ) : (
               <>
                 <section className="mb-7 flex scroll-mt-24 flex-col justify-between gap-4 sm:mb-9 sm:flex-row sm:items-end">
                   <div>
