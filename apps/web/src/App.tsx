@@ -213,7 +213,7 @@ export default function App() {
 
           <main className="mx-auto w-full max-w-[1600px] flex-1 px-4 pb-10 pt-7 sm:px-7 sm:pb-14 sm:pt-9 lg:px-9 lg:pt-10">
             {activeHref === '#overview' ? (
-              <Overview refreshKey={historyRefresh} onAddPurchase={() => setPurchaseDialogOpen(true)} />
+              <Overview refreshKey={historyRefresh} />
             ) : (
               <>
                 <section className="mb-7 flex scroll-mt-24 flex-col justify-between gap-4 sm:mb-9 sm:flex-row sm:items-end">

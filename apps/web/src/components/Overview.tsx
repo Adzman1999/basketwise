@@ -2,20 +2,18 @@ import { useEffect, useState } from 'react';
 import {
   ArrowRight,
   CalendarDays,
-  CirclePlus,
   Package,
   PiggyBank,
   ReceiptText,
   Store,
-  Tags,
 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { fetchGroceryBudget, fetchGroceryItems, fetchPurchases } from '@/lib/api';
-import type { GroceryBudgetSummary, Purchase, PurchasePage } from '@/lib/api';
+import { fetchGroceryBudget, fetchGroceryBudgetCalendar, fetchGroceryItems, fetchPurchases } from '@/lib/api';
+import type { GroceryBudgetCalendar, GroceryBudgetSummary, Purchase, PurchasePage } from '@/lib/api';
 import { philippineDateString } from '@/lib/dates';
 
 type LoadState<T> =
@@ -25,7 +23,6 @@ type LoadState<T> =
 
 type OverviewProps = {
   refreshKey: number;
-  onAddPurchase: () => void;
 };
 
 const pesoFormatter = new Intl.NumberFormat('en-PH', {
@@ -97,26 +94,6 @@ function StatCard({
   );
 }
 
-function QuickLink({ href, icon: Icon, title, description }: {
-  href: string;
-  icon: typeof ReceiptText;
-  title: string;
-  description: string;
-}) {
-  return (
-    <a href={href} className="group flex min-w-0 items-center gap-3 rounded-md p-3 transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-      <span className="rounded-md border bg-background p-2 text-muted-foreground group-hover:text-foreground">
-        <Icon className="size-4" aria-hidden="true" />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block text-sm font-medium">{title}</span>
-        <span className="block truncate text-xs text-muted-foreground">{description}</span>
-      </span>
-      <ArrowRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
-    </a>
-  );
-}
-
 function budgetDetail(summary: GroceryBudgetSummary): string {
   if (summary.budgetCentavos === null) return 'No target set for this month.';
   if (summary.remainingCentavos === null) return 'Target saved.';
@@ -125,11 +102,91 @@ function budgetDetail(summary: GroceryBudgetSummary): string {
   return `${formatPeso(summary.remainingCentavos)} remaining`;
 }
 
-export default function Overview({ refreshKey, onAddPurchase }: OverviewProps) {
+function SpendingTrendCard({ state, month }: { state: LoadState<GroceryBudgetCalendar>; month: string }) {
+  const days = state.kind === 'loaded' ? state.value.days : [];
+  const totalSpent = days.reduce((total, day) => total + day.spentCentavos, 0);
+  const maxSpent = Math.max(0, ...days.map((day) => day.spentCentavos));
+  const highestSpendDay = days.find((day) => day.spentCentavos === maxSpent && maxSpent > 0);
+
+  return (
+    <Card className="min-w-0">
+      <CardHeader className="p-4 sm:p-5">
+        <CardTitle className="text-lg">Daily spending trend</CardTitle>
+        <CardDescription className="mt-1">Receipt totals by date for {formatMonth(month)}.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4 p-4 pt-0 sm:p-5 sm:pt-0">
+        {state.kind === 'loading' ? (
+          <div className="flex h-36 items-end gap-1" role="status" aria-label="Loading daily spending trend">
+            {Array.from({ length: 30 }, (_, index) => (
+              <Skeleton key={index} className="min-w-0 flex-1 rounded-t-sm" style={{ height: `${18 + ((index * 23) % 64)}%` }} />
+            ))}
+          </div>
+        ) : state.kind === 'error' ? (
+          <Alert variant="destructive">
+            <AlertTitle>Spending trend could not load</AlertTitle>
+            <AlertDescription>{state.message}</AlertDescription>
+          </Alert>
+        ) : totalSpent === 0 ? (
+          <div className="flex min-h-36 items-center justify-center rounded-md border border-dashed px-4 text-center">
+            <p className="max-w-xs text-sm text-muted-foreground">No grocery spending has been recorded this month yet.</p>
+          </div>
+        ) : (
+          <>
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <p className="text-xs text-muted-foreground">Month total</p>
+                <p className="mt-0.5 text-xl font-semibold tabular-nums">{formatPeso(totalSpent)}</p>
+              </div>
+              {highestSpendDay && (
+                <div className="text-right">
+                  <p className="text-xs text-muted-foreground">Highest spend day</p>
+                  <p className="mt-0.5 text-sm font-medium tabular-nums">
+                    {formatPurchaseDate(highestSpendDay.date)} · {formatPeso(highestSpendDay.spentCentavos)}
+                  </p>
+                </div>
+              )}
+            </div>
+            <div
+              role="img"
+              aria-label={`Daily grocery spending for ${formatMonth(month)}. Month total ${formatPeso(totalSpent)}.${highestSpendDay ? ` Highest spend was ${formatPeso(highestSpendDay.spentCentavos)} on ${formatPurchaseDate(highestSpendDay.date)}.` : ''}`}
+              className="flex h-36 items-end gap-1 border-b border-l px-1"
+            >
+              {days.map((day) => {
+                const heightPercent = maxSpent === 0 ? 0 : (day.spentCentavos / maxSpent) * 100;
+                return (
+                  <div
+                    key={day.date}
+                    className="flex h-full min-w-0 flex-1 items-end justify-center"
+                    title={`${formatPurchaseDate(day.date)} · ${formatPeso(day.spentCentavos)} · ${day.receiptCount} ${day.receiptCount === 1 ? 'receipt' : 'receipts'}`}
+                  >
+                    <span
+                      className={`w-full max-w-3 rounded-t-sm transition-colors hover:bg-primary ${day.spentCentavos === maxSpent ? 'bg-primary' : 'bg-primary/50'}`}
+                      style={{ height: `${Math.max(day.spentCentavos > 0 ? 5 : 0, heightPercent)}%` }}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex justify-between px-1 text-[10px] text-muted-foreground" aria-hidden="true">
+              <span>1</span>
+              <span>7</span>
+              <span>14</span>
+              <span>21</span>
+              <span>{days.length}</span>
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+export default function Overview({ refreshKey }: OverviewProps) {
   const currentMonth = philippineDateString().slice(0, 7);
   const [budgetState, setBudgetState] = useState<LoadState<GroceryBudgetSummary>>({ kind: 'loading' });
   const [purchaseState, setPurchaseState] = useState<LoadState<PurchasePage>>({ kind: 'loading' });
   const [catalogState, setCatalogState] = useState<LoadState<number>>({ kind: 'loading' });
+  const [trendState, setTrendState] = useState<LoadState<GroceryBudgetCalendar>>({ kind: 'loading' });
 
   useEffect(() => {
     const controller = new AbortController();
@@ -138,6 +195,7 @@ export default function Overview({ refreshKey, onAddPurchase }: OverviewProps) {
     setBudgetState({ kind: 'loading' });
     setPurchaseState({ kind: 'loading' });
     setCatalogState({ kind: 'loading' });
+    setTrendState({ kind: 'loading' });
 
     void fetchGroceryBudget(period, signal)
       .then((value) => {
@@ -172,6 +230,17 @@ export default function Overview({ refreshKey, onAddPurchase }: OverviewProps) {
         });
       });
 
+    void fetchGroceryBudgetCalendar(currentMonth, signal)
+      .then((value) => {
+        if (!signal.aborted) setTrendState({ kind: 'loaded', value });
+      })
+      .catch((error: unknown) => {
+        if (!signal.aborted) setTrendState({
+          kind: 'error',
+          message: error instanceof Error ? error.message : 'Could not load daily grocery spending.',
+        });
+      });
+
     return () => controller.abort();
   }, [currentMonth, refreshKey]);
 
@@ -188,9 +257,6 @@ export default function Overview({ refreshKey, onAddPurchase }: OverviewProps) {
           <h1 id="overview-title" className="text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">Household overview</h1>
           <p className="max-w-xl text-sm leading-6 text-muted-foreground">A quick look at your grocery spending, budget, and recent activity.</p>
         </div>
-        <Button onClick={onAddPurchase}>
-          <CirclePlus aria-hidden="true" /> Add a purchase
-        </Button>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -252,8 +318,7 @@ export default function Overview({ refreshKey, onAddPurchase }: OverviewProps) {
             ) : recentPurchases.length === 0 ? (
               <div className="rounded-md border border-dashed p-5 text-center">
                 <p className="text-sm font-medium">No purchases recorded yet</p>
-                <p className="mt-1 text-xs text-muted-foreground">Add a receipt to start building your grocery history.</p>
-                <Button className="mt-3" size="sm" onClick={onAddPurchase}><CirclePlus aria-hidden="true" /> Add a purchase</Button>
+                <p className="mt-1 text-xs text-muted-foreground">Your recent grocery receipts will appear here.</p>
               </div>
             ) : (
               recentPurchases.map((purchase: Purchase) => (
@@ -272,18 +337,7 @@ export default function Overview({ refreshKey, onAddPurchase }: OverviewProps) {
           </CardContent>
         </Card>
 
-        <Card className="min-w-0">
-          <CardHeader className="p-4 sm:p-5">
-            <CardTitle className="text-lg">Quick links</CardTitle>
-            <CardDescription>Jump to the parts of Basketwise you use most.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-1 p-2 pt-0 sm:p-3 sm:pt-0">
-            <QuickLink href="#grocery-spending" icon={ReceiptText} title="Grocery spending" description="Receipts, search, and filters" />
-            <QuickLink href="#budget" icon={PiggyBank} title="Budget & spending" description="Targets and calendar totals" />
-            <QuickLink href="#grocery-catalog" icon={Tags} title="Items & prices" description="Browse grocery price history" />
-            <QuickLink href="#stores" icon={Store} title="Stores & shops" description="Manage saved places" />
-          </CardContent>
-        </Card>
+        <SpendingTrendCard state={trendState} month={currentMonth} />
       </div>
     </section>
   );
