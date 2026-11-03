@@ -1,0 +1,33 @@
+$kind: http-example
+name: The weekly budget was saved.
+request:
+  url: '{{baseUrl}}/api/budgets/{{periodType}}/{{startsOn}}/{{endsOn}}'
+  method: PUT
+  headers:
+    Content-Type: application/json
+    Accept: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "budgetCentavos": 5000000
+      }
+response:
+  statusCode: 200
+  statusText: OK
+  headers:
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "periodType": "week",
+        "startsOn": "2026-11-02",
+        "endsOn": "2026-11-08",
+        "currency": "PHP",
+        "budgetCentavos": 5000000,
+        "spentCentavos": 2350000,
+        "receiptCount": 8,
+        "remainingCentavos": 2650000
+      }
+order: 1000

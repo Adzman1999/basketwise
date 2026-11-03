@@ -111,6 +111,169 @@ paths:
           $ref: "#/components/responses/DuplicateStore"
         "500":
           $ref: "#/components/responses/InternalServerError"
+  /api/budgets/calendar/{month}:
+    parameters:
+      - name: month
+        in: path
+        required: true
+        description: Calendar month in YYYY-MM format.
+        schema:
+          type: string
+          pattern: "^[0-9]{4}-(0[1-9]|1[0-2])$"
+        example: "2026-11"
+    get:
+      operationId: getGroceryBudgetCalendar
+      tags:
+        - Grocery budgets
+      summary: Get daily grocery budgets and spending for a month
+      description: Returns one entry for every date in the requested month, including daily target, receipt spending, receipt count, remaining amount, and target status.
+      responses:
+        "200":
+          description: Daily budget and spending summaries for the calendar month.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroceryBudgetCalendar"
+              example:
+                month: "2026-11"
+                days:
+                  - date: "2026-11-01"
+                    budgetCentavos: 500000
+                    spentCentavos: 235000
+                    receiptCount: 1
+                    remainingCentavos: 265000
+                    status: remaining
+                  - date: "2026-11-02"
+                    budgetCentavos: null
+                    spentCentavos: 0
+                    receiptCount: 0
+                    remainingCentavos: null
+                    status: no_target
+                  - date: "2026-11-03"
+                    budgetCentavos: 300000
+                    spentCentavos: 300000
+                    receiptCount: 1
+                    remainingCentavos: 0
+                    status: at_limit
+                  - date: "2026-11-04"
+                    budgetCentavos: 300000
+                    spentCentavos: 350000
+                    receiptCount: 2
+                    remainingCentavos: -50000
+                    status: exceeded
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/budgets/{periodType}/{startsOn}/{endsOn}:
+    parameters:
+      - name: periodType
+        in: path
+        required: true
+        description: Day, Monday-to-Sunday week, calendar month, calendar year, or custom date range.
+        schema:
+          type: string
+          enum: [day, week, month, year, custom]
+        example: week
+      - name: startsOn
+        in: path
+        required: true
+        description: Inclusive period start date.
+        schema:
+          type: string
+          format: date
+        example: "2026-11-02"
+      - name: endsOn
+        in: path
+        required: true
+        description: Inclusive period end date. Must match the selected period type, except for custom ranges.
+        schema:
+          type: string
+          format: date
+        example: "2026-11-08"
+    get:
+      operationId: getGroceryBudgetPeriod
+      tags:
+        - Grocery budgets
+      summary: Get grocery spending and budget for a period
+      description: |
+        Returns receipt spending and count for the inclusive date period, plus
+        its optional target. Weekly periods begin on Monday. The MVP stores one
+        shared household target for each exact period key; targets are not
+        prorated between period types or scoped by a user or household ID.
+      responses:
+        "200":
+          description: The budget and receipt spending summary for the selected period.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroceryBudgetSummary"
+              example:
+                periodType: week
+                startsOn: "2026-11-02"
+                endsOn: "2026-11-08"
+                currency: "PHP"
+                budgetCentavos: 5000000
+                spentCentavos: 2350000
+                receiptCount: 8
+                remainingCentavos: 2650000
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    put:
+      operationId: setGroceryBudgetPeriod
+      tags:
+        - Grocery budgets
+      summary: Set or update a period budget target
+      description: Stores a positive target for the exact selected period if it ends today or later in Asia/Manila. Repeating the request replaces that period's target. Historical periods remain available for spending review.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetBudgetRequest"
+            example:
+              budgetCentavos: 5000000
+      responses:
+        "200":
+          description: The updated target and spending summary.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroceryBudgetSummary"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "422":
+          $ref: "#/components/responses/PastBudgetPeriod"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    delete:
+      operationId: removeGroceryBudgetPeriod
+      tags:
+        - Grocery budgets
+      summary: Remove a period budget target
+      description: Removes the target while preserving receipts and returns the period spending summary.
+      responses:
+        "200":
+          description: The spending summary after removing the target.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroceryBudgetSummary"
+              example:
+                periodType: week
+                startsOn: "2026-11-02"
+                endsOn: "2026-11-08"
+                currency: "PHP"
+                budgetCentavos: null
+                spentCentavos: 2350000
+                receiptCount: 8
+                remainingCentavos: null
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
   /api/purchases:
     get:
       operationId: listPurchases
@@ -533,6 +696,113 @@ components:
             $ref: "#/components/schemas/Store"
         total:
           type: integer
+    SetBudgetRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - budgetCentavos
+      properties:
+        budgetCentavos:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+          description: Target for the selected period in PHP centavos.
+    GroceryBudgetSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - periodType
+        - startsOn
+        - endsOn
+        - currency
+        - budgetCentavos
+        - spentCentavos
+        - receiptCount
+        - remainingCentavos
+      properties:
+        periodType:
+          type: string
+          enum: [day, week, month, year, custom]
+        startsOn:
+          type: string
+          format: date
+        endsOn:
+          type: string
+          format: date
+        currency:
+          type: string
+          enum:
+            - PHP
+        budgetCentavos:
+          oneOf:
+            - type: integer
+              minimum: 1
+              maximum: 2147483647
+            - type: "null"
+        spentCentavos:
+          type: integer
+          minimum: 0
+          description: Sum of saved receipt totals for the selected inclusive dates.
+        receiptCount:
+          type: integer
+          minimum: 0
+          description: Number of receipts in the selected period.
+        remainingCentavos:
+          oneOf:
+            - type: integer
+            - type: "null"
+          description: Target minus receipt spending; negative when over budget, null when no target is set.
+    GroceryBudgetCalendar:
+      type: object
+      additionalProperties: false
+      required:
+        - month
+        - days
+      properties:
+        month:
+          type: string
+          pattern: "^[0-9]{4}-(0[1-9]|1[0-2])$"
+        days:
+          type: array
+          description: One entry for every calendar date in the requested month.
+          items:
+            $ref: "#/components/schemas/GroceryBudgetCalendarDay"
+    GroceryBudgetCalendarDay:
+      type: object
+      additionalProperties: false
+      required:
+        - date
+        - budgetCentavos
+        - spentCentavos
+        - receiptCount
+        - remainingCentavos
+        - status
+      properties:
+        date:
+          type: string
+          format: date
+        budgetCentavos:
+          oneOf:
+            - type: integer
+              minimum: 1
+              maximum: 2147483647
+            - type: "null"
+          description: Daily target, if one is set.
+        spentCentavos:
+          type: integer
+          minimum: 0
+          description: Sum of receipt totals for this date.
+        receiptCount:
+          type: integer
+          minimum: 0
+        remainingCentavos:
+          oneOf:
+            - type: integer
+            - type: "null"
+          description: Daily target minus spend, or null when no target is set.
+        status:
+          type: string
+          enum: [no_target, remaining, at_limit, exceeded]
     CreatePurchaseRequest:
       type: object
       additionalProperties: false
@@ -808,6 +1078,16 @@ components:
             error:
               code: "VALIDATION_ERROR"
               message: "The request is invalid."
+    PastBudgetPeriod:
+      description: A budget target cannot be set for a period that ended before today in Asia/Manila.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+          example:
+            error:
+              code: "PAST_BUDGET_PERIOD"
+              message: "Budget targets can only be set for today or a future period."
     InternalServerError:
       description: The server could not complete the request.
       content:

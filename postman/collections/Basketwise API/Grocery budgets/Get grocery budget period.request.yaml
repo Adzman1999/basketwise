@@ -1,0 +1,9 @@
+$kind: http-request
+description: Returns receipt spending, receipt count, and optional budget target for the selected inclusive period.
+url: '{{baseUrl}}/api/budgets/{{periodType}}/{{startsOn}}/{{endsOn}}'
+method: GET
+headers:
+  Accept: application/json
+settings: {}
+examples: ./.resources/Get grocery budget period.resources/examples
+order: 1000

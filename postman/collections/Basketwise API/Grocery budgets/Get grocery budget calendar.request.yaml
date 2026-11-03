@@ -1,0 +1,9 @@
+$kind: http-request
+description: Returns daily target amounts, receipt spending, receipt counts, remaining amounts, and status for every date in the selected month.
+url: '{{baseUrl}}/api/budgets/calendar/{{calendarMonth}}'
+method: GET
+headers:
+  Accept: application/json
+settings: {}
+examples: ./.resources/Get grocery budget calendar.resources/examples
+order: 500

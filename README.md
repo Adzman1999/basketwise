@@ -4,7 +4,7 @@ Basketwise is a home food cost system for tracking grocery spending, food prices
 
 ## Project status
 
-The repository foundation, CI checks, database-backed grocery purchase API, purchase entry/history UI, normalized grocery item catalog, and catalog/price-history UI are ready. The next product workflow can be selected after reviewing this checkpoint.
+The repository foundation, CI checks, database-backed grocery purchase API, purchase entry/history UI, normalized grocery item catalog, catalog/price-history UI, store directory, reusable measurement units, and grocery budget/spending periods are ready.
 
 ## Planned stack
 
@@ -35,4 +35,4 @@ Check the workspace with `pnpm typecheck`, `pnpm test`, and `pnpm build`. `pnpm 
 
 ## Development checkpoints
 
-Each checkpoint is documented under [`docs/steps`](docs/steps/). The API, UI, migrations, test setup, CI, and deployment pipeline are added incrementally and recorded as they are built.
+Each checkpoint is documented under [`docs/steps`](docs/steps/). The API, UI, migrations, test setup, CI, and deployment pipeline are added incrementally and recorded as they are built. Review the budget-period flow, then choose the next household workflow, such as pantry stock or food waste tracking.

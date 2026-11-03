@@ -5,3 +5,7 @@ The purchase form loads reusable measurement units from `GET /api/units`. Built-
 Migration `004_measurement_units.sql` creates the unit directory, seeds the built-in units, imports any distinct unit labels already used by purchases, and links each purchase item to its reusable unit while retaining the original unit label for historical display.
 
 The API also creates a directory entry when a purchase is submitted with a unit that is not already saved. Unit names are unique after trimming, lowercasing, and collapsing whitespace.
+
+## Next checkpoint
+
+Add grocery budget targets and spending summaries for selected periods as documented in [Step 13](13-monthly-grocery-budget.md).

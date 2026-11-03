@@ -1,0 +1,16 @@
+$kind: http-request
+description: Creates or replaces the target only if the selected period ends today or later in Asia/Manila. Historical periods remain available for spending review. Amounts are PHP centavos.
+url: '{{baseUrl}}/api/budgets/{{periodType}}/{{startsOn}}/{{endsOn}}'
+method: PUT
+headers:
+  Content-Type: application/json
+  Accept: application/json
+body:
+  type: json
+  content: |-
+    {
+      "budgetCentavos": 5000000
+    }
+settings: {}
+examples: ./.resources/Set grocery budget period.resources/examples
+order: 2000

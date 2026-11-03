@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Activity, ArrowUpRight, CirclePlus, RefreshCw } from 'lucide-react';
 import AppSidebar from '@/components/AppSidebar';
 import GroceryCatalog from '@/components/GroceryCatalog';
+import MonthlyBudget from '@/components/MonthlyBudget';
 import PurchaseForm from '@/components/PurchaseForm';
 import PurchaseHistory, { type PurchaseHistoryState } from '@/components/PurchaseHistory';
 import StoresAndShops from '@/components/StoresAndShops';
@@ -31,7 +32,7 @@ function samePurchaseFilters(left: PurchaseFilterOptions, right: PurchaseFilterO
 function getActiveHref(): string {
   const hash = window.location.hash;
   if (hash === '#purchase-history' || hash === '#new-purchase') return '#grocery-spending';
-  if (hash === '#grocery-spending' || hash === '#grocery-catalog' || hash === '#stores') return hash;
+  if (hash === '#grocery-spending' || hash === '#budget' || hash === '#grocery-catalog' || hash === '#stores') return hash;
   return '#overview';
 }
 
@@ -158,9 +159,11 @@ export default function App() {
     ? 'Grocery spending'
     : activeHref === '#grocery-catalog'
       ? 'Items & prices'
-      : activeHref === '#stores'
-        ? 'Stores & shops'
-        : 'Overview';
+      : activeHref === '#budget'
+        ? 'Budget & spending'
+        : activeHref === '#stores'
+          ? 'Stores & shops'
+          : 'Overview';
   const purchaseFiltersPending = !samePurchaseFilters(purchaseFilters, appliedPurchaseFilters);
   const itemSearchPending = itemSearch.trim() !== appliedItemSearch;
 
@@ -213,21 +216,25 @@ export default function App() {
                 <section className="mb-7 flex scroll-mt-24 flex-col justify-between gap-4 sm:mb-9 sm:flex-row sm:items-end">
                   <div>
                     <p className="text-xs font-medium text-primary">
-                      {activeHref === '#grocery-catalog' ? 'Items & prices' : activeHref === '#stores' ? 'Places' : 'Household'}
+                      {activeHref === '#grocery-catalog' ? 'Items & prices' : activeHref === '#budget' ? 'Planning' : activeHref === '#stores' ? 'Places' : 'Household'}
                     </p>
                     <h1 className="mt-1.5 text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">
                       {activeHref === '#grocery-catalog'
                         ? 'Grocery items'
-                        : activeHref === '#stores'
-                          ? 'Stores & shops'
-                          : 'Grocery spending'}
+                        : activeHref === '#budget'
+                          ? 'Budget & spending'
+                          : activeHref === '#stores'
+                            ? 'Stores & shops'
+                            : 'Grocery spending'}
                     </h1>
                     <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
                       {activeHref === '#grocery-catalog'
                         ? 'Browse saved grocery items and compare their recorded prices.'
-                        : activeHref === '#stores'
-                          ? 'Save the places you shop and choose them when recording a purchase.'
-                          : 'Track grocery receipts and item prices.'}
+                        : activeHref === '#budget'
+                          ? 'Review grocery spend by day, week, month, year, or a custom range.'
+                          : activeHref === '#stores'
+                            ? 'Save the places you shop and choose them when recording a purchase.'
+                            : 'Track grocery receipts and item prices.'}
                     </p>
                   </div>
                   {activeHref === '#grocery-spending' && (
@@ -241,6 +248,8 @@ export default function App() {
 
                 {activeHref === '#grocery-catalog' ? (
                   <GroceryCatalog refreshKey={catalogRefresh} />
+                ) : activeHref === '#budget' ? (
+                  <MonthlyBudget />
                 ) : activeHref === '#stores' ? (
                   <StoresAndShops />
                 ) : (
@@ -281,7 +290,7 @@ export default function App() {
           <DialogContent className="flex h-[100dvh] max-h-[100dvh] w-screen max-w-none flex-col gap-0 overflow-hidden rounded-none p-0 sm:h-[min(90dvh,900px)] sm:max-h-[90dvh] sm:w-[calc(100vw-2rem)] sm:max-w-3xl sm:rounded-lg">
             <DialogHeader className="sticky top-0 z-20 shrink-0 border-b bg-background px-4 py-4 sm:px-6 sm:py-5">
               <DialogTitle>Add a purchase</DialogTitle>
-              <DialogDescription>Enter the receipt date and items. The total is calculated from the item amounts.</DialogDescription>
+              <DialogDescription>Select the spending period first, then enter the receipt date and items. The total is calculated from the item amounts.</DialogDescription>
             </DialogHeader>
             <PurchaseForm onSubmit={savePurchase} onCancel={() => setPurchaseDialogOpen(false)} />
           </DialogContent>

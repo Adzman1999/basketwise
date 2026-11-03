@@ -7,6 +7,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { philippineDateString } from '@/lib/dates';
 import UnitInput from '@/components/UnitInput';
 import {
   createUnit,
@@ -22,6 +23,8 @@ import {
   type MeasurementUnit,
   type Store,
   type StoreCategory,
+  type BudgetPeriod,
+  type BudgetPeriodType,
 } from '../lib/api';
 
 type DraftItem = {
@@ -42,11 +45,7 @@ const maxPesoAmount = (maxCentavos / 100).toFixed(2);
 const maxQuantityMilliUnits = 999_999_999_999n;
 
 function todayAsLocalDate(): string {
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = String(today.getMonth() + 1).padStart(2, '0');
-  const day = String(today.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  return philippineDateString();
 }
 
 function parsePesos(value: string): number | null {
@@ -96,6 +95,80 @@ const inputClassName = 'h-10 w-full min-w-0 rounded-md bg-background text-base s
 const labelClassName = 'grid min-w-0 gap-2 text-sm font-medium';
 const noStoreValue = 'none';
 const otherStoreValue = 'other-unknown';
+
+const spendingPeriodOptions: { value: BudgetPeriodType; label: string }[] = [
+  { value: 'day', label: 'Day' },
+  { value: 'week', label: 'Week' },
+  { value: 'month', label: 'Month' },
+  { value: 'year', label: 'Year' },
+  { value: 'custom', label: 'Custom range' },
+];
+
+function parseLocalDate(value: string): Date {
+  const [year, month, day] = value.split('-').map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function localDateString(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function getSpendingPeriod(
+  periodType: BudgetPeriodType | '',
+  purchasedOn: string,
+  customStartsOn: string,
+  customEndsOn: string
+): BudgetPeriod | null {
+  if (!periodType) return null;
+  if (periodType === 'custom') {
+    if (!customStartsOn || !customEndsOn || customStartsOn > customEndsOn) return null;
+    return { periodType, startsOn: customStartsOn, endsOn: customEndsOn };
+  }
+  if (!purchasedOn) return null;
+
+  const purchaseDate = parseLocalDate(purchasedOn);
+  if (Number.isNaN(purchaseDate.valueOf())) return null;
+
+  if (periodType === 'day') {
+    return { periodType, startsOn: purchasedOn, endsOn: purchasedOn };
+  }
+  if (periodType === 'week') {
+    const starts = new Date(purchaseDate);
+    starts.setDate(starts.getDate() - ((starts.getDay() + 6) % 7));
+    const ends = new Date(starts);
+    ends.setDate(ends.getDate() + 6);
+    return { periodType, startsOn: localDateString(starts), endsOn: localDateString(ends) };
+  }
+  if (periodType === 'month') {
+    const starts = new Date(purchaseDate.getFullYear(), purchaseDate.getMonth(), 1);
+    const ends = new Date(purchaseDate.getFullYear(), purchaseDate.getMonth() + 1, 0);
+    return { periodType, startsOn: localDateString(starts), endsOn: localDateString(ends) };
+  }
+
+  return {
+    periodType,
+    startsOn: `${purchaseDate.getFullYear()}-01-01`,
+    endsOn: `${purchaseDate.getFullYear()}-12-31`,
+  };
+}
+
+function formatPeriodDate(value: string): string {
+  return new Intl.DateTimeFormat('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })
+    .format(parseLocalDate(value));
+}
+
+function formatSpendingPeriod(period: BudgetPeriod): string {
+  if (period.periodType === 'day') return formatPeriodDate(period.startsOn);
+  if (period.periodType === 'month') {
+    return new Intl.DateTimeFormat('en-PH', { month: 'long', year: 'numeric' })
+      .format(parseLocalDate(period.startsOn));
+  }
+  if (period.periodType === 'year') return period.startsOn.slice(0, 4);
+  return `${formatPeriodDate(period.startsOn)} – ${formatPeriodDate(period.endsOn)}`;
+}
 
 function normalizeStoreName(name: string): string {
   return name.trim().replace(/\s+/g, ' ').toLowerCase();
@@ -263,6 +336,9 @@ function CatalogNameInput({
 export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) {
   const nextItemId = useRef(2);
   const [purchasedOn, setPurchasedOn] = useState(todayAsLocalDate);
+  const [spendingPeriodType, setSpendingPeriodType] = useState<BudgetPeriodType | ''>('');
+  const [customPeriodStartsOn, setCustomPeriodStartsOn] = useState('');
+  const [customPeriodEndsOn, setCustomPeriodEndsOn] = useState('');
   const [stores, setStores] = useState<Store[]>([]);
   const [storesLoading, setStoresLoading] = useState(true);
   const [storeLoadError, setStoreLoadError] = useState('');
@@ -324,6 +400,29 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
     (total, item) => total + (lineTotalForItem(item) ?? 0n),
     0n
   );
+  const spendingPeriod = getSpendingPeriod(
+    spendingPeriodType,
+    purchasedOn,
+    customPeriodStartsOn,
+    customPeriodEndsOn
+  );
+  const customPeriodError = spendingPeriodType === 'custom'
+    && customPeriodStartsOn
+    && customPeriodEndsOn
+    && customPeriodStartsOn > customPeriodEndsOn;
+
+  useEffect(() => {
+    if (
+      spendingPeriodType !== 'custom'
+      || !customPeriodStartsOn
+      || !customPeriodEndsOn
+      || customPeriodStartsOn > customPeriodEndsOn
+      || !purchasedOn
+    ) return;
+    if (purchasedOn < customPeriodStartsOn || purchasedOn > customPeriodEndsOn) {
+      setPurchasedOn(customPeriodStartsOn);
+    }
+  }, [spendingPeriodType, customPeriodStartsOn, customPeriodEndsOn, purchasedOn]);
 
   function updateItem(id: number, changes: Partial<DraftItem>) {
     setItems((current) => current.map((item) => item.id === id ? { ...item, ...changes } : item));
@@ -340,6 +439,9 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
 
   function resetForm() {
     setPurchasedOn(todayAsLocalDate());
+    setSpendingPeriodType('');
+    setCustomPeriodStartsOn('');
+    setCustomPeriodEndsOn('');
     setSelectedStoreId(noStoreValue);
     setStoreSearch('');
     setStoreSuggestionsOpen(false);
@@ -409,6 +511,19 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
     setErrorMessage('');
     setSuccessMessage('');
 
+    if (!spendingPeriodType) {
+      setErrorMessage('Choose a spending period before saving this purchase.');
+      return;
+    }
+    if (!spendingPeriod) {
+      setErrorMessage('Choose a valid spending period before saving this purchase.');
+      return;
+    }
+    if (purchasedOn < spendingPeriod.startsOn || purchasedOn > spendingPeriod.endsOn) {
+      setErrorMessage('The purchase date must fall within the selected spending period.');
+      return;
+    }
+
     if (storeEditorOpen || isAddingStore) {
       setErrorMessage('Save or cancel the new store before saving this purchase.');
       return;
@@ -470,10 +585,91 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
   return (
     <form className="flex min-h-0 flex-1 flex-col" onSubmit={handleSubmit}>
       <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 pb-4 sm:px-6 sm:pb-5">
+          <section className="space-y-3 rounded-lg border bg-muted/20 p-4 sm:mt-5" aria-labelledby="purchase-spending-period-title">
+            <div className="grid gap-2">
+              <Label id="purchase-spending-period-title" htmlFor="purchase-spending-period" className={labelClassName}>
+                Spending by period
+                <Select
+                  value={spendingPeriodType}
+                  onValueChange={(value) => {
+                    const nextPeriodType = value as BudgetPeriodType;
+                    setSpendingPeriodType(nextPeriodType);
+                    if (nextPeriodType === 'custom') {
+                      const today = todayAsLocalDate();
+                      setCustomPeriodStartsOn((current) => current || today);
+                      setCustomPeriodEndsOn((current) => current || today);
+                    }
+                  }}
+                  disabled={isSaving}
+                >
+                  <SelectTrigger id="purchase-spending-period" className={inputClassName}>
+                    <SelectValue placeholder="Choose a period first" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {spendingPeriodOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Label>
+              <p className="text-xs leading-5 text-muted-foreground">
+                Choose how to group this receipt. Its purchase date determines which selected period counts the cost.
+              </p>
+            </div>
+
+            {spendingPeriodType === 'custom' && (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Label htmlFor="purchase-period-start" className={labelClassName}>
+                  Period starts
+                  <Input
+                    id="purchase-period-start"
+                    className={inputClassName}
+                    type="date"
+                    value={customPeriodStartsOn}
+                    onChange={(event) => setCustomPeriodStartsOn(event.target.value)}
+                    required
+                    disabled={isSaving}
+                  />
+                </Label>
+                <Label htmlFor="purchase-period-end" className={labelClassName}>
+                  Period ends
+                  <Input
+                    id="purchase-period-end"
+                    className={inputClassName}
+                    type="date"
+                    min={customPeriodStartsOn || undefined}
+                    value={customPeriodEndsOn}
+                    onChange={(event) => setCustomPeriodEndsOn(event.target.value)}
+                    required
+                    disabled={isSaving}
+                  />
+                </Label>
+              </div>
+            )}
+
+            {customPeriodError && (
+              <p className="text-sm text-destructive" role="alert">Period end must be on or after its start date.</p>
+            )}
+            {spendingPeriod && (
+              <p className="text-sm font-medium" role="status">
+                This receipt will count in {formatSpendingPeriod(spendingPeriod)}.
+              </p>
+            )}
+          </section>
+
           <div className="grid gap-4 pt-4 sm:grid-cols-2 sm:pt-5">
             <Label className={labelClassName}>
               Purchase date
-              <Input className={inputClassName} type="date" value={purchasedOn} onChange={(event) => setPurchasedOn(event.target.value)} required disabled={isSaving} />
+              <Input
+                className={inputClassName}
+                type="date"
+                min={spendingPeriodType === 'custom' ? customPeriodStartsOn || undefined : undefined}
+                max={spendingPeriodType === 'custom' ? customPeriodEndsOn || undefined : undefined}
+                value={purchasedOn}
+                onChange={(event) => setPurchasedOn(event.target.value)}
+                required
+                disabled={isSaving || !spendingPeriodType || Boolean(customPeriodError)}
+              />
             </Label>
             <Label className={labelClassName}>
               Store or shop
@@ -705,7 +901,7 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
         <Button className="w-full sm:w-auto" variant="outline" size="lg" type="button" onClick={cancelPurchase} disabled={isSaving || isAddingStore}>
           Cancel
         </Button>
-        <Button className="w-full sm:w-auto" size="lg" type="submit" disabled={isSaving || isAddingStore || unitsLoading}>
+        <Button className="w-full sm:w-auto" size="lg" type="submit" disabled={isSaving || isAddingStore || unitsLoading || !spendingPeriod}>
           <Save aria-hidden="true" />
           {isSaving ? 'Saving purchase…' : 'Save purchase'}
         </Button>
