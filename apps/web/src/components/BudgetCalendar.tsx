@@ -134,6 +134,16 @@ export default function BudgetCalendar({ month, selectedDate, onSelectDate, onMo
     const days = calendarState.kind === 'loaded' ? calendarState.calendar.days : [];
     return new Map(days.map((day) => [day.date, day]));
   }, [calendarState]);
+  const monthTotals = useMemo(() => {
+    if (calendarState.kind !== 'loaded') return null;
+    return calendarState.calendar.days.reduce(
+      (totals, day) => ({
+        spentCentavos: totals.spentCentavos + day.spentCentavos,
+        receiptCount: totals.receiptCount + day.receiptCount,
+      }),
+      { spentCentavos: 0, receiptCount: 0 }
+    );
+  }, [calendarState]);
 
   const dateCells = useMemo(() => {
     const [year, monthNumber] = month.split('-').map(Number);
@@ -165,7 +175,7 @@ export default function BudgetCalendar({ month, selectedDate, onSelectDate, onMo
             </Button>
           </div>
         </div>
-        <p className="text-xs text-muted-foreground">Dates with targets show the target amount and percent used. Dates without a target show spend; the dot marks budget status.</p>
+        <p className="text-xs text-muted-foreground">Each date shows its target, daily grocery total, and percent used. The dot marks budget status.</p>
       </CardHeader>
       <CardContent className="space-y-4 p-3 pt-0 sm:p-5 sm:pt-0">
         {calendarState.kind === 'error' && (
@@ -180,6 +190,26 @@ export default function BudgetCalendar({ month, selectedDate, onSelectDate, onMo
           </Alert>
         )}
 
+        <div className="flex items-center justify-between gap-4 rounded-md bg-muted/40 px-3 py-2.5">
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-muted-foreground">Grand total this month</p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">
+              {monthTotals
+                ? `${monthTotals.receiptCount} ${monthTotals.receiptCount === 1 ? 'receipt' : 'receipts'}`
+                : calendarState.kind === 'loading' ? 'Loading receipt totals…' : 'Receipt totals unavailable'}
+            </p>
+          </div>
+          {monthTotals ? (
+            <output className="shrink-0 text-base font-semibold tabular-nums sm:text-lg">
+              {formatPeso(monthTotals.spentCentavos)}
+            </output>
+          ) : calendarState.kind === 'loading' ? (
+            <Skeleton className="h-6 w-24" />
+          ) : (
+            <span className="shrink-0 text-base font-semibold text-muted-foreground">—</span>
+          )}
+        </div>
+
         <div className="grid grid-cols-7 border-l border-t" aria-busy={calendarState.kind === 'loading'}>
           {weekdays.map((weekday) => (
             <div key={weekday} className="border-b border-r bg-muted/30 py-2 text-center text-[10px] font-medium text-muted-foreground sm:text-xs">{weekday}</div>
@@ -190,7 +220,7 @@ export default function BudgetCalendar({ month, selectedDate, onSelectDate, onMo
             const day = daysByDate.get(date);
             const isSelected = date === selectedDate;
             const isToday = date === today;
-            const amount = day?.budgetCentavos ?? (day && day.spentCentavos > 0 ? day.spentCentavos : null);
+            const hasBudget = day?.budgetCentavos !== null && day?.budgetCentavos !== undefined;
             const description = day ? dayDescription(day) : formatLongDate(date);
             const status = day?.status ?? 'no_target';
             const percentUsed = day ? budgetUsagePercent(day) : null;
@@ -225,19 +255,32 @@ export default function BudgetCalendar({ month, selectedDate, onSelectDate, onMo
                 {calendarState.kind === 'loading' ? (
                   <div className="w-full space-y-1.5 pt-1">
                     <Skeleton className="h-2.5 w-4/5" />
+                    <Skeleton className="h-2 w-3/4" />
                     <Skeleton className="h-2 w-3/5" />
                   </div>
-                ) : amount !== null ? (
+                ) : day && hasBudget ? (
                   <div className="w-full min-w-0 space-y-0.5 text-left leading-tight">
                     <p className="truncate text-[9px] font-medium tabular-nums text-foreground sm:text-xs">
-                      {formatCompactPeso(amount)}
+                      <span className="hidden sm:inline">Target </span>{formatCompactPeso(day.budgetCentavos!)}
+                    </p>
+                    <p className="truncate text-[9px] tabular-nums text-muted-foreground sm:text-[11px]">
+                      <span className="hidden sm:inline">Spent </span>{formatCompactPeso(day.spentCentavos)}
                     </p>
                     <p className={`truncate text-[9px] tabular-nums sm:text-[11px] ${statusTextClass}`}>
-                      {percentUsed === null ? 'No target' : `${percentUsed}% used`}
+                      {percentUsed}% used
+                    </p>
+                  </div>
+                ) : day ? (
+                  <div className="w-full min-w-0 space-y-0.5 text-left leading-tight">
+                    <p className="truncate text-[9px] font-medium tabular-nums text-foreground sm:text-xs">
+                      <span className="hidden sm:inline">Spent </span>{formatCompactPeso(day.spentCentavos)}
+                    </p>
+                    <p className="truncate text-[9px] text-muted-foreground sm:text-[11px]">
+                      {day.receiptCount > 0 ? `${day.receiptCount} ${day.receiptCount === 1 ? 'receipt' : 'receipts'}` : 'No target'}
                     </p>
                   </div>
                 ) : (
-                  <span className="h-5 w-full" aria-hidden="true" />
+                  <span className="h-8 w-full" aria-hidden="true" />
                 )}
               </Button>
             );

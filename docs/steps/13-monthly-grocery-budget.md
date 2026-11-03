@@ -22,7 +22,7 @@ Let the household review grocery receipt spending by day, week, month, year, or 
 - `DELETE /api/budgets/{periodType}/{startsOn}/{endsOn}` removes a target while retaining receipts.
 - API validation and database constraints enforce canonical day, week, month, and year bounds. Custom ranges accept any valid inclusive date range.
 - OpenAPI and the local Postman collection describe the budget operations and their response examples.
-- The Budget & spending page provides period selection, a daily target calendar with budget status markers, receipt totals, receipt counts, optional targets, and remaining or over-target progress.
+- The Budget & spending page provides period selection, a daily target calendar with status markers and per-day grocery totals, a month-wide grocery total, receipt counts, optional targets, and remaining or over-target progress.
 - Purchase creation requires choosing a spending period first; its receipt date determines which period includes its total, and custom ranges constrain the receipt date to that range.
 - Receipt spending is separate from future recipe and ingredient costing.
 
