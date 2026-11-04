@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   ArrowRight,
   CalendarDays,
+  Lightbulb,
   Package,
   PiggyBank,
   ReceiptText,
@@ -102,11 +103,49 @@ function budgetDetail(summary: GroceryBudgetSummary): string {
   return `${formatPeso(summary.remainingCentavos)} remaining`;
 }
 
+const dailyGroceryTips = [
+  {
+    title: 'Check your pantry first',
+    detail: 'Take a quick look at your pantry and fridge before shopping so you do not pay twice for items you already have.',
+  },
+  {
+    title: 'Compare price per unit',
+    detail: 'Compare the price per kilo, liter, or piece for similar products. A larger pack is only a deal when its unit price is lower.',
+  },
+  {
+    title: 'Plan a few meals before making a list',
+    detail: 'Choose meals that share ingredients, then add only what you need. This can cut down on extra items and food waste.',
+  },
+  {
+    title: 'Set a limit for each grocery trip',
+    detail: 'Use your weekly suggestion as a trip guide and check the receipt total before saving the purchase.',
+  },
+  {
+    title: 'Check saved prices before you shop',
+    detail: 'Review an item’s recorded price history to see what you paid before and compare changes over time.',
+  },
+  {
+    title: 'Be thoughtful with bulk deals',
+    detail: 'Buy a larger pack when the unit price is better and your household can use it before it expires.',
+  },
+  {
+    title: 'Keep your list focused',
+    detail: 'Write essentials first and group similar items together to make the trip easier to follow.',
+  },
+] as const;
+
+function dailyTipFor(date: string) {
+  const [year, month, day] = date.split('-').map(Number);
+  const dayOfYear = Math.floor((Date.UTC(year, month - 1, day) - Date.UTC(year, 0, 1)) / 86_400_000);
+  return dailyGroceryTips[dayOfYear % dailyGroceryTips.length];
+}
+
 function SmartSuggestionsCard({ state, currentDate }: { state: LoadState<GroceryBudgetSummary>; currentDate: string }) {
   const [year, month, dayOfMonth] = currentDate.split('-').map(Number);
   const daysInMonth = new Date(year, month, 0).getDate();
   const daysRemaining = Math.max(1, daysInMonth - dayOfMonth + 1);
   const monthName = new Intl.DateTimeFormat('en-PH', { month: 'long' }).format(new Date(year, month - 1, 1));
+  const dailyTip = dailyTipFor(currentDate);
 
   return (
     <Card className="min-w-0">
@@ -114,7 +153,7 @@ function SmartSuggestionsCard({ state, currentDate }: { state: LoadState<Grocery
         <span className="rounded-md bg-primary/10 p-2 text-primary"><PiggyBank className="size-4" aria-hidden="true" /></span>
         <div className="min-w-0">
           <CardTitle className="text-lg">Smart suggestions</CardTitle>
-          <CardDescription className="mt-1">A practical grocery plan based on your current-month budget.</CardDescription>
+          <CardDescription className="mt-1">Daily grocery tips and spending guidance for your household.</CardDescription>
         </div>
       </CardHeader>
       <CardContent className="space-y-4 p-4 pt-0 sm:p-5 sm:pt-0">
@@ -180,13 +219,24 @@ function SmartSuggestionsCard({ state, currentDate }: { state: LoadState<Grocery
             <a href="#grocery-catalog" className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline">Compare saved item prices <ArrowRight className="size-4" aria-hidden="true" /></a>
           </>
         )}
+        <div className="rounded-md border bg-background p-3">
+          <div className="flex items-start gap-2.5">
+            <span className="mt-0.5 rounded-md bg-primary/10 p-1.5 text-primary"><Lightbulb className="size-4" aria-hidden="true" /></span>
+            <div>
+              <p className="text-xs font-medium text-muted-foreground">Today’s grocery tip</p>
+              <p className="mt-1 text-sm font-medium">{dailyTip.title}</p>
+              <p className="mt-1 text-sm leading-5 text-muted-foreground">{dailyTip.detail}</p>
+            </div>
+          </div>
+        </div>
       </CardContent>
     </Card>
   );
 }
 
 export default function Overview({ refreshKey }: OverviewProps) {
-  const currentMonth = philippineDateString().slice(0, 7);
+  const currentDate = philippineDateString();
+  const currentMonth = currentDate.slice(0, 7);
   const [budgetState, setBudgetState] = useState<LoadState<GroceryBudgetSummary>>({ kind: 'loading' });
   const [purchaseState, setPurchaseState] = useState<LoadState<PurchasePage>>({ kind: 'loading' });
   const [catalogState, setCatalogState] = useState<LoadState<number>>({ kind: 'loading' });
@@ -328,7 +378,7 @@ export default function Overview({ refreshKey }: OverviewProps) {
           </CardContent>
         </Card>
 
-        <SmartSuggestionsCard state={budgetState} currentDate={philippineDateString()} />
+        <SmartSuggestionsCard state={budgetState} currentDate={currentDate} />
       </div>
     </section>
   );
