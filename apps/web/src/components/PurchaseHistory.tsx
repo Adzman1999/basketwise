@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { Purchase, PurchaseFilterOptions, PurchasePage } from '@/lib/api';
 
@@ -82,40 +81,49 @@ function PurchaseCard({ purchase, searchQuery }: { purchase: Purchase; searchQue
     : [];
 
   return (
-    <Card className="overflow-hidden p-0">
+    <Card className="h-fit min-w-0 overflow-hidden border-primary/15 bg-gradient-to-br from-primary/[0.035] via-card to-card p-0 transition-colors hover:border-primary/25">
       <details className="group">
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 marker:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset [&::-webkit-details-marker]:hidden sm:px-5">
-          <div className="min-w-0 space-y-0.5">
-            <p className="text-xs text-muted-foreground">
-              <time dateTime={purchase.purchasedOn}>{formatPurchaseDate(purchase.purchasedOn)}</time>
-            </p>
-            <CardTitle className="truncate text-base">{purchase.storeName || 'Grocery trip'}</CardTitle>
-            <p className="text-xs text-muted-foreground">{purchase.items.length} {purchase.items.length === 1 ? 'item' : 'items'}</p>
-            {matchingItems[0] && (
-              <div className="flex min-w-0 items-center gap-1.5 pt-1">
-                <p className="truncate text-xs font-medium">
-                  <HighlightedMatch name={matchingItems[0].itemName} query={searchQuery} />
-                </p>
-                <Badge className="shrink-0" variant={matchingItems[0].itemName.trim().toLowerCase() === normalizedSearch ? 'default' : 'outline'}>
-                  {matchingItems[0].itemName.trim().toLowerCase() === normalizedSearch ? 'Exact match' : 'Close match'}
+        <summary className="flex cursor-pointer list-none items-start justify-between gap-2 px-3 py-3 marker:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset [&::-webkit-details-marker]:hidden">
+          <div className="flex min-w-0 flex-1 items-start gap-2.5">
+            <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <ReceiptText aria-hidden="true" className="size-4" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] leading-4 text-muted-foreground">
+                <time dateTime={purchase.purchasedOn}>{formatPurchaseDate(purchase.purchasedOn)}</time>
+              </p>
+              <CardTitle className="truncate text-sm leading-5">{purchase.storeName || 'Grocery trip'}</CardTitle>
+              <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5">
+                <Badge variant="secondary" className="h-5 shrink-0 px-1.5 text-[10px]">
+                  {purchase.items.length} {purchase.items.length === 1 ? 'item' : 'items'}
                 </Badge>
-                {matchingItems.length > 1 && <span className="shrink-0 text-xs text-muted-foreground">+{matchingItems.length - 1}</span>}
+                {matchingItems[0] && (
+                  <div className="flex min-w-0 items-center gap-1">
+                    <p className="max-w-24 truncate text-xs font-medium">
+                      <HighlightedMatch name={matchingItems[0].itemName} query={searchQuery} />
+                    </p>
+                    <Badge className="h-5 shrink-0 px-1.5 text-[10px]" variant={matchingItems[0].itemName.trim().toLowerCase() === normalizedSearch ? 'default' : 'outline'}>
+                      {matchingItems[0].itemName.trim().toLowerCase() === normalizedSearch ? 'Exact match' : 'Close match'}
+                    </Badge>
+                    {matchingItems.length > 1 && <span className="shrink-0 text-[10px] text-muted-foreground">+{matchingItems.length - 1}</span>}
+                  </div>
+                )}
               </div>
-            )}
+            </div>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1.5 pt-0.5">
             <div className="text-right">
-              <p className="text-xs text-muted-foreground">Receipt total</p>
-              <p className="text-base font-semibold tabular-nums">{formatCentavos(purchase.totalPaidCentavos)}</p>
+              <p className="text-[10px] leading-4 text-muted-foreground">Total</p>
+              <p className="text-sm font-semibold tabular-nums">{formatCentavos(purchase.totalPaidCentavos)}</p>
             </div>
             <ChevronDown aria-hidden="true" className="size-4 text-muted-foreground transition-transform group-open:rotate-180" />
           </div>
         </summary>
 
-        <CardContent className="border-t bg-muted/10 px-4 py-1 sm:px-5">
+        <CardContent className="border-t border-primary/10 bg-background/60 px-3 py-1">
           <div className="divide-y">
             {purchase.items.map((item) => (
-              <div key={item.id} className="flex items-start justify-between gap-4 py-3 text-sm">
+              <div key={item.id} className="flex items-start justify-between gap-3 py-2.5 text-sm">
                 <div className="min-w-0">
                   <p className="truncate font-medium"><HighlightedMatch name={item.itemName} query={searchQuery} /></p>
                   <p className="mt-0.5 text-xs text-muted-foreground">{item.quantity} {item.unit}</p>
@@ -129,7 +137,7 @@ function PurchaseCard({ purchase, searchQuery }: { purchase: Purchase; searchQue
               </div>
             ))}
           </div>
-          <div className="flex justify-end border-t py-3">
+          <div className="flex justify-end border-t border-primary/10 py-2.5">
             <Badge variant={purchase.unallocatedAmountCentavos === 0 ? 'secondary' : 'outline'}>
               {purchase.unallocatedAmountCentavos === 0
                 ? 'Receipt lines match total'
@@ -336,21 +344,23 @@ export default function PurchaseHistory({
         </Alert>
       )}
 
-      <div className="space-y-3" aria-live="polite" aria-busy={filtersPending || searchPending || state.kind === 'loading'}>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-live="polite" aria-busy={filtersPending || searchPending || state.kind === 'loading'}>
         {state.kind === 'loading' && !appliedDateRangeInvalid && (
-          <Card role="status" aria-label="Loading purchase history">
-            <CardContent className="space-y-3 p-4 sm:p-5">
-              <Skeleton className="h-4 w-28" />
-              <Skeleton className="h-6 w-44" />
-              <Separator />
-              <Skeleton className="h-4 w-full" />
-              <Skeleton className="h-4 w-4/5" />
-            </CardContent>
-          </Card>
+          <div className="col-span-full grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4" role="status" aria-label="Loading purchase history">
+            {Array.from({ length: 4 }, (_, index) => (
+              <Card key={index} className="border-primary/10 bg-primary/[0.025]">
+                <CardContent className="space-y-2.5 p-3">
+                  <Skeleton className="h-3 w-20" />
+                  <Skeleton className="h-5 w-32" />
+                  <Skeleton className="h-4 w-24" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         )}
 
         {state.kind === 'error' && !appliedDateRangeInvalid && (
-          <Alert variant="destructive">
+          <Alert variant="destructive" className="sm:col-span-2 xl:col-span-4">
             <ReceiptText aria-hidden="true" />
             <AlertTitle>History could not load</AlertTitle>
             <AlertDescription className="space-y-3">
@@ -361,7 +371,7 @@ export default function PurchaseHistory({
         )}
 
         {state.kind === 'invalid' && !appliedDateRangeInvalid && (
-          <Alert variant="destructive">
+          <Alert variant="destructive" className="sm:col-span-2 xl:col-span-4">
             <CalendarDays aria-hidden="true" />
             <AlertTitle>Check the date range</AlertTitle>
             <AlertDescription>{state.message}</AlertDescription>
@@ -369,7 +379,7 @@ export default function PurchaseHistory({
         )}
 
         {pageData && pageData.items.length === 0 && !hasAppliedCriteria && (
-          <Card>
+          <Card className="border-primary/10 bg-primary/[0.025] sm:col-span-2 xl:col-span-4">
             <CardContent className="flex flex-col items-center px-5 py-10 text-center">
               <span className="flex size-11 items-center justify-center rounded-full bg-primary/10 text-primary">
                 <ReceiptText aria-hidden="true" className="size-5" />
@@ -383,7 +393,7 @@ export default function PurchaseHistory({
         )}
 
         {pageData && pageData.items.length === 0 && hasAppliedCriteria && (
-          <Card>
+          <Card className="border-primary/10 bg-muted/30 sm:col-span-2 xl:col-span-4">
             <CardContent className="flex flex-col items-center px-5 py-10 text-center">
               <span className="flex size-11 items-center justify-center rounded-full bg-muted text-muted-foreground">
                 <Search aria-hidden="true" className="size-5" />
