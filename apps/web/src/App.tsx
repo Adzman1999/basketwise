@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Activity, ArrowUpRight, CirclePlus, RefreshCw } from 'lucide-react';
+import { Activity, ArrowUpRight, CirclePlus, ReceiptText, RefreshCw } from 'lucide-react';
 import AppSidebar from '@/components/AppSidebar';
 import GroceryCatalog from '@/components/GroceryCatalog';
 import MonthlyBudget from '@/components/MonthlyBudget';
@@ -291,9 +291,16 @@ export default function App() {
         </SidebarInset>
         <Dialog open={purchaseDialogOpen} onOpenChange={setPurchaseDialogOpen}>
           <DialogContent className="flex h-[100dvh] max-h-[100dvh] w-screen max-w-none flex-col gap-0 overflow-hidden rounded-none p-0 sm:h-[min(90dvh,900px)] sm:max-h-[90dvh] sm:w-[calc(100vw-2rem)] sm:max-w-3xl sm:rounded-lg">
-            <DialogHeader className="sticky top-0 z-20 shrink-0 border-b bg-background px-4 py-4 sm:px-6 sm:py-5">
-              <DialogTitle>Add a purchase</DialogTitle>
-              <DialogDescription>Select the spending period first, then enter the receipt date and items. The total is calculated from the item amounts.</DialogDescription>
+            <DialogHeader className="sticky top-0 z-20 shrink-0 border-b border-primary/10 bg-gradient-to-r from-primary/[0.045] via-background to-background px-4 py-4 sm:px-6 sm:py-5">
+              <div className="flex items-start gap-3">
+                <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <ReceiptText aria-hidden="true" className="size-4" />
+                </span>
+                <div className="min-w-0 space-y-1">
+                  <DialogTitle>Add a purchase</DialogTitle>
+                  <DialogDescription>Choose a spending period, then add the receipt date and items. Your total updates automatically.</DialogDescription>
+                </div>
+              </div>
             </DialogHeader>
             <PurchaseForm onSubmit={savePurchase} onCancel={() => setPurchaseDialogOpen(false)} />
           </DialogContent>
