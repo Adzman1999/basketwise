@@ -26,6 +26,27 @@ type OverviewProps = {
   refreshKey: number;
 };
 
+type StatTone = 'green' | 'blue' | 'violet' | 'amber';
+
+const statToneClasses: Record<StatTone, { card: string; icon: string }> = {
+  green: {
+    card: 'border-emerald-500/15 bg-gradient-to-br from-emerald-500/[0.045] via-card to-card',
+    icon: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
+  },
+  blue: {
+    card: 'border-sky-500/15 bg-gradient-to-br from-sky-500/[0.045] via-card to-card',
+    icon: 'bg-sky-500/10 text-sky-700 dark:text-sky-300',
+  },
+  violet: {
+    card: 'border-violet-500/15 bg-gradient-to-br from-violet-500/[0.045] via-card to-card',
+    icon: 'bg-violet-500/10 text-violet-700 dark:text-violet-300',
+  },
+  amber: {
+    card: 'border-amber-500/15 bg-gradient-to-br from-amber-500/[0.045] via-card to-card',
+    icon: 'bg-amber-500/10 text-amber-700 dark:text-amber-300',
+  },
+};
+
 const pesoFormatter = new Intl.NumberFormat('en-PH', {
   style: 'currency',
   currency: 'PHP',
@@ -65,6 +86,7 @@ function StatCard({
   state,
   value,
   detail,
+  tone,
   href,
 }: {
   icon: typeof ReceiptText;
@@ -72,10 +94,13 @@ function StatCard({
   state: LoadState<unknown>;
   value: string;
   detail: string;
+  tone: StatTone;
   href?: string;
 }) {
+  const toneClasses = statToneClasses[tone];
+
   return (
-    <Card className="min-w-0">
+    <Card className={`min-w-0 transition-colors hover:border-primary/25 ${toneClasses.card}`}>
       <CardHeader className="flex flex-row items-start justify-between space-y-0 p-4 sm:p-5">
         <div className="min-w-0 space-y-1">
           <CardDescription>{label}</CardDescription>
@@ -83,7 +108,7 @@ function StatCard({
             <CardTitle className="truncate text-xl tabular-nums">{state.kind === 'error' ? '—' : value}</CardTitle>
           )}
         </div>
-        <span className="rounded-md bg-muted p-2 text-muted-foreground"><Icon className="size-4" aria-hidden="true" /></span>
+        <span className={`rounded-lg p-2 ${toneClasses.icon}`}><Icon className="size-4" aria-hidden="true" /></span>
       </CardHeader>
       <CardContent className="flex min-h-12 items-end justify-between gap-2 px-4 pb-4 pt-0 sm:px-5 sm:pb-5">
         <p className="min-w-0 text-xs leading-5 text-muted-foreground">
@@ -148,7 +173,7 @@ function SmartSuggestionsCard({ state, currentDate }: { state: LoadState<Grocery
   const dailyTip = dailyTipFor(currentDate);
 
   return (
-    <Card className="min-w-0">
+    <Card className="min-w-0 border-primary/15 bg-gradient-to-br from-primary/[0.045] via-card to-accent/30 transition-colors hover:border-primary/25">
       <CardHeader className="flex flex-row items-start gap-3 p-4 sm:p-5">
         <span className="rounded-md bg-primary/10 p-2 text-primary"><PiggyBank className="size-4" aria-hidden="true" /></span>
         <div className="min-w-0">
@@ -169,7 +194,7 @@ function SmartSuggestionsCard({ state, currentDate }: { state: LoadState<Grocery
             <AlertDescription>{state.message}</AlertDescription>
           </Alert>
         ) : state.value.budgetCentavos === null ? (
-          <div className="space-y-3 rounded-md border border-dashed p-4">
+          <div className="space-y-3 rounded-md border border-dashed border-primary/15 bg-background/50 p-4">
             <div>
               <p className="text-sm font-medium">Set a monthly grocery target</p>
               <p className="mt-1 text-sm leading-5 text-muted-foreground">A budget lets Basketwise suggest a daily and weekly spending pace for {monthName}.</p>
@@ -189,7 +214,7 @@ function SmartSuggestionsCard({ state, currentDate }: { state: LoadState<Grocery
             </Button>
           </div>
         ) : (state.value.remainingCentavos ?? 0) === 0 ? (
-          <div className="space-y-3 rounded-md border border-dashed p-4">
+          <div className="space-y-3 rounded-md border border-dashed border-primary/15 bg-background/50 p-4">
             <div>
               <p className="text-sm font-medium">This month’s target is fully used.</p>
               <p className="mt-1 text-sm leading-5 text-muted-foreground">You’ve recorded {formatPeso(state.value.spentCentavos)} against your {formatPeso(state.value.budgetCentavos)} target. Review the budget before planning another trip.</p>
@@ -205,12 +230,12 @@ function SmartSuggestionsCard({ state, currentDate }: { state: LoadState<Grocery
               <p className="mt-1 text-sm leading-5 text-muted-foreground">Keep upcoming grocery spending near this pace to stay within your target.</p>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-md bg-muted/60 p-3">
+              <div className="rounded-lg border border-primary/10 bg-primary/[0.045] p-3">
                 <p className="text-xs text-muted-foreground">Suggested daily pace</p>
                 <p className="mt-1 text-lg font-semibold tabular-nums">{formatPeso(Math.floor((state.value.remainingCentavos ?? 0) / daysRemaining))}</p>
                 <p className="mt-0.5 text-xs text-muted-foreground">For {daysRemaining} {daysRemaining === 1 ? 'day' : 'days'} left</p>
               </div>
-              <div className="rounded-md bg-muted/60 p-3">
+              <div className="rounded-lg border border-primary/10 bg-primary/[0.045] p-3">
                 <p className="text-xs text-muted-foreground">Next 7 days</p>
                 <p className="mt-1 text-lg font-semibold tabular-nums">{formatPeso(Math.floor((state.value.remainingCentavos ?? 0) * Math.min(7, daysRemaining) / daysRemaining))}</p>
                 <p className="mt-0.5 text-xs text-muted-foreground">Suggested grocery cap</p>
@@ -219,9 +244,9 @@ function SmartSuggestionsCard({ state, currentDate }: { state: LoadState<Grocery
             <a href="#grocery-catalog" className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline">Compare saved item prices <ArrowRight className="size-4" aria-hidden="true" /></a>
           </>
         )}
-        <div className="rounded-md border bg-background p-3">
+        <div className="rounded-lg border border-amber-500/15 bg-amber-500/[0.04] p-3">
           <div className="flex items-start gap-2.5">
-            <span className="mt-0.5 rounded-md bg-primary/10 p-1.5 text-primary"><Lightbulb className="size-4" aria-hidden="true" /></span>
+            <span className="mt-0.5 rounded-md bg-amber-500/10 p-1.5 text-amber-700 dark:text-amber-300"><Lightbulb className="size-4" aria-hidden="true" /></span>
             <div>
               <p className="text-xs font-medium text-muted-foreground">Today’s grocery tip</p>
               <p className="mt-1 text-sm font-medium">{dailyTip.title}</p>
@@ -304,6 +329,7 @@ export default function Overview({ refreshKey }: OverviewProps) {
         <StatCard
           icon={PiggyBank}
           label="Grocery spend this month"
+          tone="green"
           state={budgetState}
           value={formatPeso(budget?.spentCentavos ?? 0)}
           detail={`${receiptsThisMonth} ${receiptsThisMonth === 1 ? 'receipt' : 'receipts'} recorded`}
@@ -312,6 +338,7 @@ export default function Overview({ refreshKey }: OverviewProps) {
         <StatCard
           icon={ReceiptText}
           label="Monthly budget target"
+          tone="blue"
           state={budgetState}
           value={budget?.budgetCentavos === null || !budget ? 'Not set' : formatPeso(budget.budgetCentavos)}
           detail={targetDetail}
@@ -320,6 +347,7 @@ export default function Overview({ refreshKey }: OverviewProps) {
         <StatCard
           icon={Package}
           label="Grocery items tracked"
+          tone="violet"
           state={catalogState}
           value={String(catalogState.kind === 'loaded' ? catalogState.value : 0)}
           detail="Names with recorded prices"
@@ -328,6 +356,7 @@ export default function Overview({ refreshKey }: OverviewProps) {
         <StatCard
           icon={Store}
           label="All-time receipts"
+          tone="amber"
           state={purchaseState}
           value={String(purchaseState.kind === 'loaded' ? purchaseState.value.total : 0)}
           detail="Saved grocery purchases"
@@ -336,7 +365,7 @@ export default function Overview({ refreshKey }: OverviewProps) {
       </div>
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1.45fr)_minmax(280px,1fr)]">
-        <Card className="min-w-0">
+        <Card className="min-w-0 border-sky-500/15 bg-gradient-to-br from-sky-500/[0.035] via-card to-card transition-colors hover:border-sky-500/25">
           <CardHeader className="flex flex-row items-start justify-between gap-3 p-4 sm:p-5">
             <div>
               <CardTitle className="text-lg">Recent purchases</CardTitle>
