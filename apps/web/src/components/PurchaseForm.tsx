@@ -92,7 +92,7 @@ function emptyItem(id: number): DraftItem {
 }
 
 const inputClassName = 'h-10 w-full min-w-0 rounded-md bg-background text-base sm:text-sm';
-const labelClassName = 'grid min-w-0 gap-2 text-sm font-medium';
+const labelClassName = 'grid min-w-0 content-start gap-2 text-sm font-medium';
 const noStoreValue = 'none';
 const otherStoreValue = 'other-unknown';
 
@@ -326,7 +326,7 @@ function CatalogNameInput({
           </CommandList>
         )}
       </Command>
-      <span id={helperId} className="block text-xs font-normal leading-5 text-muted-foreground">
+      <span id={helperId} className="block min-h-5 text-xs font-normal leading-5 text-muted-foreground">
         Choose a saved name to keep its price history together.
       </span>
     </>
@@ -585,37 +585,40 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
   return (
     <form className="flex min-h-0 flex-1 flex-col" onSubmit={handleSubmit}>
       <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 pb-4 sm:px-6 sm:pb-5">
-          <section className="space-y-3 rounded-lg border bg-muted/20 p-4 sm:mt-5" aria-labelledby="purchase-spending-period-title">
-            <div className="grid gap-2">
-              <Label id="purchase-spending-period-title" htmlFor="purchase-spending-period" className={labelClassName}>
-                Spending by period
-                <Select
-                  value={spendingPeriodType}
-                  onValueChange={(value) => {
-                    const nextPeriodType = value as BudgetPeriodType;
-                    setSpendingPeriodType(nextPeriodType);
-                    if (nextPeriodType === 'custom') {
-                      const today = todayAsLocalDate();
-                      setCustomPeriodStartsOn((current) => current || today);
-                      setCustomPeriodEndsOn((current) => current || today);
-                    }
-                  }}
-                  disabled={isSaving}
-                >
-                  <SelectTrigger id="purchase-spending-period" className={inputClassName}>
-                    <SelectValue placeholder="Choose a period first" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {spendingPeriodOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Label>
-              <p className="text-xs leading-5 text-muted-foreground">
-                Choose how to group this receipt. Its purchase date determines which selected period counts the cost.
-              </p>
+          <section className="space-y-4 rounded-xl border border-primary/15 bg-gradient-to-br from-primary/[0.045] via-card to-card p-4 sm:mt-5" aria-labelledby="purchase-spending-period-title">
+            <div className="flex items-start gap-3">
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-xs font-semibold text-primary">1</span>
+              <div className="min-w-0 flex-1 space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Label id="purchase-spending-period-title" htmlFor="purchase-spending-period" className="text-sm font-semibold">Spending period</Label>
+                  <Badge variant="outline" className="h-5 px-1.5 text-[10px]">Required first</Badge>
+                </div>
+                <p className="text-xs leading-5 text-muted-foreground">Choose where this purchase should count in your grocery budget.</p>
+              </div>
             </div>
+
+            <Select
+              value={spendingPeriodType}
+              onValueChange={(value) => {
+                const nextPeriodType = value as BudgetPeriodType;
+                setSpendingPeriodType(nextPeriodType);
+                if (nextPeriodType === 'custom') {
+                  const today = todayAsLocalDate();
+                  setCustomPeriodStartsOn((current) => current || today);
+                  setCustomPeriodEndsOn((current) => current || today);
+                }
+              }}
+              disabled={isSaving}
+            >
+              <SelectTrigger id="purchase-spending-period" className={inputClassName}>
+                <SelectValue placeholder="Choose a period" />
+              </SelectTrigger>
+              <SelectContent>
+                {spendingPeriodOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
             {spendingPeriodType === 'custom' && (
               <div className="grid gap-3 sm:grid-cols-2">
@@ -651,13 +654,23 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
               <p className="text-sm text-destructive" role="alert">Period end must be on or after its start date.</p>
             )}
             {spendingPeriod && (
-              <p className="text-sm font-medium" role="status">
-                This receipt will count in {formatSpendingPeriod(spendingPeriod)}.
-              </p>
+              <div className="flex items-center gap-2 rounded-md border border-primary/10 bg-primary/[0.04] px-3 py-2.5 text-sm" role="status">
+                <CheckCircle2 aria-hidden="true" className="size-4 shrink-0 text-primary" />
+                <span>This purchase will count toward <strong>{formatSpendingPeriod(spendingPeriod)}</strong>.</span>
+              </div>
             )}
+            {!spendingPeriod && <p className="rounded-md border border-dashed border-primary/10 bg-background/50 px-3 py-2.5 text-xs text-muted-foreground">Complete the period selection to unlock the receipt date and item fields.</p>}
           </section>
 
-          <div className="grid gap-4 pt-4 sm:grid-cols-2 sm:pt-5">
+          <section className="space-y-3 pt-1" aria-labelledby="purchase-receipt-details-title">
+            <div className="flex items-start gap-3">
+              <span className={`flex size-8 shrink-0 items-center justify-center rounded-lg text-xs font-semibold ${spendingPeriod ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>2</span>
+              <div className="space-y-1">
+                <h3 id="purchase-receipt-details-title" className="text-sm font-semibold">Receipt details</h3>
+                <p className="text-xs text-muted-foreground">Add the date and the shop where you bought these items.</p>
+              </div>
+            </div>
+          <div className="grid gap-4 sm:grid-cols-2">
             <Label className={labelClassName}>
               Purchase date
               <Input
@@ -668,7 +681,7 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
                 value={purchasedOn}
                 onChange={(event) => setPurchasedOn(event.target.value)}
                 required
-                disabled={isSaving || !spendingPeriodType || Boolean(customPeriodError)}
+                disabled={isSaving || !spendingPeriod}
               />
             </Label>
             <Label className={labelClassName}>
@@ -689,7 +702,7 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
                   aria-label="Search stores and shops"
                   aria-required="true"
                   aria-expanded={storeSuggestionsOpen}
-                  disabled={isSaving || storesLoading}
+                  disabled={isSaving || storesLoading || !spendingPeriod}
                 />
                 {storeSuggestionsOpen && !storesLoading && (
                   <CommandList className="absolute inset-x-0 top-full z-50 mt-1 max-h-64 w-full rounded-md border bg-popover shadow-lg">
@@ -745,6 +758,7 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
               {storeLoadError && <span className="text-xs font-normal leading-5 text-destructive">{storeLoadError}</span>}
             </Label>
           </div>
+          </section>
 
           {storeEditorOpen && (
             <fieldset className="space-y-4 rounded-lg border bg-muted/20 p-4">
@@ -795,18 +809,23 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
             </fieldset>
           )}
 
-          <div className="space-y-3">
+          <section className="space-y-3" aria-labelledby="purchase-items-title">
             <div className="sticky top-0 z-10 -mx-4 flex items-center justify-between gap-3 border-b bg-background/95 px-4 py-3 shadow-sm backdrop-blur sm:-mx-6 sm:px-6">
-              <div className="space-y-1">
-                <h3 className="text-sm font-medium">Receipt items</h3>
-                <p className="text-xs text-muted-foreground">Enter the price per unit and quantity for each item.</p>
+              <div className="flex min-w-0 items-start gap-3">
+                <span className={`mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg text-xs font-semibold ${spendingPeriod ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>3</span>
+                <div className="min-w-0 space-y-1">
+                  <h3 id="purchase-items-title" className="text-sm font-semibold">Receipt items</h3>
+                  <p className="text-xs text-muted-foreground">
+                    {spendingPeriod ? 'Enter each item’s unit price and quantity.' : 'Choose a spending period above to unlock item entry.'}
+                  </p>
                 {unitLoadError && (
                   <p className="text-xs leading-5 text-destructive">
                     Could not load saved units: {unitLoadError} You can still enter a unit manually; it will be saved with the purchase.
                   </p>
                 )}
+                </div>
               </div>
-              <Button type="button" variant="outline" size="sm" onClick={addItem} disabled={isSaving || items.length >= 100}>
+              <Button type="button" variant="outline" size="sm" onClick={addItem} disabled={isSaving || !spendingPeriod || items.length >= 100}>
                 <Plus aria-hidden="true" /> Add item
               </Button>
             </div>
@@ -829,21 +848,22 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
                     <div className="mt-4 grid gap-4 sm:grid-cols-2">
                       <Label className={labelClassName}>
                         Food name
-                        <CatalogNameInput value={item.itemName} onChange={(itemName) => updateItem(item.id, { itemName })} disabled={isSaving} />
+                        <CatalogNameInput value={item.itemName} onChange={(itemName) => updateItem(item.id, { itemName })} disabled={isSaving || !spendingPeriod} />
                       </Label>
                       <Label className={labelClassName}>
                         Price per unit
                         <div className="relative">
                           <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground">₱</span>
-                          <Input className={`${inputClassName} pl-8`} type="number" min="0" max={maxPesoAmount} step="0.01" inputMode="decimal" value={item.unitPrice} onChange={(event) => updateItem(item.id, { unitPrice: event.target.value })} placeholder="0.00" required disabled={isSaving} />
+                          <Input className={`${inputClassName} pl-8`} type="number" min="0" max={maxPesoAmount} step="0.01" inputMode="decimal" value={item.unitPrice} onChange={(event) => updateItem(item.id, { unitPrice: event.target.value })} placeholder="0.00" aria-describedby={`price-helper-${item.id}`} required disabled={isSaving || !spendingPeriod} />
                         </div>
+                        <span id={`price-helper-${item.id}`} className="block min-h-5 text-xs font-normal leading-5 text-muted-foreground">Quantity × this price calculates the line total.</span>
                       </Label>
                     </div>
 
                     <div className="mt-4 grid gap-4 sm:grid-cols-2">
                       <Label className={labelClassName}>
                         Quantity
-                        <Input className={inputClassName} type="number" min="0.001" max="999999999.999" step="0.001" value={item.quantity} onChange={(event) => updateItem(item.id, { quantity: event.target.value })} required disabled={isSaving} />
+                        <Input className={inputClassName} type="number" min="0.001" max="999999999.999" step="0.001" value={item.quantity} onChange={(event) => updateItem(item.id, { quantity: event.target.value })} required disabled={isSaving || !spendingPeriod} />
                       </Label>
                       <Label className={labelClassName}>
                         Unit
@@ -852,7 +872,7 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
                           units={units}
                           onChange={(unit) => updateItem(item.id, { unit })}
                           onAddUnit={saveUnit}
-                          disabled={isSaving || unitsLoading}
+                          disabled={isSaving || unitsLoading || !spendingPeriod}
                         />
                       </Label>
                     </div>
@@ -867,15 +887,7 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
                 );
               })}
             </div>
-          </div>
-
-          <div className="flex items-center justify-between gap-4 rounded-lg border bg-muted/30 px-4 py-3.5" aria-live="polite">
-            <span>
-              <span className="block text-sm font-medium">Receipt total</span>
-              <span className="block text-xs text-muted-foreground">Sum of each quantity × unit price</span>
-            </span>
-            <output className="text-lg font-semibold tabular-nums">₱{formatPesoAmount(calculatedTotalCentavos)}</output>
-          </div>
+          </section>
 
           {errorMessage && (
             <Alert variant="destructive">
@@ -891,20 +903,27 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
             </Alert>
           )}
 
-          <p className="text-center text-xs leading-5 text-muted-foreground">
-            Each line total is quantity × price per unit. The receipt total adds all line totals.
-          </p>
-
       </div>
 
-      <div className="sticky bottom-0 z-10 flex shrink-0 flex-col gap-2 border-t bg-background px-4 py-3 sm:flex-row sm:items-center sm:justify-end sm:px-6 sm:py-4">
-        <Button className="w-full sm:w-auto" variant="outline" size="lg" type="button" onClick={cancelPurchase} disabled={isSaving || isAddingStore}>
-          Cancel
-        </Button>
-        <Button className="w-full sm:w-auto" size="lg" type="submit" disabled={isSaving || isAddingStore || unitsLoading || !spendingPeriod}>
-          <Save aria-hidden="true" />
-          {isSaving ? 'Saving purchase…' : 'Save purchase'}
-        </Button>
+      <div className="sticky bottom-0 z-10 flex shrink-0 flex-col gap-3 border-t bg-background/95 px-4 py-3 shadow-[0_-8px_20px_-16px_hsl(var(--foreground)/0.25)] backdrop-blur sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-4">
+        <div className="flex items-center justify-between gap-4 sm:justify-start">
+          <div className="min-w-0">
+            <span className="block text-xs font-medium text-muted-foreground">Calculated receipt total</span>
+            <span className="block text-[11px] text-muted-foreground">Updates from item quantities and prices</span>
+          </div>
+          <output className="shrink-0 text-xl font-semibold tabular-nums" aria-live="polite">
+            {spendingPeriod ? `₱${formatPesoAmount(calculatedTotalCentavos)}` : '—'}
+          </output>
+        </div>
+        <div className="flex gap-2 sm:shrink-0 sm:justify-end">
+          <Button className="flex-1 sm:flex-none" variant="outline" size="lg" type="button" onClick={cancelPurchase} disabled={isSaving || isAddingStore}>
+            Cancel
+          </Button>
+          <Button className="flex-1 sm:flex-none" size="lg" type="submit" disabled={isSaving || isAddingStore || unitsLoading || !spendingPeriod}>
+            <Save aria-hidden="true" />
+            {isSaving ? 'Saving…' : 'Save purchase'}
+          </Button>
+        </div>
       </div>
     </form>
   );
