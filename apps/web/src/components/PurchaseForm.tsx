@@ -92,7 +92,7 @@ function emptyItem(id: number): DraftItem {
 }
 
 const inputClassName = 'h-10 w-full min-w-0 rounded-md bg-background text-base sm:text-sm';
-const labelClassName = 'grid min-w-0 gap-2 text-sm font-medium';
+const labelClassName = 'grid min-w-0 content-start gap-2 text-sm font-medium';
 const noStoreValue = 'none';
 const otherStoreValue = 'other-unknown';
 
@@ -326,7 +326,7 @@ function CatalogNameInput({
           </CommandList>
         )}
       </Command>
-      <span id={helperId} className="block text-xs font-normal leading-5 text-muted-foreground">
+      <span id={helperId} className="block min-h-5 text-xs font-normal leading-5 text-muted-foreground">
         Choose a saved name to keep its price history together.
       </span>
     </>
@@ -854,8 +854,9 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
                         Price per unit
                         <div className="relative">
                           <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground">₱</span>
-                          <Input className={`${inputClassName} pl-8`} type="number" min="0" max={maxPesoAmount} step="0.01" inputMode="decimal" value={item.unitPrice} onChange={(event) => updateItem(item.id, { unitPrice: event.target.value })} placeholder="0.00" required disabled={isSaving || !spendingPeriod} />
+                          <Input className={`${inputClassName} pl-8`} type="number" min="0" max={maxPesoAmount} step="0.01" inputMode="decimal" value={item.unitPrice} onChange={(event) => updateItem(item.id, { unitPrice: event.target.value })} placeholder="0.00" aria-describedby={`price-helper-${item.id}`} required disabled={isSaving || !spendingPeriod} />
                         </div>
+                        <span id={`price-helper-${item.id}`} className="block min-h-5 text-xs font-normal leading-5 text-muted-foreground">Quantity × this price calculates the line total.</span>
                       </Label>
                     </div>
 
