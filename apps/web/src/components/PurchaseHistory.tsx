@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, CalendarDays, ChevronRight, LoaderCircle, ReceiptText, RotateCcw, Search, SlidersHorizontal, Store } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CalendarDays, ChevronRight, CirclePlus, LoaderCircle, ReceiptText, RotateCcw, Search, SlidersHorizontal, Store } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -26,6 +26,7 @@ type PurchaseHistoryProps = {
   appliedSearch: string;
   filtersPending: boolean;
   searchPending: boolean;
+  onAddPurchase: () => void;
   onFiltersChange: (filters: PurchaseFilterOptions) => void;
   onItemSearchChange: (search: string) => void;
   onApplyFilters: () => void;
@@ -145,6 +146,7 @@ export default function PurchaseHistory({
   appliedSearch,
   filtersPending,
   searchPending,
+  onAddPurchase,
   onFiltersChange,
   onItemSearchChange,
   onApplyFilters,
@@ -207,7 +209,7 @@ export default function PurchaseHistory({
     <section aria-labelledby="purchase-history-title" className="min-w-0 space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 id="purchase-history-title" className="text-xl font-semibold tracking-tight">Purchase history</h2>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
           {searchPending && (
             <Badge variant="secondary" className="gap-1.5">
               <LoaderCircle aria-hidden="true" className="size-3 animate-spin" /> Searching
@@ -219,6 +221,9 @@ export default function PurchaseHistory({
           {pageData && (
             <p className="text-sm text-muted-foreground">{formatReceiptCount(pageData.total, pageNumber, pageSize, hasAppliedCriteria)}</p>
           )}
+          <Button type="button" variant="outline" size="sm" onClick={onAddPurchase}>
+            <CirclePlus aria-hidden="true" /> Add a purchase
+          </Button>
         </div>
       </div>
 
