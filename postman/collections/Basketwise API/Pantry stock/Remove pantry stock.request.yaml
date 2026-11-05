@@ -1,0 +1,8 @@
+$kind: http-request
+description: Removes a pantry record but retains grocery purchase history.
+url: '{{baseUrl}}/api/pantry/{{pantryStockId}}'
+method: DELETE
+headers:
+  Accept: application/json
+settings: {}
+order: 4000

@@ -1,0 +1,20 @@
+$kind: http-request
+description: |
+  Adds a saved grocery item and unit to pantry tracking. An item and unit pair
+  can be tracked once; update its quantity instead of creating a duplicate.
+url: '{{baseUrl}}/api/pantry'
+method: POST
+headers:
+  Content-Type: application/json
+  Accept: application/json
+body:
+  type: json
+  content: |-
+    {
+      "groceryItemId": "{{groceryItemId}}",
+      "unitId": "{{unitId}}",
+      "quantity": 1.5,
+      "lowStockThreshold": 2
+    }
+settings: {}
+order: 2000

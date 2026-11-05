@@ -131,6 +131,35 @@ export type MeasurementUnitPage = {
   total: number;
 };
 
+export type PantryStockStatus = 'in_stock' | 'low_stock' | 'out_of_stock';
+
+export type PantryStockItem = {
+  id: string;
+  groceryItemId: string;
+  itemName: string;
+  unitId: string;
+  unit: string;
+  quantity: number;
+  lowStockThreshold: number | null;
+  status: PantryStockStatus;
+  updatedAt: string;
+};
+
+export type PantryStockSummary = {
+  total: number;
+  inStock: number;
+  lowStock: number;
+  outOfStock: number;
+};
+
+export type PantryStockPage = {
+  items: PantryStockItem[];
+  page: number;
+  pageSize: number;
+  total: number;
+  summary: PantryStockSummary;
+};
+
 export type GroceryItemPage = {
   items: GroceryItem[];
   page: number;
@@ -300,6 +329,65 @@ export async function createUnit(name: string): Promise<MeasurementUnit> {
     },
     body: JSON.stringify({ name }),
   });
+}
+
+export async function fetchPantryStock(
+  page: number,
+  pageSize: number,
+  search: string,
+  status: PantryStockStatus | '',
+  signal: AbortSignal
+): Promise<PantryStockPage> {
+  const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+  if (search.trim()) params.set('search', search.trim());
+  if (status) params.set('status', status);
+  return sendRequest<PantryStockPage>(`/api/pantry?${params.toString()}`, {
+    headers: { Accept: 'application/json' },
+    signal,
+  });
+}
+
+export async function createPantryStock(input: {
+  groceryItemId: string;
+  unitId: string;
+  quantity: number;
+  lowStockThreshold: number | null;
+}): Promise<PantryStockItem> {
+  return sendRequest<PantryStockItem>('/api/pantry', {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updatePantryStock(
+  id: string,
+  input: { quantity: number; lowStockThreshold: number | null }
+): Promise<PantryStockItem> {
+  return sendRequest<PantryStockItem>(`/api/pantry/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(input),
+  });
+}
+
+export async function deletePantryStock(id: string): Promise<void> {
+  let response: Response;
+  try {
+    response = await fetch(`/api/pantry/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      headers: { Accept: 'application/json' },
+    });
+  } catch {
+    throw new Error('Could not reach the API. Check that the backend is running.');
+  }
+  if (!response.ok) throw new Error(await readErrorMessage(response));
 }
 
 export async function fetchGroceryItemPriceHistory(

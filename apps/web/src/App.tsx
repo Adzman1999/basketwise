@@ -4,6 +4,7 @@ import AppSidebar from '@/components/AppSidebar';
 import GroceryCatalog from '@/components/GroceryCatalog';
 import MonthlyBudget from '@/components/MonthlyBudget';
 import Overview from '@/components/Overview';
+import PantryStock from '@/components/PantryStock';
 import PurchaseForm from '@/components/PurchaseForm';
 import PurchaseHistory, { type PurchaseHistoryState } from '@/components/PurchaseHistory';
 import StoresAndShops from '@/components/StoresAndShops';
@@ -33,7 +34,7 @@ function samePurchaseFilters(left: PurchaseFilterOptions, right: PurchaseFilterO
 function getActiveHref(): string {
   const hash = window.location.hash;
   if (hash === '#purchase-history' || hash === '#new-purchase') return '#grocery-spending';
-  if (hash === '#grocery-spending' || hash === '#budget' || hash === '#grocery-catalog' || hash === '#stores') return hash;
+  if (hash === '#grocery-spending' || hash === '#pantry' || hash === '#budget' || hash === '#grocery-catalog' || hash === '#stores') return hash;
   return '#overview';
 }
 
@@ -160,6 +161,8 @@ export default function App() {
     ? 'Grocery spending'
     : activeHref === '#grocery-catalog'
       ? 'Items & prices'
+    : activeHref === '#pantry'
+      ? 'Pantry stock'
       : activeHref === '#budget'
         ? 'Budget & spending'
         : activeHref === '#stores'
@@ -216,7 +219,7 @@ export default function App() {
               <Overview refreshKey={historyRefresh} />
             ) : (
               <>
-                <section className="mb-7 flex scroll-mt-24 flex-col justify-between gap-4 sm:mb-9 sm:flex-row sm:items-end">
+                {activeHref !== '#pantry' && <section className="mb-7 flex scroll-mt-24 flex-col justify-between gap-4 sm:mb-9 sm:flex-row sm:items-end">
                   <div>
                     <p className="text-xs font-medium text-primary">
                       {activeHref === '#grocery-catalog' ? 'Items & prices' : activeHref === '#budget' ? 'Planning' : activeHref === '#stores' ? 'Places' : 'Household'}
@@ -247,10 +250,12 @@ export default function App() {
                       <ArrowUpRight aria-hidden="true" />
                     </Button>
                   )}
-                </section>
+                </section>}
 
                 {activeHref === '#grocery-catalog' ? (
                   <GroceryCatalog refreshKey={catalogRefresh} />
+                ) : activeHref === '#pantry' ? (
+                  <PantryStock />
                 ) : activeHref === '#budget' ? (
                   <MonthlyBudget />
                 ) : activeHref === '#stores' ? (

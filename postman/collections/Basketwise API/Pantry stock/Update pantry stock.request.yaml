@@ -1,0 +1,16 @@
+$kind: http-request
+description: Sets the current quantity and low-stock threshold. Receipt history is unchanged.
+url: '{{baseUrl}}/api/pantry/{{pantryStockId}}'
+method: PUT
+headers:
+  Content-Type: application/json
+  Accept: application/json
+body:
+  type: json
+  content: |-
+    {
+      "quantity": 0.75,
+      "lowStockThreshold": 2
+    }
+settings: {}
+order: 3000

@@ -60,6 +60,192 @@ paths:
           $ref: "#/components/responses/DuplicateUnit"
         "500":
           $ref: "#/components/responses/InternalServerError"
+  /api/pantry:
+    get:
+      operationId: listPantryStock
+      tags:
+        - Pantry stock
+      summary: List pantry stock
+      description: |
+        Returns the current tracked quantity for each saved grocery item and
+        measurement-unit pair. Quantities are not converted between units.
+        The summary counts all pantry records, even when search or status
+        filters are applied to the returned page. A zero quantity is out of
+        stock; a positive quantity at or below its optional threshold is low.
+      parameters:
+        - name: search
+          in: query
+          required: false
+          description: Case-insensitive literal substring of the normalized grocery item name.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 120
+        - name: status
+          in: query
+          required: false
+          description: Filter to a calculated stock status.
+          schema:
+            $ref: "#/components/schemas/PantryStockStatus"
+        - name: page
+          in: query
+          required: false
+          description: One-based result page.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000000
+            default: 1
+        - name: pageSize
+          in: query
+          required: false
+          description: Number of stock records per page, up to 100.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: A page of current pantry records and unfiltered counts.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PantryStockPage"
+              example:
+                items:
+                  - id: "e024aa98-29b2-4f40-a467-283ed82cbb44"
+                    groceryItemId: "b94ab4f4-cb08-48ce-83a9-ff99f6eb488c"
+                    itemName: "Rice"
+                    unitId: "f56094ec-d967-4011-a490-5ae9ef49e310"
+                    unit: "kg"
+                    quantity: 1.5
+                    lowStockThreshold: 2
+                    status: low_stock
+                    updatedAt: "2026-11-05T08:00:00.000Z"
+                page: 1
+                pageSize: 20
+                total: 1
+                summary:
+                  total: 1
+                  inStock: 0
+                  lowStock: 1
+                  outOfStock: 0
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    post:
+      operationId: createPantryStock
+      tags:
+        - Pantry stock
+      summary: Add a pantry stock record
+      description: |
+        Adds a current stock record for a saved grocery item and measurement
+        unit. A pair can be tracked only once; use the update operation to
+        change an existing quantity. New items become available after their
+        names have been recorded on a grocery receipt.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePantryStockRequest"
+            example:
+              groceryItemId: "b94ab4f4-cb08-48ce-83a9-ff99f6eb488c"
+              unitId: "f56094ec-d967-4011-a490-5ae9ef49e310"
+              quantity: 1.5
+              lowStockThreshold: 2
+      responses:
+        "201":
+          description: The pantry stock record was created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PantryStock"
+              example:
+                id: "e024aa98-29b2-4f40-a467-283ed82cbb44"
+                groceryItemId: "b94ab4f4-cb08-48ce-83a9-ff99f6eb488c"
+                itemName: "Rice"
+                unitId: "f56094ec-d967-4011-a490-5ae9ef49e310"
+                unit: "kg"
+                quantity: 1.5
+                lowStockThreshold: 2
+                status: low_stock
+                updatedAt: "2026-11-05T08:00:00.000Z"
+        "400":
+          description: The request is invalid or references a missing grocery item or unit.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                invalidRequest:
+                  value:
+                    error:
+                      code: VALIDATION_ERROR
+                      message: The request is invalid.
+                invalidReference:
+                  value:
+                    error:
+                      code: INVALID_PANTRY_REFERENCE
+                      message: Choose a saved grocery item and measurement unit.
+        "409":
+          $ref: "#/components/responses/DuplicatePantryStock"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/pantry/{pantryStockId}:
+    parameters:
+      - name: pantryStockId
+        in: path
+        required: true
+        description: Pantry stock record UUID.
+        schema:
+          type: string
+          format: uuid
+    put:
+      operationId: updatePantryStock
+      tags:
+        - Pantry stock
+      summary: Update current pantry quantity
+      description: Replaces the current quantity and the nullable low-stock threshold. It does not change grocery purchase history.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePantryStockRequest"
+            example:
+              quantity: 0.75
+              lowStockThreshold: 2
+      responses:
+        "200":
+          description: The pantry stock record was updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PantryStock"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    delete:
+      operationId: deletePantryStock
+      tags:
+        - Pantry stock
+      summary: Remove a pantry stock record
+      description: Removes pantry tracking for the item and unit. Grocery purchase history is retained.
+      responses:
+        "204":
+          description: The pantry record was removed; no response body is returned.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
   /api/stores:
     get:
       operationId: listStores
@@ -642,6 +828,147 @@ components:
             $ref: "#/components/schemas/MeasurementUnit"
         total:
           type: integer
+    PantryStockStatus:
+      type: string
+      enum: [in_stock, low_stock, out_of_stock]
+    PantryStock:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - groceryItemId
+        - itemName
+        - unitId
+        - unit
+        - quantity
+        - lowStockThreshold
+        - status
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        groceryItemId:
+          type: string
+          format: uuid
+        itemName:
+          type: string
+        unitId:
+          type: string
+          format: uuid
+        unit:
+          type: string
+        quantity:
+          type: number
+          minimum: 0
+          maximum: 999999999.999
+          multipleOf: 0.001
+        lowStockThreshold:
+          oneOf:
+            - type: number
+              minimum: 0
+              maximum: 999999999.999
+              multipleOf: 0.001
+            - type: "null"
+        status:
+          $ref: "#/components/schemas/PantryStockStatus"
+        updatedAt:
+          type: string
+          format: date-time
+    PantryStockSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - total
+        - inStock
+        - lowStock
+        - outOfStock
+      properties:
+        total:
+          type: integer
+          minimum: 0
+        inStock:
+          type: integer
+          minimum: 0
+        lowStock:
+          type: integer
+          minimum: 0
+        outOfStock:
+          type: integer
+          minimum: 0
+    PantryStockPage:
+      type: object
+      additionalProperties: false
+      required:
+        - items
+        - page
+        - pageSize
+        - total
+        - summary
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PantryStock"
+        page:
+          type: integer
+          minimum: 1
+        pageSize:
+          type: integer
+          minimum: 1
+          maximum: 100
+        total:
+          type: integer
+          minimum: 0
+          description: Number of records matching the active search and status filters.
+        summary:
+          $ref: "#/components/schemas/PantryStockSummary"
+    CreatePantryStockRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - groceryItemId
+        - unitId
+        - quantity
+      properties:
+        groceryItemId:
+          type: string
+          format: uuid
+        unitId:
+          type: string
+          format: uuid
+        quantity:
+          type: number
+          minimum: 0
+          maximum: 999999999.999
+          multipleOf: 0.001
+        lowStockThreshold:
+          oneOf:
+            - type: number
+              minimum: 0
+              maximum: 999999999.999
+              multipleOf: 0.001
+            - type: "null"
+          default: null
+    UpdatePantryStockRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - quantity
+        - lowStockThreshold
+      properties:
+        quantity:
+          type: number
+          minimum: 0
+          maximum: 999999999.999
+          multipleOf: 0.001
+        lowStockThreshold:
+          oneOf:
+            - type: number
+              minimum: 0
+              maximum: 999999999.999
+              multipleOf: 0.001
+            - type: "null"
     StoreCategory:
       type: string
       enum:
@@ -1048,6 +1375,16 @@ components:
             message:
               type: string
   responses:
+    DuplicatePantryStock:
+      description: A record already exists for this grocery item and unit.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+          example:
+            error:
+              code: "DUPLICATE_PANTRY_STOCK"
+              message: "This grocery item and unit are already tracked in the pantry. Update its current stock instead."
     DuplicateUnit:
       description: A measurement unit with this normalized name already exists.
       content:
