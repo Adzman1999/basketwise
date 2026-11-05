@@ -209,7 +209,7 @@ export default function GroceryCatalog({ refreshKey }: { refreshKey: number }) {
     <section id="grocery-catalog" aria-labelledby="grocery-catalog-title" className="scroll-mt-6 space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="space-y-1.5">
-          <Badge variant="secondary" className="w-fit gap-1.5"><Tags aria-hidden="true" className="size-3.5" /> Item insights</Badge>
+          <Badge variant="secondary" className="w-fit gap-1.5"><Tags aria-hidden="true" className="size-4" /> Item insights</Badge>
           <h2 id="grocery-catalog-title" className="text-2xl font-semibold tracking-tight">Catalog &amp; price history</h2>
           <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
             Browse grocery items from your receipts and compare recorded prices within the same unit.

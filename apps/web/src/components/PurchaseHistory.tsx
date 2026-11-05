@@ -209,7 +209,7 @@ export default function PurchaseHistory({
     <section aria-labelledby="purchase-history-title" className="min-w-0 space-y-3">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0 space-y-1.5">
-          <Badge variant="secondary" className="w-fit gap-1.5"><ReceiptText aria-hidden="true" className="size-3.5" /> Receipt log</Badge>
+          <Badge variant="secondary" className="w-fit gap-1.5"><ReceiptText aria-hidden="true" className="size-4" /> Receipt log</Badge>
           <h2 id="purchase-history-title" className="text-2xl font-semibold tracking-tight">Purchase history</h2>
           <p className="max-w-2xl text-sm leading-5 text-muted-foreground">Search past trips and open a receipt to review its items and total.</p>
         </div>

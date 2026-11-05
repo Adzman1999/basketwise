@@ -55,7 +55,7 @@ export default function StoresAndShops() {
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(18rem,0.8fr)]">
       <div className="col-span-full space-y-1.5">
-        <Badge variant="secondary" className="w-fit gap-1.5"><StoreIcon aria-hidden="true" className="size-3.5" /> Shopping setup</Badge>
+        <Badge variant="secondary" className="w-fit gap-1.5"><StoreIcon aria-hidden="true" className="size-4" /> Shopping setup</Badge>
         <h2 id="stores-page-title" className="text-2xl font-semibold tracking-tight">Places you shop</h2>
         <p className="max-w-2xl text-sm leading-6 text-muted-foreground">Save your usual shopping places once, then choose them when recording a receipt.</p>
       </div>
