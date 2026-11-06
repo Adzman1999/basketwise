@@ -26,11 +26,13 @@ export const createPantryStockSchema = z.object({
   unitId: z.string().uuid(),
   quantity,
   lowStockThreshold: quantity.nullable().optional(),
+  autoRestock: z.boolean().default(false),
 }).strict();
 
 export const updatePantryStockSchema = z.object({
   quantity,
   lowStockThreshold: quantity.nullable(),
+  autoRestock: z.boolean(),
 }).strict();
 
 export type PantryStockListQuery = z.infer<typeof pantryStockListQuerySchema>;

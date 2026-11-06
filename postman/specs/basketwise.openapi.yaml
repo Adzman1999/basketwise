@@ -121,6 +121,7 @@ paths:
                     unit: "kg"
                     quantity: 1.5
                     lowStockThreshold: 2
+                    autoRestock: true
                     status: low_stock
                     updatedAt: "2026-11-05T08:00:00.000Z"
                 page: 1
@@ -143,8 +144,9 @@ paths:
       description: |
         Adds a current stock record for a saved grocery item and measurement
         unit. A pair can be tracked only once; use the update operation to
-        change an existing quantity. New items become available after their
-        names have been recorded on a grocery receipt.
+        change an existing quantity or auto-restock setting. When autoRestock
+        is true, future purchases with the exact same item and unit increase
+        this quantity. Past purchases are not applied retroactively.
       requestBody:
         required: true
         content:
@@ -156,6 +158,7 @@ paths:
               unitId: "f56094ec-d967-4011-a490-5ae9ef49e310"
               quantity: 1.5
               lowStockThreshold: 2
+              autoRestock: true
       responses:
         "201":
           description: The pantry stock record was created.
@@ -171,6 +174,7 @@ paths:
                 unit: "kg"
                 quantity: 1.5
                 lowStockThreshold: 2
+                autoRestock: true
                 status: low_stock
                 updatedAt: "2026-11-05T08:00:00.000Z"
         "400":
@@ -208,7 +212,7 @@ paths:
       tags:
         - Pantry stock
       summary: Update current pantry quantity
-      description: Replaces the current quantity and the nullable low-stock threshold. It does not change grocery purchase history.
+      description: Replaces the current quantity, nullable low-stock threshold, and auto-restock setting. It does not change grocery purchase history.
       requestBody:
         required: true
         content:
@@ -218,6 +222,7 @@ paths:
             example:
               quantity: 0.75
               lowStockThreshold: 2
+              autoRestock: true
       responses:
         "200":
           description: The pantry stock record was updated.
@@ -564,7 +569,10 @@ paths:
       description: |
         Records one or more receipt line items. The receipt total is calculated
         by summing each item's amountPaidCentavos and is returned as
-        totalPaidCentavos. The total must fit a signed 32-bit integer.
+        totalPaidCentavos. The total must fit a signed 32-bit integer. Pantry
+        stock records opted into auto-restock are updated for exact item and
+        unit matches in the same transaction. The create response lists each
+        pantry record updated; a purchase line is applied at most once.
       requestBody:
         required: true
         content:
@@ -611,6 +619,11 @@ paths:
                     unit: "pack"
                     amountPaidCentavos: 1300
                 createdAt: "2026-10-29T08:00:00.000Z"
+                pantryRestockedItems:
+                  - itemName: "Rice"
+                    unit: "kg"
+                    quantityAdded: 2
+                    quantityOnHand: 3.5
         "400":
           $ref: "#/components/responses/BadRequest"
         "500":
@@ -842,6 +855,7 @@ components:
         - unit
         - quantity
         - lowStockThreshold
+        - autoRestock
         - status
         - updatedAt
       properties:
@@ -870,6 +884,9 @@ components:
               maximum: 999999999.999
               multipleOf: 0.001
             - type: "null"
+        autoRestock:
+          type: boolean
+          description: Whether future matching receipt lines increase this pantry quantity.
         status:
           $ref: "#/components/schemas/PantryStockStatus"
         updatedAt:
@@ -950,12 +967,17 @@ components:
               multipleOf: 0.001
             - type: "null"
           default: null
+        autoRestock:
+          type: boolean
+          default: false
+          description: When true, matching future purchases add their quantity to this record.
     UpdatePantryStockRequest:
       type: object
       additionalProperties: false
       required:
         - quantity
         - lowStockThreshold
+        - autoRestock
       properties:
         quantity:
           type: number
@@ -969,6 +991,8 @@ components:
               maximum: 999999999.999
               multipleOf: 0.001
             - type: "null"
+        autoRestock:
+          type: boolean
     StoreCategory:
       type: string
       enum:
@@ -1218,6 +1242,36 @@ components:
         createdAt:
           type: string
           format: date-time
+        pantryRestockedItems:
+          type: array
+          description: Returned by purchase creation; omitted from purchase history responses.
+          items:
+            $ref: "#/components/schemas/PantryRestockedItem"
+    PantryRestockedItem:
+      type: object
+      additionalProperties: false
+      required:
+        - itemName
+        - unit
+        - quantityAdded
+        - quantityOnHand
+      properties:
+        itemName:
+          type: string
+        unit:
+          type: string
+        quantityAdded:
+          type: number
+          minimum: 0
+          maximum: 999999999.999
+          multipleOf: 0.001
+          description: Total quantity added from matching receipt lines for this item and unit.
+        quantityOnHand:
+          type: number
+          minimum: 0
+          maximum: 999999999.999
+          multipleOf: 0.001
+          description: Pantry quantity after applying this purchase.
     PurchaseItem:
       type: object
       additionalProperties: false

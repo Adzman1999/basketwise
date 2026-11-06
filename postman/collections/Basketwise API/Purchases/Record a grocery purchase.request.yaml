@@ -1,7 +1,9 @@
 $kind: http-request
 description: |
   Records one or more receipt line items. The API calculates the receipt total
-  by summing each item's amountPaidCentavos.
+  by summing each item's amountPaidCentavos. Pantry records opted into
+  auto-restock are updated for exact item and unit matches; the response lists
+  the quantities added.
 url: '{{baseUrl}}/api/purchases'
 method: POST
 headers:

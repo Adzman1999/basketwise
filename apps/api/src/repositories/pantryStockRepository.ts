@@ -9,6 +9,7 @@ export type PantryStockRecord = {
   unit: string;
   quantity: string | number;
   lowStockThreshold: string | number | null;
+  autoRestock: boolean;
   updatedAt: Date;
 };
 
@@ -53,6 +54,7 @@ export async function listPantryStockRecords(input: PantryStockListQuery): Promi
               mu.name AS unit,
               ps.quantity,
               ps.low_stock_threshold AS "lowStockThreshold",
+              ps.auto_restock AS "autoRestock",
               ps.updated_at AS "updatedAt"
        FROM pantry_stock ps
        JOIN grocery_items gi ON gi.id = ps.grocery_item_id
@@ -83,8 +85,8 @@ export async function pantryReferencesExist(groceryItemId: string, unitId: strin
 
 export async function createPantryStockRecord(input: CreatePantryStockInput): Promise<PantryStockRecord | null> {
   const result = await query<PantryStockRecord>(
-    `INSERT INTO pantry_stock (grocery_item_id, unit_id, quantity, low_stock_threshold)
-     VALUES ($1, $2, $3, $4)
+    `INSERT INTO pantry_stock (grocery_item_id, unit_id, quantity, low_stock_threshold, auto_restock)
+     VALUES ($1, $2, $3, $4, $5)
      ON CONFLICT (grocery_item_id, unit_id) DO NOTHING
      RETURNING id,
                grocery_item_id AS "groceryItemId",
@@ -93,8 +95,9 @@ export async function createPantryStockRecord(input: CreatePantryStockInput): Pr
                (SELECT name FROM measurement_units WHERE id = unit_id) AS unit,
                quantity,
                low_stock_threshold AS "lowStockThreshold",
+               auto_restock AS "autoRestock",
                updated_at AS "updatedAt"`,
-    [input.groceryItemId, input.unitId, input.quantity, input.lowStockThreshold ?? null]
+    [input.groceryItemId, input.unitId, input.quantity, input.lowStockThreshold ?? null, input.autoRestock]
   );
   return result.rows[0] ?? null;
 }
@@ -107,6 +110,7 @@ export async function updatePantryStockRecord(
     `UPDATE pantry_stock ps
      SET quantity = $2,
          low_stock_threshold = $3,
+         auto_restock = $4,
          updated_at = NOW()
      FROM grocery_items gi, measurement_units mu
      WHERE ps.id = $1
@@ -119,8 +123,9 @@ export async function updatePantryStockRecord(
                (SELECT measure.name FROM measurement_units measure WHERE measure.id = ps.unit_id) AS unit,
                ps.quantity,
                ps.low_stock_threshold AS "lowStockThreshold",
+               ps.auto_restock AS "autoRestock",
                ps.updated_at AS "updatedAt"`,
-    [id, input.quantity, input.lowStockThreshold]
+    [id, input.quantity, input.lowStockThreshold, input.autoRestock]
   );
   return result.rows[0] ?? null;
 }

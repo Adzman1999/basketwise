@@ -1,7 +1,8 @@
 $kind: http-request
 description: |
   Adds a saved grocery item and unit to pantry tracking. An item and unit pair
-  can be tracked once; update its quantity instead of creating a duplicate.
+  can be tracked once. When autoRestock is enabled, future receipt quantities
+  with the same saved item and unit increase this pantry record.
 url: '{{baseUrl}}/api/pantry'
 method: POST
 headers:
@@ -14,7 +15,8 @@ body:
       "groceryItemId": "{{groceryItemId}}",
       "unitId": "{{unitId}}",
       "quantity": 1.5,
-      "lowStockThreshold": 2
+      "lowStockThreshold": 2,
+      "autoRestock": true
     }
 settings: {}
 order: 2000

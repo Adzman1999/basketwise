@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Activity, ArrowUpRight, CirclePlus, ReceiptText, RefreshCw } from 'lucide-react';
+import { Activity, ArrowUpRight, CheckCircle2, CirclePlus, ReceiptText, RefreshCw } from 'lucide-react';
 import AppSidebar from '@/components/AppSidebar';
 import GroceryCatalog from '@/components/GroceryCatalog';
 import MonthlyBudget from '@/components/MonthlyBudget';
@@ -12,10 +12,11 @@ import ThemeToggle from '@/components/ThemeToggle';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
-import { createPurchase, fetchHealthStatus, fetchPurchases, type CreatePurchaseRequest, type HealthResponse, type PurchaseFilterOptions, type PurchaseFilters } from '@/lib/api';
+import { createPurchase, fetchHealthStatus, fetchPurchases, type CreatePurchaseRequest, type HealthResponse, type Purchase, type PurchaseFilterOptions, type PurchaseFilters } from '@/lib/api';
 
 type ConnectionState =
   | { kind: 'checking' }
@@ -24,6 +25,7 @@ type ConnectionState =
 
 const pageSize = 8;
 const emptyPurchaseFilterOptions: PurchaseFilterOptions = { store: '', from: '', to: '' };
+const quantityFormatter = new Intl.NumberFormat('en-PH', { maximumFractionDigits: 3 });
 
 function samePurchaseFilters(left: PurchaseFilterOptions, right: PurchaseFilterOptions): boolean {
   return left.store === right.store
@@ -51,6 +53,7 @@ export default function App() {
   const [catalogRefresh, setCatalogRefresh] = useState(0);
   const [activeHref, setActiveHref] = useState(getActiveHref);
   const [purchaseDialogOpen, setPurchaseDialogOpen] = useState(false);
+  const [purchaseRestockNotice, setPurchaseRestockNotice] = useState<Purchase['pantryRestockedItems'] | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -117,7 +120,8 @@ export default function App() {
   }, []);
 
   async function savePurchase(input: CreatePurchaseRequest) {
-    await createPurchase(input);
+    const purchase = await createPurchase(input);
+    setPurchaseRestockNotice(purchase.pantryRestockedItems?.length ? purchase.pantryRestockedItems : null);
     setPageNumber(1);
     setHistoryRefresh((current) => current + 1);
     setCatalogRefresh((current) => current + 1);
@@ -244,7 +248,7 @@ export default function App() {
                     </p>
                   </div>
                   {activeHref === '#grocery-spending' && (
-                    <Button onClick={() => setPurchaseDialogOpen(true)}>
+                    <Button onClick={() => { setPurchaseRestockNotice(null); setPurchaseDialogOpen(true); }}>
                       <CirclePlus aria-hidden="true" />
                       Add a purchase
                       <ArrowUpRight aria-hidden="true" />
@@ -262,6 +266,22 @@ export default function App() {
                   <StoresAndShops />
                 ) : (
                   <div id="grocery-spending" className="scroll-mt-24">
+                    {purchaseRestockNotice && (
+                      <Alert className="mb-4">
+                        <CheckCircle2 aria-hidden="true" className="size-4 text-primary" />
+                        <AlertTitle>Pantry stock updated</AlertTitle>
+                        <AlertDescription>
+                          <p>Your receipt quantities were added to these pantry items:</p>
+                          <ul className="mt-1 list-inside list-disc">
+                            {purchaseRestockNotice.map((item) => (
+                              <li key={`${item.itemName}-${item.unit}`}>
+                                {item.itemName}: +{quantityFormatter.format(item.quantityAdded)} {item.unit} · {quantityFormatter.format(item.quantityOnHand)} {item.unit} on hand
+                              </li>
+                            ))}
+                          </ul>
+                        </AlertDescription>
+                      </Alert>
+                    )}
                     <PurchaseHistory
                       state={history}
                       pageNumber={pageNumber}
@@ -303,7 +323,7 @@ export default function App() {
                 </span>
                 <div className="min-w-0 space-y-1">
                   <DialogTitle>Add a purchase</DialogTitle>
-                  <DialogDescription>Choose a spending period, then add the receipt date and items. Your total updates automatically.</DialogDescription>
+                  <DialogDescription>Choose a spending period, then add the receipt date and items. Your total updates automatically. Pantry items opted into auto-restock update when the unit matches.</DialogDescription>
                 </div>
               </div>
             </DialogHeader>

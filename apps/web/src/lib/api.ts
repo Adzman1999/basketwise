@@ -31,6 +31,14 @@ export type Purchase = {
   unallocatedAmountCentavos: number;
   items: PurchaseItem[];
   createdAt: string;
+  pantryRestockedItems?: PantryRestockedItem[];
+};
+
+export type PantryRestockedItem = {
+  itemName: string;
+  unit: string;
+  quantityAdded: number;
+  quantityOnHand: number;
 };
 
 export type PurchasePage = {
@@ -141,6 +149,7 @@ export type PantryStockItem = {
   unit: string;
   quantity: number;
   lowStockThreshold: number | null;
+  autoRestock: boolean;
   status: PantryStockStatus;
   updatedAt: string;
 };
@@ -352,6 +361,7 @@ export async function createPantryStock(input: {
   unitId: string;
   quantity: number;
   lowStockThreshold: number | null;
+  autoRestock: boolean;
 }): Promise<PantryStockItem> {
   return sendRequest<PantryStockItem>('/api/pantry', {
     method: 'POST',
@@ -365,7 +375,7 @@ export async function createPantryStock(input: {
 
 export async function updatePantryStock(
   id: string,
-  input: { quantity: number; lowStockThreshold: number | null }
+  input: { quantity: number; lowStockThreshold: number | null; autoRestock: boolean }
 ): Promise<PantryStockItem> {
   return sendRequest<PantryStockItem>(`/api/pantry/${encodeURIComponent(id)}`, {
     method: 'PUT',

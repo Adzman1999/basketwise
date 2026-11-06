@@ -23,6 +23,14 @@ type PurchaseItemRow = {
 
 export type PurchaseRecord = PurchaseRow & {
   items: Array<Omit<PurchaseItemRow, 'purchaseId'>>;
+  pantryRestockedItems?: PantryRestockedItemRecord[];
+};
+
+export type PantryRestockedItemRecord = {
+  itemName: string;
+  unit: string;
+  quantityAdded: number;
+  quantityOnHand: number;
 };
 
 async function insertPurchaseItems(
@@ -70,6 +78,57 @@ async function insertPurchaseItems(
   return insertedItems;
 }
 
+async function restockPantryFromPurchase(
+  client: PoolClient,
+  purchaseId: string
+): Promise<PantryRestockedItemRecord[]> {
+  const result = await client.query<PantryRestockedItemRecord>(
+    `WITH eligible_items AS MATERIALIZED (
+       SELECT ps.id AS pantry_stock_id,
+              pi.id AS purchase_item_id,
+              pi.quantity AS quantity_added
+       FROM pantry_stock ps
+       JOIN purchase_items pi
+         ON pi.grocery_item_id = ps.grocery_item_id
+        AND pi.unit_id = ps.unit_id
+       WHERE pi.purchase_id = $1
+         AND ps.auto_restock = TRUE
+       ORDER BY ps.id, pi.id
+       FOR UPDATE OF ps
+     ), recorded_movements AS (
+       INSERT INTO pantry_stock_purchase_movements (
+         purchase_item_id, pantry_stock_id, quantity_added
+       )
+       SELECT purchase_item_id, pantry_stock_id, quantity_added
+       FROM eligible_items
+       ON CONFLICT (purchase_item_id) DO NOTHING
+       RETURNING pantry_stock_id, quantity_added
+     ), restock_totals AS (
+       SELECT pantry_stock_id, SUM(quantity_added) AS quantity_added
+       FROM recorded_movements
+       GROUP BY pantry_stock_id
+     ), updated_stock AS (
+       UPDATE pantry_stock ps
+       SET quantity = ps.quantity + totals.quantity_added,
+           updated_at = NOW()
+       FROM restock_totals totals
+       WHERE ps.id = totals.pantry_stock_id
+       RETURNING ps.id, ps.grocery_item_id, ps.unit_id, ps.quantity
+     )
+     SELECT gi.name AS "itemName",
+            mu.name AS unit,
+            totals.quantity_added::float8 AS "quantityAdded",
+            updated_stock.quantity::float8 AS "quantityOnHand"
+     FROM restock_totals totals
+     JOIN updated_stock ON updated_stock.id = totals.pantry_stock_id
+     JOIN grocery_items gi ON gi.id = updated_stock.grocery_item_id
+     JOIN measurement_units mu ON mu.id = updated_stock.unit_id
+     ORDER BY gi.normalized_name, mu.normalized_name, updated_stock.id`,
+    [purchaseId]
+  );
+  return result.rows;
+}
+
 export async function createPurchaseRecord(input: CreatePurchaseInput): Promise<PurchaseRecord> {
   const client = await getPool().connect();
   let transactionStarted = false;
@@ -103,11 +162,12 @@ export async function createPurchaseRecord(input: CreatePurchaseInput): Promise<
     );
     const purchase = purchaseResult.rows[0];
     const items = await insertPurchaseItems(client, purchase.id, input.items);
+    const pantryRestockedItems = await restockPantryFromPurchase(client, purchase.id);
 
     await client.query('COMMIT');
     transactionStarted = false;
 
-    return { ...purchase, items };
+    return { ...purchase, items, pantryRestockedItems };
   } catch (error) {
     if (transactionStarted) {
       try {

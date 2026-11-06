@@ -106,6 +106,7 @@ function PantryStockFormDialog({
   const [unitId, setUnitId] = useState('');
   const [quantity, setQuantity] = useState('');
   const [threshold, setThreshold] = useState('');
+  const [autoRestock, setAutoRestock] = useState(false);
   const [itemSearch, setItemSearch] = useState('');
   const [catalogItems, setCatalogItems] = useState<GroceryItem[]>([]);
   const [isCatalogLoading, setIsCatalogLoading] = useState(false);
@@ -120,6 +121,7 @@ function PantryStockFormDialog({
     setUnitId(item?.unitId ?? '');
     setQuantity(item ? String(item.quantity) : '');
     setThreshold(item?.lowStockThreshold === null || item?.lowStockThreshold === undefined ? '' : String(item.lowStockThreshold));
+    setAutoRestock(item?.autoRestock ?? false);
     setItemSearch('');
     setFormError('');
   }, [open, item]);
@@ -169,13 +171,18 @@ function PantryStockFormDialog({
     setIsSaving(true);
     try {
       if (item) {
-        await updatePantryStock(item.id, { quantity: parsedQuantity, lowStockThreshold: parsedThreshold });
+        await updatePantryStock(item.id, {
+          quantity: parsedQuantity,
+          lowStockThreshold: parsedThreshold,
+          autoRestock,
+        });
       } else if (selectedItem) {
         await createPantryStock({
           groceryItemId: selectedItem.id,
           unitId,
           quantity: parsedQuantity,
           lowStockThreshold: parsedThreshold,
+          autoRestock,
         });
       }
       onSaved();
@@ -195,7 +202,7 @@ function PantryStockFormDialog({
         <DialogHeader className="shrink-0 border-b px-5 py-4 text-left sm:px-6">
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
-            {item ? 'Set the amount currently on hand. Receipt history stays unchanged.' : 'Track a saved grocery item and choose when it should be flagged as low.'}
+            {item ? 'Set the amount currently on hand and update its purchase restock preference.' : 'Track a saved grocery item and choose when it should be flagged as low.'}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
@@ -305,6 +312,23 @@ function PantryStockFormDialog({
                 <span className="w-20 shrink-0 truncate text-sm text-muted-foreground">{item?.unit ?? units.find((unit) => unit.id === unitId)?.name ?? 'unit'}</span>
               </div>
             </Label>
+
+            <label htmlFor="pantry-auto-restock" className="flex cursor-pointer items-start gap-3 rounded-lg border bg-muted/20 p-3.5">
+              <Input
+                id="pantry-auto-restock"
+                type="checkbox"
+                className="mt-0.5 size-4 shrink-0 rounded border-input p-0 accent-primary shadow-none focus-visible:ring-2 focus-visible:ring-ring"
+                checked={autoRestock}
+                onChange={(event) => setAutoRestock(event.target.checked)}
+                disabled={isSaving}
+              />
+              <span className="min-w-0">
+                <span className="block text-sm font-medium">Automatically add future purchases</span>
+                <span className="mt-0.5 block text-xs leading-5 text-muted-foreground">
+                  Matching receipt items in the same unit will increase this stock quantity. Past purchases are not added.
+                </span>
+              </span>
+            </label>
 
             <p className="text-xs leading-5 text-muted-foreground">Items reach “Low stock” at or below this amount. A quantity of zero is marked “Out of stock.”</p>
             {formError && (
@@ -540,6 +564,7 @@ export default function PantryStock() {
                         <div className="min-w-0">
                           <h3 className="truncate text-sm font-semibold"><HighlightedItemName name={stock.itemName} query={searchQuery} /></h3>
                           <p className="mt-0.5 text-xs text-muted-foreground">{stock.unit}</p>
+                          {stock.autoRestock && <Badge variant="secondary" className="mt-1 h-5 px-1.5 text-[10px]">Auto-restock</Badge>}
                         </div>
                       </div>
                       <StatusBadge status={stock.status} />
