@@ -31,6 +31,7 @@ export type PantryRestockedItemRecord = {
   unit: string;
   quantityAdded: number;
   quantityOnHand: number;
+  expiresOn: string | null;
 };
 
 async function insertPurchaseItems(
@@ -113,12 +114,13 @@ async function restockPantryFromPurchase(
            updated_at = NOW()
        FROM restock_totals totals
        WHERE ps.id = totals.pantry_stock_id
-       RETURNING ps.id, ps.grocery_item_id, ps.unit_id, ps.quantity
+       RETURNING ps.id, ps.grocery_item_id, ps.unit_id, ps.quantity, ps.expires_on
      )
      SELECT gi.name AS "itemName",
             mu.name AS unit,
             totals.quantity_added::float8 AS "quantityAdded",
-            updated_stock.quantity::float8 AS "quantityOnHand"
+            updated_stock.quantity::float8 AS "quantityOnHand",
+            updated_stock.expires_on::text AS "expiresOn"
      FROM restock_totals totals
      JOIN updated_stock ON updated_stock.id = totals.pantry_stock_id
      JOIN grocery_items gi ON gi.id = updated_stock.grocery_item_id

@@ -69,6 +69,7 @@ paths:
       description: |
         Returns the current tracked quantity for each saved grocery item and
         measurement-unit pair. Quantities are not converted between units.
+        Each record may have one optional expiry date for its tracked quantity.
         The summary counts all pantry records, even when search or status
         filters are applied to the returned page. A zero quantity is out of
         stock; a positive quantity at or below its optional threshold is low.
@@ -122,6 +123,7 @@ paths:
                     quantity: 1.5
                     lowStockThreshold: 2
                     autoRestock: true
+                    expiresOn: "2026-12-15"
                     status: low_stock
                     updatedAt: "2026-11-05T08:00:00.000Z"
                 page: 1
@@ -146,7 +148,9 @@ paths:
         unit. A pair can be tracked only once; use the update operation to
         change an existing quantity or auto-restock setting. When autoRestock
         is true, future purchases with the exact same item and unit increase
-        this quantity. Past purchases are not applied retroactively.
+        this quantity. The optional expiry date applies to the tracked quantity
+        and is not changed by auto-restocking. Past purchases are not applied
+        retroactively.
       requestBody:
         required: true
         content:
@@ -159,6 +163,7 @@ paths:
               quantity: 1.5
               lowStockThreshold: 2
               autoRestock: true
+              expiresOn: "2026-12-15"
       responses:
         "201":
           description: The pantry stock record was created.
@@ -175,6 +180,7 @@ paths:
                 quantity: 1.5
                 lowStockThreshold: 2
                 autoRestock: true
+                expiresOn: "2026-12-15"
                 status: low_stock
                 updatedAt: "2026-11-05T08:00:00.000Z"
         "400":
@@ -212,7 +218,7 @@ paths:
       tags:
         - Pantry stock
       summary: Update current pantry quantity
-      description: Replaces the current quantity, nullable low-stock threshold, and auto-restock setting. It does not change grocery purchase history.
+      description: Replaces the current quantity, nullable low-stock threshold, auto-restock setting, and nullable expiry date. It does not change grocery purchase history.
       requestBody:
         required: true
         content:
@@ -223,6 +229,7 @@ paths:
               quantity: 0.75
               lowStockThreshold: 2
               autoRestock: true
+              expiresOn: "2026-12-15"
       responses:
         "200":
           description: The pantry stock record was updated.
@@ -572,7 +579,9 @@ paths:
         totalPaidCentavos. The total must fit a signed 32-bit integer. Pantry
         stock records opted into auto-restock are updated for exact item and
         unit matches in the same transaction. The create response lists each
-        pantry record updated; a purchase line is applied at most once.
+        pantry record updated; a purchase line is applied at most once. An
+        existing pantry expiry date is preserved because receipts do not carry
+        expiry information.
       requestBody:
         required: true
         content:
@@ -624,6 +633,7 @@ paths:
                     unit: "kg"
                     quantityAdded: 2
                     quantityOnHand: 3.5
+                    expiresOn: "2026-12-15"
         "400":
           $ref: "#/components/responses/BadRequest"
         "500":
@@ -856,6 +866,7 @@ components:
         - quantity
         - lowStockThreshold
         - autoRestock
+        - expiresOn
         - status
         - updatedAt
       properties:
@@ -887,6 +898,12 @@ components:
         autoRestock:
           type: boolean
           description: Whether future matching receipt lines increase this pantry quantity.
+        expiresOn:
+          oneOf:
+            - type: string
+              format: date
+            - type: "null"
+          description: Optional date applying to this record's tracked quantity.
         status:
           $ref: "#/components/schemas/PantryStockStatus"
         updatedAt:
@@ -971,6 +988,13 @@ components:
           type: boolean
           default: false
           description: When true, matching future purchases add their quantity to this record.
+        expiresOn:
+          oneOf:
+            - type: string
+              format: date
+            - type: "null"
+          default: null
+          description: Optional expiry date for the tracked quantity.
     UpdatePantryStockRequest:
       type: object
       additionalProperties: false
@@ -978,6 +1002,7 @@ components:
         - quantity
         - lowStockThreshold
         - autoRestock
+        - expiresOn
       properties:
         quantity:
           type: number
@@ -993,6 +1018,11 @@ components:
             - type: "null"
         autoRestock:
           type: boolean
+        expiresOn:
+          oneOf:
+            - type: string
+              format: date
+            - type: "null"
     StoreCategory:
       type: string
       enum:
@@ -1255,6 +1285,7 @@ components:
         - unit
         - quantityAdded
         - quantityOnHand
+        - expiresOn
       properties:
         itemName:
           type: string
@@ -1272,6 +1303,11 @@ components:
           maximum: 999999999.999
           multipleOf: 0.001
           description: Pantry quantity after applying this purchase.
+        expiresOn:
+          oneOf:
+            - type: string
+              format: date
+            - type: "null"
     PurchaseItem:
       type: object
       additionalProperties: false

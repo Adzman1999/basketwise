@@ -10,6 +10,7 @@ export type PantryStockRecord = {
   quantity: string | number;
   lowStockThreshold: string | number | null;
   autoRestock: boolean;
+  expiresOn: string | null;
   updatedAt: Date;
 };
 
@@ -55,6 +56,7 @@ export async function listPantryStockRecords(input: PantryStockListQuery): Promi
               ps.quantity,
               ps.low_stock_threshold AS "lowStockThreshold",
               ps.auto_restock AS "autoRestock",
+              ps.expires_on::text AS "expiresOn",
               ps.updated_at AS "updatedAt"
        FROM pantry_stock ps
        JOIN grocery_items gi ON gi.id = ps.grocery_item_id
@@ -85,8 +87,10 @@ export async function pantryReferencesExist(groceryItemId: string, unitId: strin
 
 export async function createPantryStockRecord(input: CreatePantryStockInput): Promise<PantryStockRecord | null> {
   const result = await query<PantryStockRecord>(
-    `INSERT INTO pantry_stock (grocery_item_id, unit_id, quantity, low_stock_threshold, auto_restock)
-     VALUES ($1, $2, $3, $4, $5)
+    `INSERT INTO pantry_stock (
+       grocery_item_id, unit_id, quantity, low_stock_threshold, auto_restock, expires_on
+     )
+     VALUES ($1, $2, $3, $4, $5, $6)
      ON CONFLICT (grocery_item_id, unit_id) DO NOTHING
      RETURNING id,
                grocery_item_id AS "groceryItemId",
@@ -96,8 +100,9 @@ export async function createPantryStockRecord(input: CreatePantryStockInput): Pr
                quantity,
                low_stock_threshold AS "lowStockThreshold",
                auto_restock AS "autoRestock",
+               expires_on::text AS "expiresOn",
                updated_at AS "updatedAt"`,
-    [input.groceryItemId, input.unitId, input.quantity, input.lowStockThreshold ?? null, input.autoRestock]
+    [input.groceryItemId, input.unitId, input.quantity, input.lowStockThreshold ?? null, input.autoRestock, input.expiresOn ?? null]
   );
   return result.rows[0] ?? null;
 }
@@ -111,6 +116,7 @@ export async function updatePantryStockRecord(
      SET quantity = $2,
          low_stock_threshold = $3,
          auto_restock = $4,
+         expires_on = $5,
          updated_at = NOW()
      FROM grocery_items gi, measurement_units mu
      WHERE ps.id = $1
@@ -124,8 +130,9 @@ export async function updatePantryStockRecord(
                ps.quantity,
                ps.low_stock_threshold AS "lowStockThreshold",
                ps.auto_restock AS "autoRestock",
+               ps.expires_on::text AS "expiresOn",
                ps.updated_at AS "updatedAt"`,
-    [id, input.quantity, input.lowStockThreshold, input.autoRestock]
+    [id, input.quantity, input.lowStockThreshold, input.autoRestock, input.expiresOn]
   );
   return result.rows[0] ?? null;
 }

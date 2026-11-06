@@ -22,6 +22,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { philippineDateString } from '@/lib/dates';
 import {
   createPantryStock,
   deletePantryStock,
@@ -56,6 +57,26 @@ function formatQuantity(value: number): string {
 
 function formatUpdatedAt(value: string): string {
   return new Intl.DateTimeFormat('en-PH', { dateStyle: 'medium' }).format(new Date(value));
+}
+
+function formatDateOnly(value: string): string {
+  return new Intl.DateTimeFormat('en-PH', { dateStyle: 'medium', timeZone: 'UTC' })
+    .format(new Date(`${value}T00:00:00.000Z`));
+}
+
+function ExpiryDisplay({ expiresOn, today }: { expiresOn: string | null; today: string }) {
+  if (!expiresOn) return <p>No expiry date</p>;
+  const daysRemaining = (Date.parse(`${expiresOn}T00:00:00.000Z`) - Date.parse(`${today}T00:00:00.000Z`)) / 86_400_000;
+  if (daysRemaining < 0) {
+    return <Badge variant="destructive">Expired {formatDateOnly(expiresOn)}</Badge>;
+  }
+  if (daysRemaining === 0) {
+    return <Badge variant="destructive">Expires today</Badge>;
+  }
+  if (daysRemaining <= 7) {
+    return <Badge variant="outline" className="border-amber-600/20 bg-amber-600/10 text-amber-700 dark:text-amber-300">Expires in {daysRemaining} {daysRemaining === 1 ? 'day' : 'days'}</Badge>;
+  }
+  return <p>Expires {formatDateOnly(expiresOn)}</p>;
 }
 
 const statusLabels: Record<PantryStockStatus, string> = {
@@ -107,6 +128,7 @@ function PantryStockFormDialog({
   const [quantity, setQuantity] = useState('');
   const [threshold, setThreshold] = useState('');
   const [autoRestock, setAutoRestock] = useState(false);
+  const [expiresOn, setExpiresOn] = useState('');
   const [itemSearch, setItemSearch] = useState('');
   const [catalogItems, setCatalogItems] = useState<GroceryItem[]>([]);
   const [isCatalogLoading, setIsCatalogLoading] = useState(false);
@@ -122,6 +144,7 @@ function PantryStockFormDialog({
     setQuantity(item ? String(item.quantity) : '');
     setThreshold(item?.lowStockThreshold === null || item?.lowStockThreshold === undefined ? '' : String(item.lowStockThreshold));
     setAutoRestock(item?.autoRestock ?? false);
+    setExpiresOn(item?.expiresOn ?? '');
     setItemSearch('');
     setFormError('');
   }, [open, item]);
@@ -175,6 +198,7 @@ function PantryStockFormDialog({
           quantity: parsedQuantity,
           lowStockThreshold: parsedThreshold,
           autoRestock,
+          expiresOn: expiresOn || null,
         });
       } else if (selectedItem) {
         await createPantryStock({
@@ -183,6 +207,7 @@ function PantryStockFormDialog({
           quantity: parsedQuantity,
           lowStockThreshold: parsedThreshold,
           autoRestock,
+          expiresOn: expiresOn || null,
         });
       }
       onSaved();
@@ -202,7 +227,7 @@ function PantryStockFormDialog({
         <DialogHeader className="shrink-0 border-b px-5 py-4 text-left sm:px-6">
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
-            {item ? 'Set the amount currently on hand and update its purchase restock preference.' : 'Track a saved grocery item and choose when it should be flagged as low.'}
+            {item ? 'Set the amount currently on hand, its expiry date, and purchase restock preference.' : 'Track a saved grocery item and choose when it should be flagged as low.'}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
@@ -313,6 +338,19 @@ function PantryStockFormDialog({
               </div>
             </Label>
 
+            <Label htmlFor="pantry-expires-on" className="grid gap-2 text-sm font-medium">
+              Expiry date <span className="font-normal text-muted-foreground">· optional</span>
+              <Input
+                id="pantry-expires-on"
+                type="date"
+                className="h-10 w-full"
+                value={expiresOn}
+                onChange={(event) => setExpiresOn(event.target.value)}
+                disabled={isSaving}
+              />
+            </Label>
+            <p className="-mt-2 text-xs leading-5 text-muted-foreground">This date applies to the tracked item and unit quantity. Auto-restocked purchases leave it unchanged.</p>
+
             <label htmlFor="pantry-auto-restock" className="flex cursor-pointer items-start gap-3 rounded-lg border bg-muted/20 p-3.5">
               <Input
                 id="pantry-auto-restock"
@@ -325,7 +363,7 @@ function PantryStockFormDialog({
               <span className="min-w-0">
                 <span className="block text-sm font-medium">Automatically add future purchases</span>
                 <span className="mt-0.5 block text-xs leading-5 text-muted-foreground">
-                  Matching receipt items in the same unit will increase this stock quantity. Past purchases are not added.
+                  Matching receipt items in the same unit increase this quantity. Past purchases are not added.
                 </span>
               </span>
             </label>
@@ -457,6 +495,7 @@ export default function PantryStock() {
 
   const page = stockState.kind === 'loaded' ? stockState.page : null;
   const totalPages = Math.max(1, Math.ceil((page?.total ?? 0) / pageSize));
+  const today = philippineDateString();
 
   return (
     <section aria-labelledby="pantry-stock-title" className="space-y-5">
@@ -576,6 +615,7 @@ export default function PantryStock() {
                       </div>
                       <div className="text-right text-xs text-muted-foreground">
                         <p>{stock.lowStockThreshold === null ? 'No alert level' : `Low at ${formatQuantity(stock.lowStockThreshold)} ${stock.unit}`}</p>
+                        <div className="mt-1 flex justify-end"><ExpiryDisplay expiresOn={stock.expiresOn} today={today} /></div>
                         <p className="mt-1">Updated {formatUpdatedAt(stock.updatedAt)}</p>
                       </div>
                     </div>

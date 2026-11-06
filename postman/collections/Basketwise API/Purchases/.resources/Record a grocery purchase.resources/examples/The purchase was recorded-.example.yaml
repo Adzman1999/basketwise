@@ -66,7 +66,8 @@ response:
             "itemName": "Rice",
             "unit": "kg",
             "quantityAdded": 2,
-            "quantityOnHand": 3.5
+            "quantityOnHand": 3.5,
+            "expiresOn": "2026-12-15"
           }
         ]
       }
