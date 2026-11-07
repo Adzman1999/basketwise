@@ -7,7 +7,6 @@ import {
   PackageCheck,
   PackageX,
   Pencil,
-  Plus,
   Search,
   Trash2,
   TriangleAlert,
@@ -16,7 +15,6 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -24,14 +22,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { philippineDateString } from '@/lib/dates';
 import {
-  createPantryStock,
   deletePantryStock,
-  fetchGroceryItems,
   fetchPantryStock,
-  fetchUnits,
   updatePantryStock,
-  type GroceryItem,
-  type MeasurementUnit,
   type PantryStockItem,
   type PantryStockStatus,
 } from '@/lib/api';
@@ -108,70 +101,20 @@ function HighlightedItemName({ name, query }: { name: string; query: string }) {
 }
 
 function PantryStockFormDialog({
-  open,
   item,
-  units,
-  unitsError,
   onOpenChange,
   onSaved,
 }: {
-  open: boolean;
-  item: PantryStockItem | null;
-  units: MeasurementUnit[];
-  unitsError: string;
+  item: PantryStockItem;
   onOpenChange: (open: boolean) => void;
   onSaved: () => void;
 }) {
-  const [selectedItem, setSelectedItem] = useState<GroceryItem | null>(null);
-  const [selectingItem, setSelectingItem] = useState(false);
-  const [unitId, setUnitId] = useState('');
-  const [quantity, setQuantity] = useState('');
-  const [threshold, setThreshold] = useState('');
-  const [autoRestock, setAutoRestock] = useState(false);
-  const [expiresOn, setExpiresOn] = useState('');
-  const [itemSearch, setItemSearch] = useState('');
-  const [catalogItems, setCatalogItems] = useState<GroceryItem[]>([]);
-  const [isCatalogLoading, setIsCatalogLoading] = useState(false);
-  const [catalogError, setCatalogError] = useState('');
+  const [quantity, setQuantity] = useState(String(item.quantity));
+  const [threshold, setThreshold] = useState(item.lowStockThreshold === null ? '' : String(item.lowStockThreshold));
+  const [autoRestock, setAutoRestock] = useState(item.autoRestock);
+  const [expiresOn, setExpiresOn] = useState(item.expiresOn ?? '');
   const [formError, setFormError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
-
-  useEffect(() => {
-    if (!open) return;
-    setSelectedItem(item ? { id: item.groceryItemId, name: item.itemName } : null);
-    setSelectingItem(!item);
-    setUnitId(item?.unitId ?? '');
-    setQuantity(item ? String(item.quantity) : '');
-    setThreshold(item?.lowStockThreshold === null || item?.lowStockThreshold === undefined ? '' : String(item.lowStockThreshold));
-    setAutoRestock(item?.autoRestock ?? false);
-    setExpiresOn(item?.expiresOn ?? '');
-    setItemSearch('');
-    setFormError('');
-  }, [open, item]);
-
-  useEffect(() => {
-    if (!open || item || !selectingItem) return;
-    const controller = new AbortController();
-    const timeout = window.setTimeout(() => {
-      setIsCatalogLoading(true);
-      setCatalogError('');
-      void fetchGroceryItems(1, 20, itemSearch, controller.signal)
-        .then((page) => {
-          if (!controller.signal.aborted) setCatalogItems(page.items);
-        })
-        .catch((error: unknown) => {
-          if (controller.signal.aborted) return;
-          setCatalogError(error instanceof Error ? error.message : 'Could not load grocery items.');
-        })
-        .finally(() => {
-          if (!controller.signal.aborted) setIsCatalogLoading(false);
-        });
-    }, 180);
-    return () => {
-      window.clearTimeout(timeout);
-      controller.abort();
-    };
-  }, [item, itemSearch, open, selectingItem]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -182,34 +125,14 @@ function PantryStockFormDialog({
       setFormError('Enter amounts with up to three decimal places.');
       return;
     }
-    if (!item && !selectedItem) {
-      setFormError('Choose a saved grocery item. Record a grocery receipt first if your catalog is empty.');
-      return;
-    }
-    if (!item && !unitId) {
-      setFormError('Choose a measurement unit.');
-      return;
-    }
-
     setIsSaving(true);
     try {
-      if (item) {
-        await updatePantryStock(item.id, {
-          quantity: parsedQuantity,
-          lowStockThreshold: parsedThreshold,
-          autoRestock,
-          expiresOn: expiresOn || null,
-        });
-      } else if (selectedItem) {
-        await createPantryStock({
-          groceryItemId: selectedItem.id,
-          unitId,
-          quantity: parsedQuantity,
-          lowStockThreshold: parsedThreshold,
-          autoRestock,
-          expiresOn: expiresOn || null,
-        });
-      }
+      await updatePantryStock(item.id, {
+        quantity: parsedQuantity,
+        lowStockThreshold: parsedThreshold,
+        autoRestock,
+        expiresOn: expiresOn || null,
+      });
       onSaved();
       onOpenChange(false);
     } catch (error) {
@@ -219,83 +142,22 @@ function PantryStockFormDialog({
     }
   }
 
-  const title = item ? 'Adjust pantry stock' : 'Add pantry stock';
-
   return (
-    <Dialog open={open} onOpenChange={(nextOpen) => !isSaving && onOpenChange(nextOpen)}>
+    <Dialog open onOpenChange={(nextOpen) => !isSaving && onOpenChange(nextOpen)}>
       <DialogContent className="flex max-h-[92dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
         <DialogHeader className="shrink-0 border-b px-5 py-4 text-left sm:px-6">
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>
-            {item ? 'Set the amount currently on hand, its expiry date, and purchase restock preference.' : 'Track a saved grocery item and choose when it should be flagged as low.'}
-          </DialogDescription>
+          <DialogTitle>Adjust pantry stock</DialogTitle>
+          <DialogDescription>Correct the current amount or update its alerts. Add new pantry items from a grocery purchase.</DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
           <div className="flex-1 space-y-4 overflow-y-auto px-5 py-5 sm:px-6">
-            {item ? (
-              <div className="grid gap-2">
-                <Label>Grocery item</Label>
-                <div className="flex h-10 min-w-0 items-center rounded-md border bg-muted/30 px-3 text-sm">
-                  <span className="min-w-0 truncate font-medium">{item.itemName}</span>
-                  <span className="ml-auto shrink-0 pl-3 text-muted-foreground">{item.unit}</span>
-                </div>
+            <div className="grid gap-2">
+              <Label>Grocery item</Label>
+              <div className="flex h-10 min-w-0 items-center rounded-md border bg-muted/30 px-3 text-sm">
+                <span className="min-w-0 truncate font-medium">{item.itemName}</span>
+                <span className="ml-auto shrink-0 pl-3 text-muted-foreground">{item.unit}</span>
               </div>
-            ) : (
-              <div className="grid gap-2">
-                <Label htmlFor="pantry-item-search">Grocery item</Label>
-                {selectedItem && !selectingItem ? (
-                  <div className="flex min-h-10 min-w-0 items-center gap-2 rounded-md border bg-muted/30 px-3">
-                    <span className="min-w-0 flex-1 truncate text-sm font-medium">{selectedItem.name}</span>
-                    <Button type="button" variant="ghost" size="sm" className="shrink-0" onClick={() => setSelectingItem(true)}>Change</Button>
-                  </div>
-                ) : (
-                  <Command shouldFilter={false} className="rounded-md border bg-background">
-                    <CommandInput
-                      id="pantry-item-search"
-                      placeholder="Search saved grocery items"
-                      value={itemSearch}
-                      onValueChange={setItemSearch}
-                      disabled={isSaving}
-                    />
-                    <CommandList className="max-h-40">
-                      {isCatalogLoading && <div className="px-3 py-2 text-sm text-muted-foreground">Searching items…</div>}
-                      {catalogError && <div className="px-3 py-2 text-sm text-destructive">{catalogError}</div>}
-                      {!isCatalogLoading && !catalogError && catalogItems.map((catalogItem) => (
-                        <CommandItem
-                          key={catalogItem.id}
-                          value={catalogItem.id}
-                          onSelect={() => {
-                            setSelectedItem(catalogItem);
-                            setSelectingItem(false);
-                            setFormError('');
-                          }}
-                        >
-                          <HighlightedItemName name={catalogItem.name} query={itemSearch} />
-                        </CommandItem>
-                      ))}
-                      {!isCatalogLoading && !catalogError && catalogItems.length === 0 && (
-                        <CommandEmpty>{itemSearch ? 'No matching saved items.' : 'Record a grocery receipt to build your item catalog.'}</CommandEmpty>
-                      )}
-                    </CommandList>
-                  </Command>
-                )}
-              </div>
-            )}
-
-            {!item && (
-              <div className="grid gap-2">
-                <Label htmlFor="pantry-unit">Unit</Label>
-                <Select value={unitId} onValueChange={setUnitId} disabled={isSaving || units.length === 0}>
-                  <SelectTrigger id="pantry-unit" className="h-10 w-full">
-                    <SelectValue placeholder="Choose a unit" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {units.map((unit) => <SelectItem key={unit.id} value={unit.id}>{unit.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                {unitsError && <p className="text-xs text-destructive">{unitsError}</p>}
-              </div>
-            )}
+            </div>
 
             <Label htmlFor="pantry-quantity" className="grid gap-2 text-sm font-medium">
               Current quantity
@@ -314,7 +176,7 @@ function PantryStockFormDialog({
                   required
                   disabled={isSaving}
                 />
-                <span className="w-20 shrink-0 truncate text-sm text-muted-foreground">{item?.unit ?? units.find((unit) => unit.id === unitId)?.name ?? 'unit'}</span>
+                <span className="w-20 shrink-0 truncate text-sm text-muted-foreground">{item.unit}</span>
               </div>
             </Label>
 
@@ -334,7 +196,7 @@ function PantryStockFormDialog({
                   placeholder="Leave empty to skip alerts"
                   disabled={isSaving}
                 />
-                <span className="w-20 shrink-0 truncate text-sm text-muted-foreground">{item?.unit ?? units.find((unit) => unit.id === unitId)?.name ?? 'unit'}</span>
+                <span className="w-20 shrink-0 truncate text-sm text-muted-foreground">{item.unit}</span>
               </div>
             </Label>
 
@@ -349,7 +211,7 @@ function PantryStockFormDialog({
                 disabled={isSaving}
               />
             </Label>
-            <p className="-mt-2 text-xs leading-5 text-muted-foreground">This date applies to the tracked item and unit quantity. Auto-restocked purchases leave it unchanged.</p>
+            <p className="-mt-2 text-xs leading-5 text-muted-foreground">This date applies to the tracked item and unit quantity. Purchases leave it unchanged because receipts do not include expiry dates.</p>
 
             <label htmlFor="pantry-auto-restock" className="flex cursor-pointer items-start gap-3 rounded-lg border bg-muted/20 p-3.5">
               <Input
@@ -379,8 +241,8 @@ function PantryStockFormDialog({
           </div>
           <DialogFooter className="shrink-0 border-t bg-background px-5 py-4 sm:px-6">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>Cancel</Button>
-            <Button type="submit" disabled={isSaving || (!item && units.length === 0)}>
-              {isSaving ? 'Saving…' : item ? 'Save stock' : 'Add to pantry'}
+            <Button type="submit" disabled={isSaving}>
+              {isSaving ? 'Saving…' : 'Save changes'}
             </Button>
           </DialogFooter>
         </form>
@@ -422,15 +284,11 @@ function SummaryCard({
 
 export default function PantryStock() {
   const [stockState, setStockState] = useState<PantryStockState>({ kind: 'loading' });
-  const [units, setUnits] = useState<MeasurementUnit[]>([]);
-  const [unitsError, setUnitsError] = useState('');
-  const [unitRefresh, setUnitRefresh] = useState(0);
   const [searchText, setSearchText] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [status, setStatus] = useState<PantryStockStatus | ''>('');
   const [pageNumber, setPageNumber] = useState(1);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [dialogOpen, setDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<PantryStockItem | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<PantryStockItem | null>(null);
   const [deleteError, setDeleteError] = useState('');
@@ -443,22 +301,6 @@ export default function PantryStock() {
     }, 250);
     return () => window.clearTimeout(timeout);
   }, [searchText]);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    void fetchUnits(controller.signal)
-      .then((page) => {
-        if (!controller.signal.aborted) {
-          setUnits(page.items);
-          setUnitsError('');
-        }
-      })
-      .catch((error: unknown) => {
-        if (controller.signal.aborted) return;
-        setUnitsError(error instanceof Error ? error.message : 'Could not load measurement units.');
-      });
-    return () => controller.abort();
-  }, [unitRefresh]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -501,26 +343,11 @@ export default function PantryStock() {
     <section aria-labelledby="pantry-stock-title" className="space-y-5">
       <div className="space-y-1.5">
         <Badge variant="secondary" className="w-fit gap-1.5"><PackageCheck aria-hidden="true" className="size-4" /> Household stock</Badge>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 id="pantry-stock-title" className="text-2xl font-semibold tracking-tight">Pantry stock</h2>
-            <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">Keep current quantities visible and know when household staples are running low.</p>
-          </div>
-          <Button onClick={() => { setEditingItem(null); setDialogOpen(true); }} disabled={units.length === 0}>
-            <Plus aria-hidden="true" /> Add stock
-          </Button>
+        <div>
+          <h2 id="pantry-stock-title" className="text-2xl font-semibold tracking-tight">Pantry stock</h2>
+          <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">Keep current quantities visible and know when household staples are running low.</p>
         </div>
       </div>
-
-      {unitsError && (
-        <Alert variant="destructive">
-          <AlertTitle>Measurement units could not load</AlertTitle>
-          <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
-            <span>{unitsError}</span>
-            <Button type="button" size="sm" variant="outline" onClick={() => setUnitRefresh((current) => current + 1)}>Try again</Button>
-          </AlertDescription>
-        </Alert>
-      )}
 
       {stockState.kind === 'loaded' ? (
         <div className="grid gap-3 sm:grid-cols-3">
@@ -586,9 +413,13 @@ export default function PantryStock() {
               <p className="mt-1 max-w-sm text-sm leading-6 text-muted-foreground">
                 {page.total > 0
                   ? 'Try another item name or stock filter.'
-                  : 'Record a grocery purchase first, then add its saved items here with their current quantities.'}
+                  : 'Pantry items are added from grocery receipts. Record a purchase and choose to add its items to pantry stock.'}
               </p>
-              {page.total === 0 && <Button className="mt-4" onClick={() => { setEditingItem(null); setDialogOpen(true); }} disabled={units.length === 0}><Plus aria-hidden="true" /> Add stock</Button>}
+              {page.total === 0 && (
+                <Button asChild className="mt-4" variant="outline">
+                  <a href="#grocery-spending">Go to Grocery spending</a>
+                </Button>
+              )}
             </div>
           )}
 
@@ -620,7 +451,7 @@ export default function PantryStock() {
                       </div>
                     </div>
                     <div className="mt-4 flex justify-end gap-2 border-t pt-3">
-                      <Button type="button" variant="outline" size="sm" onClick={() => { setEditingItem(stock); setDialogOpen(true); }}>
+                      <Button type="button" variant="outline" size="sm" onClick={() => setEditingItem(stock)}>
                         <Pencil aria-hidden="true" /> Adjust
                       </Button>
                       <Button type="button" variant="ghost" size="icon" aria-label={`Remove ${stock.itemName} from pantry`} title="Remove stock record" onClick={() => { setDeleteError(''); setDeleteTarget(stock); }}>
@@ -647,14 +478,16 @@ export default function PantryStock() {
         </CardContent>
       </Card>
 
-      <PantryStockFormDialog
-        open={dialogOpen}
-        item={editingItem}
-        units={units}
-        unitsError={unitsError}
-        onOpenChange={setDialogOpen}
-        onSaved={() => setRefreshKey((current) => current + 1)}
-      />
+      {editingItem && (
+        <PantryStockFormDialog
+          item={editingItem}
+          onOpenChange={(open) => { if (!open) setEditingItem(null); }}
+          onSaved={() => {
+            setEditingItem(null);
+            setRefreshKey((current) => current + 1);
+          }}
+        />
+      )}
 
       <Dialog open={Boolean(deleteTarget)} onOpenChange={(open) => !isDeleting && !open && setDeleteTarget(null)}>
         <DialogContent className="sm:max-w-md">

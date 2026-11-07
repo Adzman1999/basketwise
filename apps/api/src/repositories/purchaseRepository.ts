@@ -19,10 +19,14 @@ type PurchaseItemRow = {
   quantity: string | number;
   unit: string;
   amountPaidCentavos: number;
+  pantryAdded: boolean;
 };
 
+type PurchaseItemRecord = Omit<PurchaseItemRow, 'purchaseId'>;
+type PurchaseItemInsertRecord = Omit<PurchaseItemRecord, 'pantryAdded'>;
+
 export type PurchaseRecord = PurchaseRow & {
-  items: Array<Omit<PurchaseItemRow, 'purchaseId'>>;
+  items: PurchaseItemRecord[];
   pantryRestockedItems?: PantryRestockedItemRecord[];
 };
 
@@ -38,11 +42,11 @@ async function insertPurchaseItems(
   client: PoolClient,
   purchaseId: string,
   items: CreatePurchaseInput['items']
-): Promise<Array<Omit<PurchaseItemRow, 'purchaseId'>>> {
-  const insertedItems: Array<Omit<PurchaseItemRow, 'purchaseId'>> = [];
+): Promise<PurchaseItemInsertRecord[]> {
+  const insertedItems: PurchaseItemInsertRecord[] = [];
 
   for (const [position, item] of items.entries()) {
-    const result = await client.query<Omit<PurchaseItemRow, 'purchaseId'>>(
+    const result = await client.query<PurchaseItemInsertRecord>(
       `WITH catalog_item AS (
          INSERT INTO grocery_items (name, normalized_name)
          VALUES (
@@ -90,6 +94,11 @@ async function restockPantryFromPurchase(
        SELECT DISTINCT pi.grocery_item_id, pi.unit_id, 0
        FROM purchase_items pi
        WHERE pi.purchase_id = $1
+         AND NOT EXISTS (
+           SELECT 1
+           FROM pantry_stock_purchase_movements movement
+           WHERE movement.purchase_item_id = pi.id
+         )
        ON CONFLICT (grocery_item_id, unit_id) DO NOTHING`,
       [purchaseId]
     );
@@ -143,6 +152,26 @@ async function restockPantryFromPurchase(
   return result.rows;
 }
 
+async function attachPantryStatus(
+  client: PoolClient,
+  purchaseId: string,
+  items: PurchaseItemInsertRecord[]
+): Promise<PurchaseItemRecord[]> {
+  const result = await client.query<{ purchaseItemId: string; pantryAdded: boolean }>(
+    `SELECT pi.id AS "purchaseItemId",
+            EXISTS (
+              SELECT 1
+              FROM pantry_stock_purchase_movements movement
+              WHERE movement.purchase_item_id = pi.id
+            ) AS "pantryAdded"
+     FROM purchase_items pi
+     WHERE pi.purchase_id = $1`,
+    [purchaseId]
+  );
+  const pantryAddedById = new Map(result.rows.map((row) => [row.purchaseItemId, row.pantryAdded]));
+  return items.map((item) => ({ ...item, pantryAdded: pantryAddedById.get(item.id) ?? false }));
+}
+
 export async function createPurchaseRecord(input: CreatePurchaseInput): Promise<PurchaseRecord> {
   const client = await getPool().connect();
   let transactionStarted = false;
@@ -175,17 +204,55 @@ export async function createPurchaseRecord(input: CreatePurchaseInput): Promise<
       [input.purchasedOn, input.storeName ?? null, totalPaidCentavos]
     );
     const purchase = purchaseResult.rows[0];
-    const items = await insertPurchaseItems(client, purchase.id, input.items);
+    const insertedItems = await insertPurchaseItems(client, purchase.id, input.items);
     const pantryRestockedItems = await restockPantryFromPurchase(
       client,
       purchase.id,
       input.addToPantry
     );
+    const items = await attachPantryStatus(client, purchase.id, insertedItems);
 
     await client.query('COMMIT');
     transactionStarted = false;
 
     return { ...purchase, items, pantryRestockedItems };
+  } catch (error) {
+    if (transactionStarted) {
+      try {
+        await client.query('ROLLBACK');
+      } catch {
+        // Keep the original database error for the caller.
+      }
+    }
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function addPurchaseItemsToPantryRecord(
+  purchaseId: string
+): Promise<PantryRestockedItemRecord[] | null> {
+  const client = await getPool().connect();
+  let transactionStarted = false;
+
+  try {
+    await client.query('BEGIN');
+    transactionStarted = true;
+    const purchaseResult = await client.query<{ id: string }>(
+      'SELECT id FROM purchases WHERE id = $1 FOR UPDATE',
+      [purchaseId]
+    );
+    if (purchaseResult.rowCount !== 1) {
+      await client.query('ROLLBACK');
+      transactionStarted = false;
+      return null;
+    }
+
+    const pantryRestockedItems = await restockPantryFromPurchase(client, purchaseId, true);
+    await client.query('COMMIT');
+    transactionStarted = false;
+    return pantryRestockedItems;
   } catch (error) {
     if (transactionStarted) {
       try {
@@ -256,7 +323,12 @@ export async function listPurchaseRecords(input: PurchaseListQuery): Promise<{
     : (await query<PurchaseItemRow>(
       `SELECT id, purchase_id AS "purchaseId", item_name AS "itemName",
               grocery_item_id AS "groceryItemId", quantity, unit,
-              amount_paid_centavos AS "amountPaidCentavos"
+              amount_paid_centavos AS "amountPaidCentavos",
+              EXISTS (
+                SELECT 1
+                FROM pantry_stock_purchase_movements movement
+                WHERE movement.purchase_item_id = purchase_items.id
+              ) AS "pantryAdded"
        FROM purchase_items
        WHERE purchase_id = ANY($1::uuid[])
        ORDER BY purchase_id, position`,
@@ -273,6 +345,7 @@ export async function listPurchaseRecords(input: PurchaseListQuery): Promise<{
       quantity: item.quantity,
       unit: item.unit,
       amountPaidCentavos: item.amountPaidCentavos,
+      pantryAdded: item.pantryAdded,
     });
     itemsByPurchase.set(item.purchaseId, purchaseItems);
   }

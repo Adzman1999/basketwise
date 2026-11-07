@@ -1,5 +1,5 @@
 $kind: http-request
-description: Returns purchases newest first, with receipt line items. Optional item/store substring searches and inclusive date bounds are applied before pagination.
+description: Returns purchases newest first with receipt line items and whether each line is already added to pantry. Optional item/store substring searches and inclusive date bounds are applied before pagination.
 url: '{{baseUrl}}/api/purchases?page=1&pageSize=20'
 method: GET
 headers:

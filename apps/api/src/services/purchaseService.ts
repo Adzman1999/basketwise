@@ -1,4 +1,5 @@
 import {
+  addPurchaseItemsToPantryRecord,
   createPurchaseRecord,
   listPurchaseRecords,
   type PurchaseRecord,
@@ -27,6 +28,10 @@ function toPurchaseResponse(purchase: PurchaseRecord) {
 
 export async function createPurchase(input: CreatePurchaseInput) {
   return toPurchaseResponse(await createPurchaseRecord(input));
+}
+
+export async function addPurchaseItemsToPantry(purchaseId: string) {
+  return addPurchaseItemsToPantryRecord(purchaseId);
 }
 
 export async function listPurchases(input: PurchaseListQuery) {

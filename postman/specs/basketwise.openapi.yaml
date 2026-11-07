@@ -483,6 +483,8 @@ paths:
         descending, then ID descending, with receipt line items. Optional item
         and store substring searches and inclusive purchase-date bounds are
         applied before pagination; total reports the number of matching receipts.
+        Each receipt line reports whether it has already been added to pantry
+        stock so skipped purchases can be added later.
       parameters:
         - name: page
           in: query
@@ -554,12 +556,14 @@ paths:
                         quantity: 2
                         unit: "kg"
                         amountPaidCentavos: 11000
+                        pantryAdded: true
                       - id: "b4c7c876-a686-4caf-b6fd-4861c3e3a718"
                         groceryItemId: "65fcaec9-a74a-4b8b-becb-0f0733762f35"
                         itemName: "Bananas"
                         quantity: 1
                         unit: "pack"
                         amountPaidCentavos: 1300
+                        pantryAdded: false
                     createdAt: "2026-10-29T08:00:00.000Z"
                 page: 1
                 pageSize: 20
@@ -583,8 +587,9 @@ paths:
         create records, while existing pairs increase their quantity. When it
         is false or omitted, only auto-restock records are updated. The create
         response lists each pantry record updated; a purchase line is applied
-        at most once. Existing expiry dates are preserved because receipts do
-        not carry expiry information.
+        at most once. Untracked receipt lines can be added later with the pantry
+        action for that purchase. Existing expiry dates are preserved because
+        receipts do not carry expiry information.
       requestBody:
         required: true
         content:
@@ -625,12 +630,14 @@ paths:
                     quantity: 2
                     unit: "kg"
                     amountPaidCentavos: 11000
+                    pantryAdded: true
                   - id: "b4c7c876-a686-4caf-b6fd-4861c3e3a718"
                     groceryItemId: "65fcaec9-a74a-4b8b-becb-0f0733762f35"
                     itemName: "Bananas"
                     quantity: 1
                     unit: "pack"
                     amountPaidCentavos: 1300
+                    pantryAdded: true
                 createdAt: "2026-10-29T08:00:00.000Z"
                 pantryRestockedItems:
                   - itemName: "Rice"
@@ -645,6 +652,69 @@ paths:
                     expiresOn: null
         "400":
           $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/purchases/{purchaseId}/pantry:
+    post:
+      operationId: addPurchaseItemsToPantry
+      tags:
+        - Purchases
+      summary: Add untracked receipt items to pantry
+      description: |
+        Adds receipt lines that have not previously changed pantry stock.
+        Missing item and unit pairs are created; existing pairs increase their
+        quantity. Previously applied receipt lines are skipped, so repeating
+        this request cannot add them twice. The purchase and pantry changes are
+        committed together.
+      parameters:
+        - name: purchaseId
+          in: path
+          required: true
+          description: Purchase containing the receipt lines to add.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Previously untracked receipt lines were added. Repeating the request returns an empty list.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AddPurchaseItemsToPantryResponse"
+              example:
+                pantryRestockedItems:
+                  - itemName: "Bananas"
+                    unit: "pack"
+                    quantityAdded: 1
+                    quantityOnHand: 1
+                    expiresOn: null
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          description: The purchase was not found.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - error
+                properties:
+                  error:
+                    type: object
+                    additionalProperties: false
+                    required:
+                      - code
+                      - message
+                    properties:
+                      code:
+                        type: string
+                      message:
+                        type: string
+              example:
+                error:
+                  code: NOT_FOUND
+                  message: The requested purchase was not found.
         "500":
           $ref: "#/components/responses/InternalServerError"
   /api/grocery-items:
@@ -1323,6 +1393,16 @@ components:
             - type: string
               format: date
             - type: "null"
+    AddPurchaseItemsToPantryResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - pantryRestockedItems
+      properties:
+        pantryRestockedItems:
+          type: array
+          items:
+            $ref: "#/components/schemas/PantryRestockedItem"
     PurchaseItem:
       type: object
       additionalProperties: false
@@ -1333,6 +1413,7 @@ components:
         - quantity
         - unit
         - amountPaidCentavos
+        - pantryAdded
       properties:
         id:
           type: string
@@ -1351,6 +1432,9 @@ components:
           type: integer
           minimum: 0
           maximum: 2147483647
+        pantryAdded:
+          type: boolean
+          description: Whether this receipt line has already been applied to pantry stock.
     GroceryItem:
       type: object
       additionalProperties: false

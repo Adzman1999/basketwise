@@ -17,13 +17,15 @@ request:
             "itemName": "Rice",
             "quantity": 2,
             "unit": "kg",
-            "amountPaidCentavos": 11000
+            "amountPaidCentavos": 11000,
+            "pantryAdded": true
           },
           {
             "itemName": "Bananas",
             "quantity": 1,
             "unit": "pack",
-            "amountPaidCentavos": 1300
+            "amountPaidCentavos": 1300,
+            "pantryAdded": true
           }
         ]
       }

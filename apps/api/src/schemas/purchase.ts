@@ -12,6 +12,8 @@ const calendarDate = z.string()
 
 const centavos = z.number().int().min(0).max(maxCentavos);
 
+export const purchaseIdSchema = z.string().uuid();
+
 export const createPurchaseItemSchema = z.object({
   itemName: z.string().trim().min(1).max(120),
   quantity: z.number()

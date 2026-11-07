@@ -21,6 +21,7 @@ export type CreatePurchaseRequest = {
 export type PurchaseItem = CreatePurchaseItem & {
   id: string;
   groceryItemId: string;
+  pantryAdded: boolean;
 };
 
 export type Purchase = {
@@ -426,4 +427,15 @@ export async function createPurchase(input: CreatePurchaseRequest): Promise<Purc
     },
     body: JSON.stringify(input),
   });
+}
+
+export async function addPurchaseItemsToPantry(purchaseId: string): Promise<PantryRestockedItem[]> {
+  const response = await sendRequest<{ pantryRestockedItems: PantryRestockedItem[] }>(
+    `/api/purchases/${encodeURIComponent(purchaseId)}/pantry`,
+    {
+      method: 'POST',
+      headers: { Accept: 'application/json' },
+    }
+  );
+  return response.pantryRestockedItems;
 }

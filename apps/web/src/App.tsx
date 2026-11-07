@@ -16,7 +16,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
-import { createPurchase, fetchHealthStatus, fetchPurchases, type CreatePurchaseRequest, type HealthResponse, type Purchase, type PurchaseFilterOptions, type PurchaseFilters } from '@/lib/api';
+import { addPurchaseItemsToPantry, createPurchase, fetchHealthStatus, fetchPurchases, type CreatePurchaseRequest, type HealthResponse, type Purchase, type PurchaseFilterOptions, type PurchaseFilters } from '@/lib/api';
 
 type ConnectionState =
   | { kind: 'checking' }
@@ -126,6 +126,13 @@ export default function App() {
     setHistoryRefresh((current) => current + 1);
     setCatalogRefresh((current) => current + 1);
     setPurchaseDialogOpen(false);
+  }
+
+  async function addPurchaseToPantry(purchaseId: string) {
+    const pantryItems = await addPurchaseItemsToPantry(purchaseId);
+    setPurchaseRestockNotice(pantryItems.length > 0 ? pantryItems : null);
+    setHistoryRefresh((current) => current + 1);
+    setCatalogRefresh((current) => current + 1);
   }
 
   function applyPurchaseFilters() {
@@ -301,6 +308,7 @@ export default function App() {
                       onClearSearch={clearItemSearch}
                       onPageChange={setPageNumber}
                       onRetry={() => setHistoryRefresh((current) => current + 1)}
+                      onAddPurchaseToPantry={addPurchaseToPantry}
                     />
                   </div>
                 )}
