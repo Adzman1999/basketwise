@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, CalendarDays, ChevronRight, LoaderCircle, Plus, ReceiptText, RotateCcw, Search, SlidersHorizontal, Store } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CalendarDays, ChevronRight, LoaderCircle, ReceiptText, RotateCcw, Search, SlidersHorizontal, Store } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -33,7 +33,6 @@ type PurchaseHistoryProps = {
   onClearSearch: () => void;
   onPageChange: (page: number) => void;
   onRetry: () => void;
-  onAddPurchaseToPantry: (purchaseId: string) => Promise<void>;
 };
 
 const phpFormatter = new Intl.NumberFormat('en-PH', {
@@ -78,7 +77,6 @@ function HighlightedMatch({ name, query }: { name: string; query: string }) {
 
 function PurchaseCard({ purchase, searchQuery, onSelect }: { purchase: Purchase; searchQuery: string; onSelect: (purchase: Purchase) => void }) {
   const normalizedSearch = searchQuery.trim().toLowerCase();
-  const pendingPantryItems = purchase.items.filter((item) => !item.pantryAdded).length;
   const matchingItems = normalizedSearch
     ? purchase.items.filter((item) => item.itemName.toLowerCase().includes(normalizedSearch))
     : [];
@@ -103,11 +101,6 @@ function PurchaseCard({ purchase, searchQuery, onSelect }: { purchase: Purchase;
               </p>
               <p className="truncate text-sm font-semibold leading-5">{purchase.storeName || 'Grocery trip'}</p>
               <p className="text-xs text-muted-foreground">{purchase.items.length} {purchase.items.length === 1 ? 'item' : 'items'}</p>
-              {pendingPantryItems > 0 && (
-                <Badge variant="outline" className="mt-1 h-5 px-1.5 text-[10px]">
-                  {pendingPantryItems} {pendingPantryItems === 1 ? 'item' : 'items'} not in pantry
-                </Badge>
-              )}
             </div>
           </div>
           <ChevronRight aria-hidden="true" className="mt-1 size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
@@ -159,12 +152,9 @@ export default function PurchaseHistory({
   onClearSearch,
   onPageChange,
   onRetry,
-  onAddPurchaseToPantry,
 }: PurchaseHistoryProps) {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [selectedPurchase, setSelectedPurchase] = useState<Purchase | null>(null);
-  const [addingToPantry, setAddingToPantry] = useState(false);
-  const [pantryActionError, setPantryActionError] = useState('');
   const filtersPopoverRef = useRef<HTMLDivElement>(null);
   const draftFilterCount = [filters.store.trim(), filters.from, filters.to].filter(Boolean).length;
   const appliedFilterCount = [appliedFilters.store.trim(), appliedFilters.from, appliedFilters.to].filter(Boolean).length;
@@ -176,24 +166,6 @@ export default function PurchaseHistory({
   const pageData = state.kind === 'loaded' && !appliedDateRangeInvalid ? state.page : null;
   const totalPages = pageData ? Math.max(1, Math.ceil(pageData.total / pageSize)) : 1;
   const selectedItemsTotal = selectedPurchase?.items.reduce((total, item) => total + item.amountPaidCentavos, 0) ?? 0;
-  const pendingPantryItems = selectedPurchase?.items.filter((item) => !item.pantryAdded).length ?? 0;
-
-  async function addPendingItemsToPantry() {
-    if (!selectedPurchase) return;
-    setAddingToPantry(true);
-    setPantryActionError('');
-    try {
-      await onAddPurchaseToPantry(selectedPurchase.id);
-      setSelectedPurchase((current) => current ? {
-        ...current,
-        items: current.items.map((item) => ({ ...item, pantryAdded: true })),
-      } : current);
-    } catch (error) {
-      setPantryActionError(error instanceof Error ? error.message : 'Could not add this purchase to pantry.');
-    } finally {
-      setAddingToPantry(false);
-    }
-  }
 
   useEffect(() => {
     if (!filtersOpen) return;
@@ -465,9 +437,6 @@ export default function PurchaseHistory({
                           <p className="break-words font-medium"><HighlightedMatch name={item.itemName} query={appliedSearch} /></p>
                           <div className="mt-1 flex flex-wrap items-center gap-1.5">
                             <span className="text-xs text-muted-foreground">{item.quantity} {item.unit}</span>
-                            <Badge variant={item.pantryAdded ? 'secondary' : 'outline'} className="h-5 px-1.5 text-[10px]">
-                              {item.pantryAdded ? 'In pantry' : 'Not in pantry'}
-                            </Badge>
                             {appliedSearch.trim() && item.itemName.toLowerCase().includes(appliedSearch.trim().toLowerCase()) && (
                               <Badge className="h-5 px-1.5 text-[10px]" variant={item.itemName.trim().toLowerCase() === appliedSearch.trim().toLowerCase() ? 'default' : 'outline'}>
                                 {item.itemName.trim().toLowerCase() === appliedSearch.trim().toLowerCase() ? 'Exact match' : 'Close match'}
@@ -498,19 +467,6 @@ export default function PurchaseHistory({
                     </Badge>
                   </div>
                 </div>
-                {pendingPantryItems > 0 && (
-                  <Alert className="mx-auto mt-3 max-w-sm border-primary/20 bg-primary/[0.035]">
-                    <Plus aria-hidden="true" className="size-4 text-primary" />
-                    <AlertTitle>{pendingPantryItems} {pendingPantryItems === 1 ? 'item is' : 'items are'} not in pantry</AlertTitle>
-                    <AlertDescription className="space-y-3">
-                      <p>Add the remaining receipt quantities to current pantry stock. Existing item and unit matches will increase; new pairs will be created.</p>
-                      {pantryActionError && <p className="text-destructive" role="alert">{pantryActionError}</p>}
-                      <Button type="button" size="sm" onClick={() => void addPendingItemsToPantry()} disabled={addingToPantry}>
-                        <Plus aria-hidden="true" /> {addingToPantry ? 'Adding items…' : 'Add remaining items to pantry'}
-                      </Button>
-                    </AlertDescription>
-                  </Alert>
-                )}
               </div>
             </>
           )}

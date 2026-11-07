@@ -46,6 +46,7 @@ export const purchaseListQuerySchema = z.object({
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
   search: z.string().trim().min(1).max(120).optional(),
   store: z.string().trim().min(1).max(120).optional(),
+  pantryStatus: z.enum(['pending']).optional(),
   from: calendarDate.optional(),
   to: calendarDate.optional(),
 }).strict().superRefine((filters, context) => {

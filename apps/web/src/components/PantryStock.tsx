@@ -4,9 +4,12 @@ import {
   ArrowLeft,
   ArrowRight,
   Boxes,
+  CalendarDays,
   PackageCheck,
   PackageX,
   Pencil,
+  Plus,
+  ReceiptText,
   Search,
   Trash2,
   TriangleAlert,
@@ -22,7 +25,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { philippineDateString } from '@/lib/dates';
 import {
+  addPurchaseItemsToPantry,
   deletePantryStock,
+  fetchPurchasesNeedingPantry,
   fetchPantryStock,
   updatePantryStock,
   type PantryStockItem,
@@ -34,7 +39,13 @@ type PantryStockState =
   | { kind: 'loaded'; page: Awaited<ReturnType<typeof fetchPantryStock>> }
   | { kind: 'error'; message: string };
 
+type PendingPurchasesState =
+  | { kind: 'loading' }
+  | { kind: 'loaded'; page: Awaited<ReturnType<typeof fetchPurchasesNeedingPantry>> }
+  | { kind: 'error'; message: string };
+
 const pageSize = 12;
+const pendingPurchasePageSize = 5;
 const quantityPattern = /^\d+(?:\.\d{1,3})?$/;
 
 function parseQuantity(value: string): number | null {
@@ -289,6 +300,13 @@ export default function PantryStock() {
   const [status, setStatus] = useState<PantryStockStatus | ''>('');
   const [pageNumber, setPageNumber] = useState(1);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [pendingPurchaseState, setPendingPurchaseState] = useState<PendingPurchasesState>({ kind: 'loading' });
+  const [pendingPageNumber, setPendingPageNumber] = useState(1);
+  const [pendingRefreshKey, setPendingRefreshKey] = useState(0);
+  const [selectedPendingPurchaseIds, setSelectedPendingPurchaseIds] = useState<string[]>([]);
+  const [isAddingPendingPurchases, setIsAddingPendingPurchases] = useState(false);
+  const [pendingActionError, setPendingActionError] = useState('');
+  const [pendingActionNotice, setPendingActionNotice] = useState('');
   const [editingItem, setEditingItem] = useState<PantryStockItem | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<PantryStockItem | null>(null);
   const [deleteError, setDeleteError] = useState('');
@@ -316,6 +334,60 @@ export default function PantryStock() {
     return () => controller.abort();
   }, [pageNumber, refreshKey, searchQuery, status]);
 
+  useEffect(() => {
+    const controller = new AbortController();
+    setPendingPurchaseState({ kind: 'loading' });
+    void fetchPurchasesNeedingPantry(pendingPageNumber, pendingPurchasePageSize, controller.signal)
+      .then((page) => {
+        if (!controller.signal.aborted) setPendingPurchaseState({ kind: 'loaded', page });
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) return;
+        setPendingPurchaseState({ kind: 'error', message: error instanceof Error ? error.message : 'Could not load purchases to review.' });
+      });
+    return () => controller.abort();
+  }, [pendingPageNumber, pendingRefreshKey]);
+
+  function togglePendingPurchase(purchaseId: string) {
+    setPendingActionError('');
+    setPendingActionNotice('');
+    setSelectedPendingPurchaseIds((current) => current.includes(purchaseId)
+      ? current.filter((id) => id !== purchaseId)
+      : [...current, purchaseId]);
+  }
+
+  async function addSelectedPurchasesToPantry() {
+    if (selectedPendingPurchaseIds.length === 0) return;
+    setIsAddingPendingPurchases(true);
+    setPendingActionError('');
+    setPendingActionNotice('');
+
+    let changedItemCount = 0;
+    const failedPurchaseIds: string[] = [];
+    for (const purchaseId of selectedPendingPurchaseIds) {
+      try {
+        const changedItems = await addPurchaseItemsToPantry(purchaseId);
+        changedItemCount += changedItems.length;
+      } catch {
+        failedPurchaseIds.push(purchaseId);
+      }
+    }
+
+    setSelectedPendingPurchaseIds(failedPurchaseIds);
+    setPendingPageNumber(1);
+    setPendingRefreshKey((current) => current + 1);
+    setRefreshKey((current) => current + 1);
+    if (failedPurchaseIds.length > 0) {
+      setPendingActionError(`Could not add ${failedPurchaseIds.length} selected ${failedPurchaseIds.length === 1 ? 'receipt' : 'receipts'}. The rest were processed; retry the selected receipts.`);
+    }
+    if (changedItemCount > 0) {
+      setPendingActionNotice(`Added ${changedItemCount} ${changedItemCount === 1 ? 'item' : 'items'} to current pantry stock. Receipt dates remain in purchase history.`);
+    } else if (failedPurchaseIds.length === 0) {
+      setPendingActionNotice('Those receipt items were already added to pantry stock.');
+    }
+    setIsAddingPendingPurchases(false);
+  }
+
   async function removeStock() {
     if (!deleteTarget) return;
     setIsDeleting(true);
@@ -337,6 +409,8 @@ export default function PantryStock() {
 
   const page = stockState.kind === 'loaded' ? stockState.page : null;
   const totalPages = Math.max(1, Math.ceil((page?.total ?? 0) / pageSize));
+  const pendingPage = pendingPurchaseState.kind === 'loaded' ? pendingPurchaseState.page : null;
+  const pendingTotalPages = Math.max(1, Math.ceil((pendingPage?.total ?? 0) / pendingPurchasePageSize));
   const today = philippineDateString();
 
   return (
@@ -359,6 +433,139 @@ export default function PantryStock() {
         <div className="grid gap-3 sm:grid-cols-3" aria-label="Loading pantry summary">
           <Skeleton className="h-[76px]" /><Skeleton className="h-[76px]" /><Skeleton className="h-[76px]" />
         </div>
+      )}
+
+      {(pendingPurchaseState.kind !== 'loaded' || (pendingPage?.total ?? 0) > 0 || Boolean(pendingActionNotice || pendingActionError)) && (
+        <Card className="border-primary/15 bg-gradient-to-br from-primary/[0.035] via-card to-card shadow-none">
+          <CardHeader className="space-y-1 p-4 sm:p-5">
+            <div className="flex items-start gap-3">
+              <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <ReceiptText aria-hidden="true" className="size-4" />
+              </span>
+              <div className="min-w-0 space-y-1">
+                <CardTitle className="text-base">Purchases to review</CardTitle>
+                <CardDescription>Choose saved receipt items that are still in your pantry or stock room.</CardDescription>
+              </div>
+            </div>
+            <p className="flex items-start gap-2 rounded-md bg-muted/50 px-3 py-2.5 text-xs leading-5 text-muted-foreground">
+              <CalendarDays aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+              <span>Receipt dates stay in purchase history. Adding items here updates current stock now; it does not backdate inventory.</span>
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-3 p-4 pt-0 sm:p-5 sm:pt-0">
+            {pendingActionNotice && (
+              <Alert>
+                <PackageCheck aria-hidden="true" />
+                <AlertTitle>Pantry updated</AlertTitle>
+                <AlertDescription>{pendingActionNotice}</AlertDescription>
+              </Alert>
+            )}
+
+            {pendingActionError && (
+              <Alert variant="destructive">
+                <AlertCircle aria-hidden="true" />
+                <AlertTitle>Some receipts could not be added</AlertTitle>
+                <AlertDescription>{pendingActionError}</AlertDescription>
+              </Alert>
+            )}
+
+            {pendingPurchaseState.kind === 'loading' && (
+              <div className="space-y-2" role="status" aria-label="Loading purchases to review">
+                <Skeleton className="h-20" /><Skeleton className="h-20" />
+              </div>
+            )}
+
+            {pendingPurchaseState.kind === 'error' && (
+              <Alert variant="destructive">
+                <AlertCircle aria-hidden="true" />
+                <AlertTitle>Purchases to review could not load</AlertTitle>
+                <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
+                  <span>{pendingPurchaseState.message}</span>
+                  <Button type="button" size="sm" variant="outline" onClick={() => setPendingRefreshKey((current) => current + 1)}>Try again</Button>
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {pendingPage && pendingPage.items.length > 0 && (
+              <div className="space-y-2" aria-live="polite" aria-busy={pendingPurchaseState.kind === 'loading' || isAddingPendingPurchases}>
+                {pendingPage.items.map((purchase) => {
+                  const pendingItems = purchase.items.filter((item) => !item.pantryAdded);
+                  const isSelected = selectedPendingPurchaseIds.includes(purchase.id);
+                  const checkboxId = `review-purchase-${purchase.id}`;
+                  return (
+                    <label
+                      key={purchase.id}
+                      htmlFor={checkboxId}
+                      className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${isSelected ? 'border-primary/40 bg-primary/[0.04]' : 'bg-background hover:bg-muted/30'}`}
+                    >
+                      <Input
+                        id={checkboxId}
+                        type="checkbox"
+                        className="mt-1 size-4 shrink-0 rounded border-input p-0 accent-primary shadow-none focus-visible:ring-2 focus-visible:ring-ring"
+                        checked={isSelected}
+                        onChange={() => togglePendingPurchase(purchase.id)}
+                        disabled={isAddingPendingPurchases}
+                        aria-label={`Select receipt from ${purchase.storeName || 'grocery trip'} dated ${formatDateOnly(purchase.purchasedOn)}`}
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                          <span className="min-w-0 truncate text-sm font-medium">{purchase.storeName || 'Grocery trip'}</span>
+                          <span className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
+                            <CalendarDays aria-hidden="true" className="size-3.5" />
+                            {formatDateOnly(purchase.purchasedOn)}
+                          </span>
+                        </span>
+                        <span className="mt-1 block text-xs text-muted-foreground">
+                          {pendingItems.length} unadded {pendingItems.length === 1 ? 'item' : 'items'}
+                        </span>
+                        <span className="mt-2 flex flex-wrap gap-1.5">
+                          {pendingItems.map((item) => (
+                            <Badge key={item.id} variant="secondary" className="max-w-full gap-1 font-normal">
+                              <span className="max-w-40 truncate">{item.itemName}</span>
+                              <span className="shrink-0 text-muted-foreground">{formatQuantity(item.quantity)} {item.unit}</span>
+                            </Badge>
+                          ))}
+                        </span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+
+            {pendingPage && pendingPage.total > 0 && (
+              <div className="flex flex-col gap-3 border-t pt-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <p className="text-sm text-muted-foreground" aria-live="polite">
+                    {selectedPendingPurchaseIds.length > 0
+                      ? `${selectedPendingPurchaseIds.length} ${selectedPendingPurchaseIds.length === 1 ? 'receipt' : 'receipts'} selected`
+                      : `${pendingPage.total} ${pendingPage.total === 1 ? 'receipt' : 'receipts'} with items not yet in pantry`}
+                  </p>
+                  {selectedPendingPurchaseIds.length > 0 && (
+                    <Button type="button" variant="ghost" size="sm" className="h-8 px-2" onClick={() => setSelectedPendingPurchaseIds([])} disabled={isAddingPendingPurchases}>
+                      Clear selection
+                    </Button>
+                  )}
+                </div>
+                <Button type="button" className="w-full sm:w-auto" onClick={() => void addSelectedPurchasesToPantry()} disabled={selectedPendingPurchaseIds.length === 0 || isAddingPendingPurchases}>
+                  <Plus aria-hidden="true" /> {isAddingPendingPurchases ? 'Adding to pantry…' : 'Add selected to pantry'}
+                </Button>
+              </div>
+            )}
+
+            {pendingPage && pendingPage.total > pendingPurchasePageSize && (
+              <nav className="flex items-center justify-between gap-3 border-t pt-3" aria-label="Purchases to review pages">
+                <Button type="button" variant="outline" size="sm" onClick={() => setPendingPageNumber((current) => current - 1)} disabled={pendingPageNumber <= 1 || isAddingPendingPurchases}>
+                  <ArrowLeft aria-hidden="true" /> Previous
+                </Button>
+                <span className="text-xs tabular-nums text-muted-foreground">Showing {(pendingPageNumber - 1) * pendingPurchasePageSize + 1}–{Math.min(pendingPageNumber * pendingPurchasePageSize, pendingPage.total)} of {pendingPage.total} receipts</span>
+                <Button type="button" variant="outline" size="sm" onClick={() => setPendingPageNumber((current) => current + 1)} disabled={pendingPageNumber >= pendingTotalPages || isAddingPendingPurchases}>
+                  Next <ArrowRight aria-hidden="true" />
+                </Button>
+              </nav>
+            )}
+          </CardContent>
+        </Card>
       )}
 
       <Card className="shadow-none">

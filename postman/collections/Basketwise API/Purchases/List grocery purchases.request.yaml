@@ -1,5 +1,6 @@
 $kind: http-request
-description: Returns purchases newest first with receipt line items and whether each line is already added to pantry. Optional item/store substring searches and inclusive date bounds are applied before pagination.
+description: |
+  Returns purchases newest first with receipt line items and whether each line is already added to pantry. Optional item/store substring searches, inclusive date bounds, and the pending pantry status filter are applied before pagination. Pending receipts have at least one line not yet added to pantry stock.
 url: '{{baseUrl}}/api/purchases?page=1&pageSize=20'
 method: GET
 headers:
@@ -21,6 +22,10 @@ queryParams:
     value: "market"
     disabled: true
     description: Case-insensitive literal substring matched against the store name.
+  - key: pantryStatus
+    value: pending
+    disabled: true
+    description: Return receipts with at least one line not yet added to pantry stock.
   - key: from
     value: "2026-10-01"
     disabled: true
@@ -49,8 +54,10 @@ scripts:
           pm.expect(purchase.currency).to.eql('PHP');
           pm.expect(purchase.items).to.be.an('array');
         });
-        const createdPurchaseId = pm.collectionVariables.get('lastCreatedPurchaseId');
-        pm.expect(body.items.some(function (purchase) {
-          return purchase.id === createdPurchaseId;
-        })).to.eql(true);
+        if (pm.request.url.query.get('pantryStatus') !== 'pending') {
+          const createdPurchaseId = pm.collectionVariables.get('lastCreatedPurchaseId');
+          pm.expect(body.items.some(function (purchase) {
+            return purchase.id === createdPurchaseId;
+          })).to.eql(true);
+        }
       });

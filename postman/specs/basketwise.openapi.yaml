@@ -484,7 +484,10 @@ paths:
         and store substring searches and inclusive purchase-date bounds are
         applied before pagination; total reports the number of matching receipts.
         Each receipt line reports whether it has already been added to pantry
-        stock so skipped purchases can be added later.
+        stock. Set pantryStatus to pending to return receipts with at least one
+        line that has not yet changed pantry stock. Purchase dates remain part
+        of receipt history and are not used as dates when items are added to
+        current pantry stock.
       parameters:
         - name: page
           in: query
@@ -520,6 +523,14 @@ paths:
             type: string
             minLength: 1
             maxLength: 120
+        - name: pantryStatus
+          in: query
+          required: false
+          description: Use pending to return receipts with at least one line not yet added to pantry stock.
+          schema:
+            type: string
+            enum:
+              - pending
         - name: from
           in: query
           required: false
@@ -665,7 +676,8 @@ paths:
         Missing item and unit pairs are created; existing pairs increase their
         quantity. Previously applied receipt lines are skipped, so repeating
         this request cannot add them twice. The purchase and pantry changes are
-        committed together.
+        committed together. The receipt's purchasedOn date remains unchanged in
+        history; pantry stock is updated at the time this request is processed.
       parameters:
         - name: purchaseId
           in: path

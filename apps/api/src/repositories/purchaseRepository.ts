@@ -295,6 +295,19 @@ export async function listPurchaseRecords(input: PurchaseListQuery): Promise<{
     conditions.push(`p.store_name ILIKE ${storeParameter} ESCAPE E'\\\\'`);
   }
 
+  if (input.pantryStatus === 'pending') {
+    conditions.push(`EXISTS (
+      SELECT 1
+      FROM purchase_items pi
+      WHERE pi.purchase_id = p.id
+        AND NOT EXISTS (
+          SELECT 1
+          FROM pantry_stock_purchase_movements movement
+          WHERE movement.purchase_item_id = pi.id
+        )
+    )`);
+  }
+
   if (input.from) conditions.push(`p.purchased_on >= ${addValue(input.from)}::date`);
   if (input.to) conditions.push(`p.purchased_on <= ${addValue(input.to)}::date`);
 

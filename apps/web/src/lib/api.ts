@@ -255,6 +255,22 @@ export async function fetchPurchases(
   });
 }
 
+export async function fetchPurchasesNeedingPantry(
+  page: number,
+  pageSize: number,
+  signal: AbortSignal
+): Promise<PurchasePage> {
+  const params = new URLSearchParams({
+    page: String(page),
+    pageSize: String(pageSize),
+    pantryStatus: 'pending',
+  });
+  return sendRequest<PurchasePage>(`/api/purchases?${params.toString()}`, {
+    headers: { Accept: 'application/json' },
+    signal,
+  });
+}
+
 function budgetPath(period: BudgetPeriod): string {
   return `/api/budgets/${period.periodType}/${encodeURIComponent(period.startsOn)}/${encodeURIComponent(period.endsOn)}`;
 }
