@@ -323,7 +323,7 @@ export default function App() {
                 </span>
                 <div className="min-w-0 space-y-1">
                   <DialogTitle>Add a purchase</DialogTitle>
-                  <DialogDescription>Choose a spending period, then add the receipt date and items. Your total updates automatically. Pantry items opted into auto-restock update when the unit matches.</DialogDescription>
+                  <DialogDescription>Choose a spending period, then enter the receipt date and items. After saving, choose whether to add this purchase to pantry stock.</DialogDescription>
                 </div>
               </div>
             </DialogHeader>

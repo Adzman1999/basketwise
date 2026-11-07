@@ -4,6 +4,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -34,6 +35,8 @@ type DraftItem = {
   unit: string;
   unitPrice: string;
 };
+
+type PendingPurchase = Omit<CreatePurchaseRequest, 'addToPantry'>;
 
 type PurchaseFormProps = {
   onSubmit: (purchase: CreatePurchaseRequest) => Promise<void>;
@@ -355,6 +358,8 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
   const [isAddingStore, setIsAddingStore] = useState(false);
   const [items, setItems] = useState<DraftItem[]>([emptyItem(1)]);
   const [isSaving, setIsSaving] = useState(false);
+  const [pantryPromptOpen, setPantryPromptOpen] = useState(false);
+  const [pendingPurchase, setPendingPurchase] = useState<PendingPurchase | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
@@ -451,6 +456,8 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
     setStoreErrorMessage('');
     setErrorMessage('');
     setSuccessMessage('');
+    setPantryPromptOpen(false);
+    setPendingPurchase(null);
     setItems([emptyItem(nextItemId.current++)]);
   }
 
@@ -566,16 +573,25 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
       return;
     }
 
+    setPendingPurchase({
+      purchasedOn,
+      storeName: selectedStore?.name ?? 'Other',
+      items: purchaseItems,
+    });
+    setPantryPromptOpen(true);
+  }
+
+  async function confirmPurchase(addToPantry: boolean) {
+    if (!pendingPurchase) return;
+
     setIsSaving(true);
     try {
-      await onSubmit({
-        purchasedOn,
-        storeName: selectedStore?.name ?? 'Other',
-        items: purchaseItems,
-      });
+      await onSubmit({ ...pendingPurchase, addToPantry });
       resetForm();
       setSuccessMessage('Purchase saved. It is now in your history.');
     } catch (error) {
+      setPantryPromptOpen(false);
+      setPendingPurchase(null);
       setErrorMessage(error instanceof Error ? error.message : 'Could not save this purchase.');
     } finally {
       setIsSaving(false);
@@ -925,6 +941,34 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
           </Button>
         </div>
       </div>
+    <Dialog
+      open={pantryPromptOpen}
+      onOpenChange={(open) => {
+        if (isSaving) return;
+        setPantryPromptOpen(open);
+        if (!open) setPendingPurchase(null);
+      }}
+    >
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-md">
+        <DialogHeader>
+          <DialogTitle>Add this purchase to pantry?</DialogTitle>
+          <DialogDescription>
+            The receipt is saved either way. Adding it creates pantry records for new item and unit pairs or increases the quantity for matching pairs. Units are never converted.
+          </DialogDescription>
+        </DialogHeader>
+        <p className="rounded-md bg-muted/50 px-3 py-2 text-xs leading-5 text-muted-foreground">
+          Items already set to auto-restock will still update if you skip adding the rest of this purchase.
+        </p>
+        <DialogFooter className="gap-2 sm:gap-0">
+          <Button type="button" variant="outline" disabled={isSaving} onClick={() => void confirmPurchase(false)}>
+            {isSaving ? 'Saving…' : 'No, skip other items'}
+          </Button>
+          <Button type="button" disabled={isSaving || !pendingPurchase} onClick={() => void confirmPurchase(true)}>
+            {isSaving ? 'Saving…' : 'Yes, add to pantry'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
     </form>
   );
 }

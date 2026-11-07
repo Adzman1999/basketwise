@@ -578,10 +578,13 @@ paths:
         by summing each item's amountPaidCentavos and is returned as
         totalPaidCentavos. The total must fit a signed 32-bit integer. Pantry
         stock records opted into auto-restock are updated for exact item and
-        unit matches in the same transaction. The create response lists each
-        pantry record updated; a purchase line is applied at most once. An
-        existing pantry expiry date is preserved because receipts do not carry
-        expiry information.
+        unit matches in the same transaction. When addToPantry is true, all
+        receipt lines are also added to pantry stock: new item and unit pairs
+        create records, while existing pairs increase their quantity. When it
+        is false or omitted, only auto-restock records are updated. The create
+        response lists each pantry record updated; a purchase line is applied
+        at most once. Existing expiry dates are preserved because receipts do
+        not carry expiry information.
       requestBody:
         required: true
         content:
@@ -591,6 +594,7 @@ paths:
             example:
               purchasedOn: "2026-10-29"
               storeName: "Neighborhood Market"
+              addToPantry: true
               items:
                 - itemName: "Rice"
                   quantity: 2
@@ -634,6 +638,11 @@ paths:
                     quantityAdded: 2
                     quantityOnHand: 3.5
                     expiresOn: "2026-12-15"
+                  - itemName: "Bananas"
+                    unit: "pack"
+                    quantityAdded: 1
+                    quantityOnHand: 1
+                    expiresOn: null
         "400":
           $ref: "#/components/responses/BadRequest"
         "500":
@@ -1198,6 +1207,12 @@ components:
           type: string
           minLength: 1
           maxLength: 120
+        addToPantry:
+          type: boolean
+          default: false
+          description: |
+            When true, all receipt lines add to pantry stock. Otherwise only
+            records with auto-restock enabled are updated.
         items:
           type: array
           minItems: 1
@@ -1274,7 +1289,7 @@ components:
           format: date-time
         pantryRestockedItems:
           type: array
-          description: Returned by purchase creation; omitted from purchase history responses.
+          description: Pantry records created or updated by purchase creation; omitted from purchase history responses.
           items:
             $ref: "#/components/schemas/PantryRestockedItem"
     PantryRestockedItem:

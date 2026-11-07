@@ -26,6 +26,7 @@ export const createPurchaseItemSchema = z.object({
 export const createPurchaseSchema = z.object({
   purchasedOn: calendarDate,
   storeName: z.string().trim().min(1).max(120).optional(),
+  addToPantry: z.boolean().default(false),
   items: z.array(createPurchaseItemSchema).min(1).max(100),
 }).strict().superRefine((purchase, context) => {
   const totalPaidCentavos = purchase.items.reduce((total, item) => total + item.amountPaidCentavos, 0);

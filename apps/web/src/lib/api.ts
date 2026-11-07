@@ -14,6 +14,7 @@ export type CreatePurchaseItem = {
 export type CreatePurchaseRequest = {
   purchasedOn: string;
   storeName?: string;
+  addToPantry: boolean;
   items: CreatePurchaseItem[];
 };
 

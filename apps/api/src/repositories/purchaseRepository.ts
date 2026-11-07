@@ -81,8 +81,20 @@ async function insertPurchaseItems(
 
 async function restockPantryFromPurchase(
   client: PoolClient,
-  purchaseId: string
+  purchaseId: string,
+  addToPantry: boolean
 ): Promise<PantryRestockedItemRecord[]> {
+  if (addToPantry) {
+    await client.query(
+      `INSERT INTO pantry_stock (grocery_item_id, unit_id, quantity)
+       SELECT DISTINCT pi.grocery_item_id, pi.unit_id, 0
+       FROM purchase_items pi
+       WHERE pi.purchase_id = $1
+       ON CONFLICT (grocery_item_id, unit_id) DO NOTHING`,
+      [purchaseId]
+    );
+  }
+
   const result = await client.query<PantryRestockedItemRecord>(
     `WITH eligible_items AS MATERIALIZED (
        SELECT ps.id AS pantry_stock_id,
@@ -93,7 +105,7 @@ async function restockPantryFromPurchase(
          ON pi.grocery_item_id = ps.grocery_item_id
         AND pi.unit_id = ps.unit_id
        WHERE pi.purchase_id = $1
-         AND ps.auto_restock = TRUE
+         AND ($2::boolean = TRUE OR ps.auto_restock = TRUE)
        ORDER BY ps.id, pi.id
        FOR UPDATE OF ps
      ), recorded_movements AS (
@@ -126,7 +138,7 @@ async function restockPantryFromPurchase(
      JOIN grocery_items gi ON gi.id = updated_stock.grocery_item_id
      JOIN measurement_units mu ON mu.id = updated_stock.unit_id
      ORDER BY gi.normalized_name, mu.normalized_name, updated_stock.id`,
-    [purchaseId]
+    [purchaseId, addToPantry]
   );
   return result.rows;
 }
@@ -164,7 +176,11 @@ export async function createPurchaseRecord(input: CreatePurchaseInput): Promise<
     );
     const purchase = purchaseResult.rows[0];
     const items = await insertPurchaseItems(client, purchase.id, input.items);
-    const pantryRestockedItems = await restockPantryFromPurchase(client, purchase.id);
+    const pantryRestockedItems = await restockPantryFromPurchase(
+      client,
+      purchase.id,
+      input.addToPantry
+    );
 
     await client.query('COMMIT');
     transactionStarted = false;
