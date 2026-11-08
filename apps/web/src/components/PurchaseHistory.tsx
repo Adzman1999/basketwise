@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, CalendarDays, Check, ChevronRight, LoaderCircle, Plus, ReceiptText, RotateCcw, Search, SlidersHorizontal, Store } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CalendarDays, Check, ChevronRight, Eye, LoaderCircle, Plus, ReceiptText, RotateCcw, Search, SlidersHorizontal, Store } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -94,7 +94,7 @@ function PurchaseCard({
   const matchingItems = normalizedSearch
     ? purchase.items.filter((item) => item.itemName.toLowerCase().includes(normalizedSearch))
     : [];
-  const previewItems = matchingItems.length > 0 ? matchingItems.slice(0, 1) : purchase.items.slice(0, 2);
+  const hasExactSearchMatch = matchingItems.some((item) => item.itemName.trim().toLowerCase() === normalizedSearch);
 
   async function addToPantry() {
     setIsAddingToPantry(true);
@@ -109,61 +109,62 @@ function PurchaseCard({
   }
 
   return (
-    <Card className="flex h-full min-w-0 flex-col overflow-hidden border-primary/15 bg-gradient-to-br from-primary/[0.035] via-card to-card p-0 transition-colors hover:border-primary/25">
+    <Card className="flex h-[208px] min-w-0 flex-col overflow-hidden border-primary/15 bg-gradient-to-br from-primary/[0.035] via-card to-card p-0 transition-colors hover:border-primary/25">
       <button
         type="button"
         onClick={() => onSelect(purchase)}
         aria-label={`Open receipt from ${purchase.storeName || 'grocery trip'} on ${formatPurchaseDate(purchase.purchasedOn)}, total ${formatCentavos(purchase.totalPaidCentavos)}`}
-        className="group flex min-h-44 w-full flex-1 flex-col rounded-xl p-3 text-left transition-colors hover:bg-primary/[0.025] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+        title="View full receipt details"
+        className="group flex min-h-0 w-full flex-1 flex-col rounded-t-xl p-3 text-left transition-colors hover:bg-primary/[0.025] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
       >
-        <div className="flex w-full items-start justify-between gap-2">
-          <div className="flex min-w-0 items-start gap-2.5">
-            <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+        <div className="flex w-full min-w-0 items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
               <ReceiptText aria-hidden="true" className="size-4" />
             </span>
             <div className="min-w-0">
+              <p className="truncate text-xs font-semibold leading-4">
+                {purchase.storeName || 'Grocery trip'}
+              </p>
               <p className="text-[11px] leading-4 text-muted-foreground">
                 <time dateTime={purchase.purchasedOn}>{formatPurchaseDate(purchase.purchasedOn)}</time>
               </p>
-              <p className="truncate text-sm font-semibold leading-5">{purchase.storeName || 'Grocery trip'}</p>
-              <p className="text-xs text-muted-foreground">{purchase.items.length} {purchase.items.length === 1 ? 'item' : 'items'}</p>
             </div>
           </div>
-          <ChevronRight aria-hidden="true" className="mt-1 size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+          <Eye aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-colors group-hover:text-primary" />
         </div>
 
-        <div className="my-3 w-full space-y-1.5 border-y border-dashed border-primary/15 py-2.5">
-          {previewItems.map((item) => (
-            <div key={item.id} className="flex min-w-0 items-center justify-between gap-2 text-xs">
-              <span className="min-w-0 truncate font-medium"><HighlightedMatch name={item.itemName} query={searchQuery} /></span>
-              <span className="shrink-0 tabular-nums text-muted-foreground">{formatCentavos(item.amountPaidCentavos)}</span>
-            </div>
-          ))}
-          {purchase.items.length > previewItems.length && (
-            <p className="pt-0.5 text-[11px] text-muted-foreground">+{purchase.items.length - previewItems.length} more {purchase.items.length - previewItems.length === 1 ? 'item' : 'items'}</p>
-          )}
-          {matchingItems[0] && (
-            <Badge variant={matchingItems[0].itemName.trim().toLowerCase() === normalizedSearch ? 'default' : 'outline'} className="mt-1 h-5 px-1.5 text-[10px]">
-              {matchingItems[0].itemName.trim().toLowerCase() === normalizedSearch ? 'Exact match' : 'Close match'}
-            </Badge>
-          )}
+        <div className="mt-auto w-full space-y-1.5 border-t border-dashed border-primary/15 pt-2">
+          <div className="flex min-w-0 items-center justify-between gap-2">
+            <span className="truncate text-[11px] text-muted-foreground">
+              {normalizedSearch
+                ? `${matchingItems.length} matching ${matchingItems.length === 1 ? 'item' : 'items'}`
+                : `${purchase.items.length} ${purchase.items.length === 1 ? 'item' : 'items'}`}
+            </span>
+            {normalizedSearch && matchingItems.length > 0 && (
+              <Badge variant={hasExactSearchMatch ? 'default' : 'outline'} className="h-4 shrink-0 px-1.5 text-[9px]">
+                {hasExactSearchMatch ? 'Exact match' : 'Close match'}
+              </Badge>
+            )}
+          </div>
+          <div className="flex w-full items-center justify-between gap-2">
+            <span className="text-xs text-muted-foreground">Receipt total</span>
+            <span className="text-sm font-semibold tabular-nums">{formatCentavos(purchase.totalPaidCentavos)}</span>
+          </div>
         </div>
-
-        <div className="mt-auto flex w-full items-end justify-between gap-2">
-          <span className="text-xs text-muted-foreground">Receipt total</span>
-          <span className="text-sm font-semibold tabular-nums">{formatCentavos(purchase.totalPaidCentavos)}</span>
-        </div>
-        <span className="mt-2 flex w-full items-center justify-center gap-1 border-t border-primary/10 pt-2 text-xs font-medium text-primary">
-          View receipt <ChevronRight aria-hidden="true" className="size-3.5" />
+        <span className="mt-2 flex w-full items-center justify-center gap-1 border-t border-primary/10 pt-1.5 text-[11px] font-medium text-primary">
+          View receipt <ChevronRight aria-hidden="true" className="size-3" />
         </span>
       </button>
-      <div className="space-y-1.5 px-3 pb-3">
-        {pantryActionError && <p className="text-xs leading-5 text-destructive" role="alert">{pantryActionError}</p>}
+      <div className="shrink-0 space-y-1.5 px-3 pb-3">
+        <p className="h-4 truncate text-[10px] leading-4 text-destructive" role={pantryActionError ? 'alert' : undefined} title={pantryActionError || undefined}>
+          {pantryActionError || '\u00a0'}
+        </p>
         <Button
           type="button"
           size="sm"
           variant={pendingPantryItems > 0 ? 'outline' : 'secondary'}
-          className="w-full"
+          className="h-8 w-full"
           onClick={() => void addToPantry()}
           disabled={pendingPantryItems === 0 || isAddingToPantry}
           aria-label={pendingPantryItems === 0
