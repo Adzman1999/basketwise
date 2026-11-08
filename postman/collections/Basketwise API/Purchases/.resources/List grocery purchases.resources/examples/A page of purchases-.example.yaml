@@ -26,8 +26,8 @@ response:
             "purchasedOn": "2026-10-29",
             "storeName": "Neighborhood Market",
             "currency": "PHP",
-            "totalPaidCentavos": 12550,
-            "unallocatedAmountCentavos": 250,
+            "totalPaidCentavos": 12300,
+            "unallocatedAmountCentavos": 0,
             "items": [
               {
                 "id": "f557ea81-8e28-4bc0-bf38-92b0a1c3331a",
@@ -35,7 +35,8 @@ response:
                 "itemName": "Rice",
                 "quantity": 2,
                 "unit": "kg",
-                "amountPaidCentavos": 11000
+                "amountPaidCentavos": 11000,
+                "pantryAdded": true
               },
               {
                 "id": "b4c7c876-a686-4caf-b6fd-4861c3e3a718",
@@ -43,7 +44,8 @@ response:
                 "itemName": "Bananas",
                 "quantity": 1,
                 "unit": "pack",
-                "amountPaidCentavos": 1300
+                "amountPaidCentavos": 1300,
+                "pantryAdded": false
               }
             ],
             "createdAt": "2026-10-29T08:00:00.000Z"

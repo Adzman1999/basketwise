@@ -1,0 +1,63 @@
+import {
+  createPantryStockRecord,
+  deletePantryStockRecord,
+  listPantryStockRecords,
+  pantryReferencesExist,
+  updatePantryStockRecord,
+} from '../repositories/pantryStockRepository';
+import type { PantryStockRecord } from '../repositories/pantryStockRepository';
+import type { CreatePantryStockInput, PantryStockListQuery, UpdatePantryStockInput } from '../schemas/pantryStock';
+
+export class DuplicatePantryStockError extends Error {
+  constructor() {
+    super('This grocery item and unit are already tracked in the pantry. Update its current stock instead.');
+    this.name = 'DuplicatePantryStockError';
+  }
+}
+
+export class InvalidPantryReferenceError extends Error {
+  constructor() {
+    super('Choose a saved grocery item and measurement unit.');
+    this.name = 'InvalidPantryReferenceError';
+  }
+}
+
+function presentStock(record: PantryStockRecord) {
+  const quantity = Number(record.quantity);
+  const lowStockThreshold = record.lowStockThreshold === null ? null : Number(record.lowStockThreshold);
+  const status = quantity === 0
+    ? 'out_of_stock' as const
+    : lowStockThreshold !== null && quantity <= lowStockThreshold
+      ? 'low_stock' as const
+      : 'in_stock' as const;
+  return { ...record, quantity, lowStockThreshold, status };
+}
+
+export async function listPantryStock(input: PantryStockListQuery) {
+  const result = await listPantryStockRecords(input);
+  return {
+    items: result.items.map(presentStock),
+    page: input.page,
+    pageSize: input.pageSize,
+    total: result.total,
+    summary: result.summary,
+  };
+}
+
+export async function createPantryStock(input: CreatePantryStockInput) {
+  if (!await pantryReferencesExist(input.groceryItemId, input.unitId)) {
+    throw new InvalidPantryReferenceError();
+  }
+  const record = await createPantryStockRecord(input);
+  if (record) return presentStock(record);
+  throw new DuplicatePantryStockError();
+}
+
+export async function updatePantryStock(id: string, input: UpdatePantryStockInput) {
+  const record = await updatePantryStockRecord(id, input);
+  return record ? presentStock(record) : null;
+}
+
+export async function deletePantryStock(id: string) {
+  return deletePantryStockRecord(id);
+}

@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Activity, ReceiptText, RefreshCw } from 'lucide-react';
+import { Activity, CheckCircle2, ReceiptText, RefreshCw } from 'lucide-react';
 import AppSidebar from '@/components/AppSidebar';
 import GroceryCatalog from '@/components/GroceryCatalog';
 import MonthlyBudget from '@/components/MonthlyBudget';
 import Overview from '@/components/Overview';
+import PantryStock from '@/components/PantryStock';
 import PurchaseForm from '@/components/PurchaseForm';
 import PurchaseHistory, { type PurchaseHistoryState } from '@/components/PurchaseHistory';
 import StoresAndShops from '@/components/StoresAndShops';
@@ -11,10 +12,11 @@ import ThemeToggle from '@/components/ThemeToggle';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
-import { createPurchase, fetchHealthStatus, fetchPurchases, type CreatePurchaseRequest, type HealthResponse, type PurchaseFilterOptions, type PurchaseFilters } from '@/lib/api';
+import { addPurchaseItemsToPantry, createPurchase, fetchHealthStatus, fetchPurchases, type CreatePurchaseRequest, type HealthResponse, type Purchase, type PurchaseFilterOptions, type PurchaseFilters } from '@/lib/api';
 
 type ConnectionState =
   | { kind: 'checking' }
@@ -23,6 +25,7 @@ type ConnectionState =
 
 const pageSize = 8;
 const emptyPurchaseFilterOptions: PurchaseFilterOptions = { store: '', from: '', to: '' };
+const quantityFormatter = new Intl.NumberFormat('en-PH', { maximumFractionDigits: 3 });
 
 function samePurchaseFilters(left: PurchaseFilterOptions, right: PurchaseFilterOptions): boolean {
   return left.store === right.store
@@ -33,7 +36,7 @@ function samePurchaseFilters(left: PurchaseFilterOptions, right: PurchaseFilterO
 function getActiveHref(): string {
   const hash = window.location.hash;
   if (hash === '#purchase-history' || hash === '#new-purchase') return '#grocery-spending';
-  if (hash === '#grocery-spending' || hash === '#budget' || hash === '#grocery-catalog' || hash === '#stores') return hash;
+  if (hash === '#grocery-spending' || hash === '#pantry' || hash === '#budget' || hash === '#grocery-catalog' || hash === '#stores') return hash;
   return '#overview';
 }
 
@@ -50,6 +53,7 @@ export default function App() {
   const [catalogRefresh, setCatalogRefresh] = useState(0);
   const [activeHref, setActiveHref] = useState(getActiveHref);
   const [purchaseDialogOpen, setPurchaseDialogOpen] = useState(false);
+  const [purchaseRestockNotice, setPurchaseRestockNotice] = useState<Purchase['pantryRestockedItems'] | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -116,11 +120,18 @@ export default function App() {
   }, []);
 
   async function savePurchase(input: CreatePurchaseRequest) {
-    await createPurchase(input);
+    const purchase = await createPurchase(input);
+    setPurchaseRestockNotice(purchase.pantryRestockedItems?.length ? purchase.pantryRestockedItems : null);
     setPageNumber(1);
     setHistoryRefresh((current) => current + 1);
     setCatalogRefresh((current) => current + 1);
     setPurchaseDialogOpen(false);
+  }
+
+  async function addPurchaseToPantry(purchaseId: string) {
+    const pantryItems = await addPurchaseItemsToPantry(purchaseId);
+    setPurchaseRestockNotice(pantryItems.length > 0 ? pantryItems : null);
+    setHistoryRefresh((current) => current + 1);
   }
 
   function applyPurchaseFilters() {
@@ -160,6 +171,8 @@ export default function App() {
     ? 'Grocery spending'
     : activeHref === '#grocery-catalog'
       ? 'Items & prices'
+    : activeHref === '#pantry'
+      ? 'Pantry stock'
       : activeHref === '#budget'
         ? 'Budget & spending'
         : activeHref === '#stores'
@@ -220,12 +233,30 @@ export default function App() {
 
                 {activeHref === '#grocery-catalog' ? (
                   <GroceryCatalog refreshKey={catalogRefresh} />
+                ) : activeHref === '#pantry' ? (
+                  <PantryStock />
                 ) : activeHref === '#budget' ? (
                   <MonthlyBudget />
                 ) : activeHref === '#stores' ? (
                   <StoresAndShops />
                 ) : (
                   <div id="grocery-spending" className="scroll-mt-24">
+                    {purchaseRestockNotice && (
+                      <Alert className="mb-4">
+                        <CheckCircle2 aria-hidden="true" className="size-4 text-primary" />
+                        <AlertTitle>Pantry stock updated</AlertTitle>
+                        <AlertDescription>
+                          <p>Your receipt quantities were added to these pantry items:</p>
+                          <ul className="mt-1 list-inside list-disc">
+                            {purchaseRestockNotice.map((item) => (
+                              <li key={`${item.itemName}-${item.unit}`}>
+                                {item.itemName}: +{quantityFormatter.format(item.quantityAdded)} {item.unit} · {quantityFormatter.format(item.quantityOnHand)} {item.unit} on hand
+                              </li>
+                            ))}
+                          </ul>
+                        </AlertDescription>
+                      </Alert>
+                    )}
                     <PurchaseHistory
                       state={history}
                       pageNumber={pageNumber}
@@ -236,7 +267,7 @@ export default function App() {
                       appliedSearch={appliedItemSearch}
                       filtersPending={purchaseFiltersPending}
                       searchPending={itemSearchPending}
-                      onAddPurchase={() => setPurchaseDialogOpen(true)}
+                      onAddPurchase={() => { setPurchaseRestockNotice(null); setPurchaseDialogOpen(true); }}
                       onFiltersChange={(filters) => {
                         setPurchaseFilters(filters);
                       }}
@@ -246,6 +277,7 @@ export default function App() {
                       onClearSearch={clearItemSearch}
                       onPageChange={setPageNumber}
                       onRetry={() => setHistoryRefresh((current) => current + 1)}
+                      onAddPurchaseToPantry={addPurchaseToPantry}
                     />
                   </div>
                 )}
@@ -268,7 +300,7 @@ export default function App() {
                 </span>
                 <div className="min-w-0 space-y-1">
                   <DialogTitle>Add a purchase</DialogTitle>
-                  <DialogDescription>Choose a spending period, then add the receipt date and items. Your total updates automatically.</DialogDescription>
+                  <DialogDescription>Choose a spending period, then enter the receipt date and items. After saving, choose whether to add this purchase to pantry stock.</DialogDescription>
                 </div>
               </div>
             </DialogHeader>

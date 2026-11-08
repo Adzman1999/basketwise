@@ -1,0 +1,27 @@
+$kind: http-request
+description: |
+  Lists current quantities for saved grocery item and unit pairs. Summary counts
+  cover all pantry records, while search and status filters only affect the page.
+url: '{{baseUrl}}/api/pantry?page=1&pageSize=20'
+method: GET
+headers:
+  Accept: application/json
+queryParams:
+  - key: search
+    value: rice
+    disabled: true
+    description: Literal, case-insensitive substring of the normalized grocery item name.
+  - key: status
+    value: low_stock
+    disabled: true
+    description: Filter by in_stock, low_stock, or out_of_stock.
+  - key: page
+    value: '1'
+    disabled: false
+    description: One-based result page.
+  - key: pageSize
+    value: '20'
+    disabled: false
+    description: Number of stock records per page, up to 100.
+settings: {}
+order: 1000

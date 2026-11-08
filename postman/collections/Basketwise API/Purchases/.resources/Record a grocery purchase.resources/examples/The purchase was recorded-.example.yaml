@@ -11,19 +11,21 @@ request:
       {
         "purchasedOn": "2026-10-29",
         "storeName": "Neighborhood Market",
-        "totalPaidCentavos": 12550,
+        "addToPantry": true,
         "items": [
           {
             "itemName": "Rice",
             "quantity": 2,
             "unit": "kg",
-            "amountPaidCentavos": 11000
+            "amountPaidCentavos": 11000,
+            "pantryAdded": true
           },
           {
             "itemName": "Bananas",
             "quantity": 1,
             "unit": "pack",
-            "amountPaidCentavos": 1300
+            "amountPaidCentavos": 1300,
+            "pantryAdded": true
           }
         ]
       }
@@ -40,8 +42,8 @@ response:
         "purchasedOn": "2026-10-29",
         "storeName": "Neighborhood Market",
         "currency": "PHP",
-        "totalPaidCentavos": 12550,
-        "unallocatedAmountCentavos": 250,
+        "totalPaidCentavos": 12300,
+        "unallocatedAmountCentavos": 0,
         "items": [
           {
             "id": "f557ea81-8e28-4bc0-bf38-92b0a1c3331a",
@@ -60,6 +62,22 @@ response:
             "amountPaidCentavos": 1300
           }
         ],
-        "createdAt": "2026-10-29T08:00:00.000Z"
+        "createdAt": "2026-10-29T08:00:00.000Z",
+        "pantryRestockedItems": [
+          {
+            "itemName": "Rice",
+            "unit": "kg",
+            "quantityAdded": 2,
+            "quantityOnHand": 3.5,
+            "expiresOn": "2026-12-15"
+          },
+          {
+            "itemName": "Bananas",
+            "unit": "pack",
+            "quantityAdded": 1,
+            "quantityOnHand": 1,
+            "expiresOn": null
+          }
+        ]
       }
 order: 1000

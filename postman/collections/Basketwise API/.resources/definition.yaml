@@ -9,3 +9,6 @@ variables:
   periodType: week
   startsOn: "2026-11-02"
   endsOn: "2026-11-08"
+  groceryItemId: b94ab4f4-cb08-48ce-83a9-ff99f6eb488c
+  unitId: f56094ec-d967-4011-a490-5ae9ef49e310
+  pantryStockId: e024aa98-29b2-4f40-a467-283ed82cbb44

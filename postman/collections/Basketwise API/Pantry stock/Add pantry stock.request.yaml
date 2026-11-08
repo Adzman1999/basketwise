@@ -1,0 +1,24 @@
+$kind: http-request
+description: |
+  Adds a saved grocery item and unit to pantry tracking. An item and unit pair
+  can be tracked once. When autoRestock is enabled, future receipt quantities
+  with the same saved item and unit increase this pantry record. The expiry
+  date applies to the current tracked quantity and is optional.
+url: '{{baseUrl}}/api/pantry'
+method: POST
+headers:
+  Content-Type: application/json
+  Accept: application/json
+body:
+  type: json
+  content: |-
+    {
+      "groceryItemId": "{{groceryItemId}}",
+      "unitId": "{{unitId}}",
+      "quantity": 1.5,
+      "lowStockThreshold": 2,
+      "autoRestock": true,
+      "expiresOn": "2026-12-15"
+    }
+settings: {}
+order: 2000
