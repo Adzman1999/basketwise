@@ -260,7 +260,7 @@ export default function MonthlyBudget() {
   return (
     <section aria-labelledby="budget-period-title" className="space-y-5">
       <div className="space-y-1.5">
-        <Badge variant="secondary" className="w-fit gap-1.5"><PiggyBank aria-hidden="true" /> Grocery planning</Badge>
+        <Badge variant="secondary" className="w-fit gap-1.5"><PiggyBank aria-hidden="true" className="size-4" /> Grocery planning</Badge>
         <h2 id="budget-period-title" className="text-2xl font-semibold tracking-tight">Spending by period</h2>
         <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
           See receipt spending for any period. Recipe and ingredient costing can be added separately later.

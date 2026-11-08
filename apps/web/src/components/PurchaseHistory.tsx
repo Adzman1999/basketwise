@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, CalendarDays, Check, ChevronRight, Eye, LoaderCircle, Plus, ReceiptText, RotateCcw, Search, SlidersHorizontal, Store } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CalendarDays, Check, ChevronRight, CirclePlus, Eye, LoaderCircle, Plus, ReceiptText, RotateCcw, Search, SlidersHorizontal, Store } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -26,6 +26,7 @@ type PurchaseHistoryProps = {
   appliedSearch: string;
   filtersPending: boolean;
   searchPending: boolean;
+  onAddPurchase: () => void;
   onFiltersChange: (filters: PurchaseFilterOptions) => void;
   onItemSearchChange: (search: string) => void;
   onApplyFilters: () => void;
@@ -197,6 +198,7 @@ export default function PurchaseHistory({
   appliedSearch,
   filtersPending,
   searchPending,
+  onAddPurchase,
   onFiltersChange,
   onItemSearchChange,
   onApplyFilters,
@@ -258,9 +260,13 @@ export default function PurchaseHistory({
 
   return (
     <section aria-labelledby="purchase-history-title" className="min-w-0 space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 id="purchase-history-title" className="text-xl font-semibold tracking-tight">Purchase history</h2>
-        <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="min-w-0 space-y-1.5">
+          <Badge variant="secondary" className="w-fit gap-1.5"><ReceiptText aria-hidden="true" className="size-4" /> Receipt log</Badge>
+          <h2 id="purchase-history-title" className="text-2xl font-semibold tracking-tight">Purchase history</h2>
+          <p className="max-w-2xl text-sm leading-5 text-muted-foreground">Search past trips and open a receipt to review its items and total.</p>
+        </div>
+        <div className="flex flex-wrap items-center justify-end gap-2">
           {searchPending && (
             <Badge variant="secondary" className="gap-1.5">
               <LoaderCircle aria-hidden="true" className="size-3 animate-spin" /> Searching
@@ -272,6 +278,9 @@ export default function PurchaseHistory({
           {pageData && (
             <p className="text-sm text-muted-foreground">{formatReceiptCount(pageData.total, pageNumber, pageSize, hasAppliedCriteria)}</p>
           )}
+          <Button type="button" variant="outline" size="sm" onClick={onAddPurchase}>
+            <CirclePlus aria-hidden="true" /> Add a purchase
+          </Button>
         </div>
       </div>
 

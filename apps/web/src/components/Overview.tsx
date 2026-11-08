@@ -319,7 +319,7 @@ export default function Overview({ refreshKey }: OverviewProps) {
     <section className="space-y-6" aria-labelledby="overview-title">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div className="space-y-1.5">
-          <Badge variant="secondary" className="w-fit gap-1.5"><CalendarDays aria-hidden="true" /> {formatMonth(currentMonth)}</Badge>
+          <Badge variant="secondary" className="w-fit gap-1.5"><CalendarDays aria-hidden="true" className="size-4" /> {formatMonth(currentMonth)}</Badge>
           <h1 id="overview-title" className="text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">Household overview</h1>
           <p className="max-w-xl text-sm leading-6 text-muted-foreground">A quick look at your grocery spending, budget, and recent activity.</p>
         </div>

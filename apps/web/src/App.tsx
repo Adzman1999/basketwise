@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Activity, ArrowUpRight, CheckCircle2, CirclePlus, ReceiptText, RefreshCw } from 'lucide-react';
+import { Activity, CheckCircle2, ReceiptText, RefreshCw } from 'lucide-react';
 import AppSidebar from '@/components/AppSidebar';
 import GroceryCatalog from '@/components/GroceryCatalog';
 import MonthlyBudget from '@/components/MonthlyBudget';
@@ -229,38 +229,7 @@ export default function App() {
               <Overview refreshKey={historyRefresh} />
             ) : (
               <>
-                {activeHref !== '#pantry' && <section className="mb-7 flex scroll-mt-24 flex-col justify-between gap-4 sm:mb-9 sm:flex-row sm:items-end">
-                  <div>
-                    <p className="text-xs font-medium text-primary">
-                      {activeHref === '#grocery-catalog' ? 'Items & prices' : activeHref === '#budget' ? 'Planning' : activeHref === '#stores' ? 'Places' : 'Household'}
-                    </p>
-                    <h1 className="mt-1.5 text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">
-                      {activeHref === '#grocery-catalog'
-                        ? 'Grocery items'
-                        : activeHref === '#budget'
-                          ? 'Budget & spending'
-                          : activeHref === '#stores'
-                            ? 'Stores & shops'
-                            : 'Grocery spending'}
-                    </h1>
-                    <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
-                      {activeHref === '#grocery-catalog'
-                        ? 'Browse saved grocery items and compare their recorded prices.'
-                        : activeHref === '#budget'
-                          ? 'Review grocery spend by day, week, month, year, or a custom range.'
-                          : activeHref === '#stores'
-                            ? 'Save the places you shop and choose them when recording a purchase.'
-                            : 'Track grocery receipts and item prices.'}
-                    </p>
-                  </div>
-                  {activeHref === '#grocery-spending' && (
-                    <Button onClick={() => { setPurchaseRestockNotice(null); setPurchaseDialogOpen(true); }}>
-                      <CirclePlus aria-hidden="true" />
-                      Add a purchase
-                      <ArrowUpRight aria-hidden="true" />
-                    </Button>
-                  )}
-                </section>}
+                <h1 className="sr-only">{currentSectionLabel}</h1>
 
                 {activeHref === '#grocery-catalog' ? (
                   <GroceryCatalog refreshKey={catalogRefresh} />
@@ -298,6 +267,7 @@ export default function App() {
                       appliedSearch={appliedItemSearch}
                       filtersPending={purchaseFiltersPending}
                       searchPending={itemSearchPending}
+                      onAddPurchase={() => { setPurchaseRestockNotice(null); setPurchaseDialogOpen(true); }}
                       onFiltersChange={(filters) => {
                         setPurchaseFilters(filters);
                       }}
