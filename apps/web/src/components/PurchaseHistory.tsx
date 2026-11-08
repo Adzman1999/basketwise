@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, CalendarDays, ChevronRight, LoaderCircle, ReceiptText, RotateCcw, Search, SlidersHorizontal, Store } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CalendarDays, Check, ChevronRight, LoaderCircle, Plus, ReceiptText, RotateCcw, Search, SlidersHorizontal, Store } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -33,6 +33,7 @@ type PurchaseHistoryProps = {
   onClearSearch: () => void;
   onPageChange: (page: number) => void;
   onRetry: () => void;
+  onAddPurchaseToPantry: (purchaseId: string) => Promise<void>;
 };
 
 const phpFormatter = new Intl.NumberFormat('en-PH', {
@@ -75,20 +76,45 @@ function HighlightedMatch({ name, query }: { name: string; query: string }) {
   );
 }
 
-function PurchaseCard({ purchase, searchQuery, onSelect }: { purchase: Purchase; searchQuery: string; onSelect: (purchase: Purchase) => void }) {
+function PurchaseCard({
+  purchase,
+  searchQuery,
+  onSelect,
+  onAddPurchaseToPantry,
+}: {
+  purchase: Purchase;
+  searchQuery: string;
+  onSelect: (purchase: Purchase) => void;
+  onAddPurchaseToPantry: (purchaseId: string) => Promise<void>;
+}) {
+  const [isAddingToPantry, setIsAddingToPantry] = useState(false);
+  const [pantryActionError, setPantryActionError] = useState('');
   const normalizedSearch = searchQuery.trim().toLowerCase();
+  const pendingPantryItems = purchase.items.filter((item) => !item.pantryAdded).length;
   const matchingItems = normalizedSearch
     ? purchase.items.filter((item) => item.itemName.toLowerCase().includes(normalizedSearch))
     : [];
   const previewItems = matchingItems.length > 0 ? matchingItems.slice(0, 1) : purchase.items.slice(0, 2);
 
+  async function addToPantry() {
+    setIsAddingToPantry(true);
+    setPantryActionError('');
+    try {
+      await onAddPurchaseToPantry(purchase.id);
+    } catch (error) {
+      setPantryActionError(error instanceof Error ? error.message : 'Could not add this receipt to pantry.');
+    } finally {
+      setIsAddingToPantry(false);
+    }
+  }
+
   return (
-    <Card className="h-full min-w-0 overflow-hidden border-primary/15 bg-gradient-to-br from-primary/[0.035] via-card to-card p-0 transition-colors hover:border-primary/25">
+    <Card className="flex h-full min-w-0 flex-col overflow-hidden border-primary/15 bg-gradient-to-br from-primary/[0.035] via-card to-card p-0 transition-colors hover:border-primary/25">
       <button
         type="button"
         onClick={() => onSelect(purchase)}
         aria-label={`Open receipt from ${purchase.storeName || 'grocery trip'} on ${formatPurchaseDate(purchase.purchasedOn)}, total ${formatCentavos(purchase.totalPaidCentavos)}`}
-        className="group flex h-full min-h-44 w-full flex-col rounded-xl p-3 text-left transition-colors hover:bg-primary/[0.025] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+        className="group flex min-h-44 w-full flex-1 flex-col rounded-xl p-3 text-left transition-colors hover:bg-primary/[0.025] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
       >
         <div className="flex w-full items-start justify-between gap-2">
           <div className="flex min-w-0 items-start gap-2.5">
@@ -131,6 +157,31 @@ function PurchaseCard({ purchase, searchQuery, onSelect }: { purchase: Purchase;
           View receipt <ChevronRight aria-hidden="true" className="size-3.5" />
         </span>
       </button>
+      <div className="space-y-1.5 px-3 pb-3">
+        {pantryActionError && <p className="text-xs leading-5 text-destructive" role="alert">{pantryActionError}</p>}
+        <Button
+          type="button"
+          size="sm"
+          variant={pendingPantryItems > 0 ? 'outline' : 'secondary'}
+          className="w-full"
+          onClick={() => void addToPantry()}
+          disabled={pendingPantryItems === 0 || isAddingToPantry}
+          aria-label={pendingPantryItems === 0
+            ? `Receipt from ${purchase.storeName || 'grocery trip'} is already in pantry`
+            : `Add ${pendingPantryItems} remaining ${pendingPantryItems === 1 ? 'item' : 'items'} from ${purchase.storeName || 'grocery trip'} to pantry`}
+        >
+          {isAddingToPantry
+            ? <LoaderCircle aria-hidden="true" className="animate-spin" />
+            : pendingPantryItems === 0
+              ? <Check aria-hidden="true" />
+              : <Plus aria-hidden="true" />}
+          {isAddingToPantry
+            ? 'Adding to pantry…'
+            : pendingPantryItems === 0
+              ? 'Already in pantry'
+              : `Add ${pendingPantryItems} ${pendingPantryItems === 1 ? 'item' : 'items'} to pantry`}
+        </Button>
+      </div>
     </Card>
   );
 }
@@ -152,6 +203,7 @@ export default function PurchaseHistory({
   onClearSearch,
   onPageChange,
   onRetry,
+  onAddPurchaseToPantry,
 }: PurchaseHistoryProps) {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [selectedPurchase, setSelectedPurchase] = useState<Purchase | null>(null);
@@ -404,7 +456,13 @@ export default function PurchaseHistory({
         )}
 
         {pageData?.items.map((purchase) => (
-          <PurchaseCard key={purchase.id} purchase={purchase} searchQuery={appliedSearch} onSelect={setSelectedPurchase} />
+          <PurchaseCard
+            key={purchase.id}
+            purchase={purchase}
+            searchQuery={appliedSearch}
+            onSelect={setSelectedPurchase}
+            onAddPurchaseToPantry={onAddPurchaseToPantry}
+          />
         ))}
       </div>
 
