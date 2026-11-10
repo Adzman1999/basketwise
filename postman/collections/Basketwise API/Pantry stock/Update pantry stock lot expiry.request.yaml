@@ -1,0 +1,19 @@
+$kind: http-request
+description: Sets or clears the expiry date for one active pantry batch.
+url: '{{baseUrl}}/api/pantry/lots/{{lotId}}'
+method: PUT
+headers:
+  Content-Type: application/json
+  Accept: application/json
+pathVariables:
+  - key: lotId
+    value: '{{pantryStockLotId}}'
+body:
+  type: json
+  content: |-
+    {
+      "expiresOn": "2026-12-15"
+    }
+settings: {}
+examples: './.resources/Update pantry stock lot expiry.resources/examples'
+order: 5000

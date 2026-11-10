@@ -1,0 +1,19 @@
+$kind: http-request
+description: Records a discarded quantity for one pantry batch, reduces its remaining amount and current pantry stock atomically, and keeps the grocery receipt unchanged.
+url: '{{baseUrl}}/api/pantry/lots/{{lotId}}/waste'
+method: POST
+headers:
+  Content-Type: application/json
+  Accept: application/json
+pathVariables:
+  - key: lotId
+    value: '{{pantryStockLotId}}'
+body:
+  type: json
+  content: |-
+    {
+      "quantity": 0.5
+    }
+settings: {}
+examples: './.resources/Record discarded pantry stock.resources/examples'
+order: 7000

@@ -4,7 +4,7 @@ import {
   listPurchaseRecords,
   type PurchaseRecord,
 } from '../repositories/purchaseRepository';
-import type { CreatePurchaseInput, PurchaseListQuery } from '../schemas/purchase';
+import type { AddPurchaseItemsToPantryInput, CreatePurchaseInput, PurchaseListQuery } from '../schemas/purchase';
 
 function toPurchaseResponse(purchase: PurchaseRecord) {
   const { storeName, ...purchaseFields } = purchase;
@@ -30,8 +30,8 @@ export async function createPurchase(input: CreatePurchaseInput) {
   return toPurchaseResponse(await createPurchaseRecord(input));
 }
 
-export async function addPurchaseItemsToPantry(purchaseId: string) {
-  return addPurchaseItemsToPantryRecord(purchaseId);
+export async function addPurchaseItemsToPantry(purchaseId: string, input: AddPurchaseItemsToPantryInput) {
+  return addPurchaseItemsToPantryRecord(purchaseId, input);
 }
 
 export async function listPurchases(input: PurchaseListQuery) {

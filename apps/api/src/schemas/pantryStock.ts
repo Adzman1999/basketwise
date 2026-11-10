@@ -6,6 +6,8 @@ const quantity = z.number()
   .max(999_999_999.999)
   .refine((value) => Math.abs(value * 1000 - Math.round(value * 1000)) < 0.000001);
 
+const positiveQuantity = quantity.refine((value) => value > 0);
+
 const calendarDate = z.string()
   .regex(/^\d{4}-\d{2}-\d{2}$/)
   .refine((value) => {
@@ -29,6 +31,25 @@ export const pantryStockListQuerySchema = z.object({
 }).strict();
 
 export const pantryStockIdSchema = z.string().uuid();
+export const pantryStockLotIdSchema = z.string().uuid();
+
+export const pantryStockLotsListQuerySchema = z.object({
+  ...pagination,
+  search: z.string().trim().min(1).max(120).optional(),
+}).strict();
+
+export const pantryStockWasteListQuerySchema = z.object({
+  ...pagination,
+  search: z.string().trim().min(1).max(120).optional(),
+}).strict();
+
+export const updatePantryStockLotExpirySchema = z.object({
+  expiresOn: calendarDate.nullable(),
+}).strict();
+
+export const recordPantryStockWasteSchema = z.object({
+  quantity: positiveQuantity,
+}).strict();
 
 export const createPantryStockSchema = z.object({
   groceryItemId: z.string().uuid(),
@@ -43,9 +64,12 @@ export const updatePantryStockSchema = z.object({
   quantity,
   lowStockThreshold: quantity.nullable(),
   autoRestock: z.boolean(),
-  expiresOn: calendarDate.nullable(),
 }).strict();
 
 export type PantryStockListQuery = z.infer<typeof pantryStockListQuerySchema>;
+export type PantryStockLotsListQuery = z.infer<typeof pantryStockLotsListQuerySchema>;
+export type PantryStockWasteListQuery = z.infer<typeof pantryStockWasteListQuerySchema>;
+export type UpdatePantryStockLotExpiryInput = z.infer<typeof updatePantryStockLotExpirySchema>;
+export type RecordPantryStockWasteInput = z.infer<typeof recordPantryStockWasteSchema>;
 export type CreatePantryStockInput = z.infer<typeof createPantryStockSchema>;
 export type UpdatePantryStockInput = z.infer<typeof updatePantryStockSchema>;

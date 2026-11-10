@@ -14,6 +14,13 @@ const centavos = z.number().int().min(0).max(maxCentavos);
 
 export const purchaseIdSchema = z.string().uuid();
 
+export const addPurchaseItemsToPantrySchema = z.object({
+  expiryDates: z.array(z.object({
+    purchaseItemId: z.string().uuid(),
+    expiresOn: calendarDate.nullable(),
+  }).strict()).max(100).default([]),
+}).strict();
+
 export const createPurchaseItemSchema = z.object({
   itemName: z.string().trim().min(1).max(120),
   quantity: z.number()
@@ -23,6 +30,7 @@ export const createPurchaseItemSchema = z.object({
     .refine((value) => Math.abs(value * 1000 - Math.round(value * 1000)) < 1e-7),
   unit: z.string().trim().min(1).max(32).transform((value) => value.replace(/\s+/g, ' ')),
   amountPaidCentavos: centavos,
+  expiresOn: calendarDate.nullable().optional(),
 }).strict();
 
 export const createPurchaseSchema = z.object({
@@ -60,4 +68,5 @@ export const purchaseListQuerySchema = z.object({
 });
 
 export type CreatePurchaseInput = z.infer<typeof createPurchaseSchema>;
+export type AddPurchaseItemsToPantryInput = z.infer<typeof addPurchaseItemsToPantrySchema>;
 export type PurchaseListQuery = z.infer<typeof purchaseListQuerySchema>;

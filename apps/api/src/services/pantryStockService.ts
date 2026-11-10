@@ -1,12 +1,24 @@
 import {
   createPantryStockRecord,
   deletePantryStockRecord,
+  listPantryStockWasteRecords,
+  listPantryStockLotRecords,
   listPantryStockRecords,
   pantryReferencesExist,
+  recordPantryStockWasteRecord,
   updatePantryStockRecord,
+  updatePantryStockLotExpiryRecord,
 } from '../repositories/pantryStockRepository';
-import type { PantryStockRecord } from '../repositories/pantryStockRepository';
-import type { CreatePantryStockInput, PantryStockListQuery, UpdatePantryStockInput } from '../schemas/pantryStock';
+import type { PantryStockLotRecord, PantryStockRecord, PantryStockWasteRecord } from '../repositories/pantryStockRepository';
+import type {
+  CreatePantryStockInput,
+  PantryStockListQuery,
+  PantryStockLotsListQuery,
+  PantryStockWasteListQuery,
+  RecordPantryStockWasteInput,
+  UpdatePantryStockInput,
+  UpdatePantryStockLotExpiryInput,
+} from '../schemas/pantryStock';
 
 export class DuplicatePantryStockError extends Error {
   constructor() {
@@ -33,6 +45,25 @@ function presentStock(record: PantryStockRecord) {
   return { ...record, quantity, lowStockThreshold, status };
 }
 
+function presentLot(record: PantryStockLotRecord) {
+  return {
+    ...record,
+    quantityReceived: Number(record.quantityReceived),
+    quantityRemaining: Number(record.quantityRemaining),
+    receivedAt: record.receivedAt.toISOString(),
+  };
+}
+
+function presentWaste(record: PantryStockWasteRecord) {
+  return {
+    ...record,
+    quantityWasted: Number(record.quantityWasted),
+    quantityRemainingAfter: Number(record.quantityRemainingAfter),
+    discardedAt: record.discardedAt.toISOString(),
+    receivedAt: record.receivedAt.toISOString(),
+  };
+}
+
 export async function listPantryStock(input: PantryStockListQuery) {
   const result = await listPantryStockRecords(input);
   return {
@@ -42,6 +73,41 @@ export async function listPantryStock(input: PantryStockListQuery) {
     total: result.total,
     summary: result.summary,
   };
+}
+
+export async function listPantryStockLots(input: PantryStockLotsListQuery) {
+  const result = await listPantryStockLotRecords(input);
+  return {
+    items: result.items.map(presentLot),
+    page: input.page,
+    pageSize: input.pageSize,
+    total: result.total,
+  };
+}
+
+export async function listPantryStockWaste(input: PantryStockWasteListQuery) {
+  const result = await listPantryStockWasteRecords(input);
+  return {
+    items: result.items.map(presentWaste),
+    page: input.page,
+    pageSize: input.pageSize,
+    total: result.total,
+  };
+}
+
+export async function updatePantryStockLotExpiry(
+  id: string,
+  input: UpdatePantryStockLotExpiryInput
+) {
+  const record = await updatePantryStockLotExpiryRecord(id, input);
+  return record ? presentLot(record) : null;
+}
+
+export async function recordPantryStockWaste(lotId: string, input: RecordPantryStockWasteInput) {
+  const result = await recordPantryStockWasteRecord(lotId, input);
+  return result.kind === 'recorded'
+    ? { kind: result.kind, waste: presentWaste(result.record) }
+    : result;
 }
 
 export async function createPantryStock(input: CreatePantryStockInput) {

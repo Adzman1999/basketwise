@@ -2,10 +2,23 @@ $kind: http-request
 description: |
   Adds the receipt items that have not yet been applied to pantry stock.
   Repeating this request does not add a receipt line twice. The receipt's
-  purchased date stays in history; current pantry quantities update now.
+  purchased date stays in history; current pantry quantities update now. Set
+  expiryDates to override dates for pending receipt lines before they are added.
 url: '{{baseUrl}}/api/purchases/{{lastCreatedPurchaseId}}/pantry'
 method: POST
 headers:
+  Content-Type: application/json
   Accept: application/json
+body:
+  type: json
+  content: |-
+    {
+      "expiryDates": [
+        {
+          "purchaseItemId": "{{purchaseItemId}}",
+          "expiresOn": "2026-12-20"
+        }
+      ]
+    }
 examples: './.resources/Add untracked purchase items to pantry.resources/examples'
 order: 3000

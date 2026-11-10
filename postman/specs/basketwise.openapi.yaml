@@ -69,7 +69,8 @@ paths:
       description: |
         Returns the current tracked quantity for each saved grocery item and
         measurement-unit pair. Quantities are not converted between units.
-        Each record may have one optional expiry date for its tracked quantity.
+        Each record's expiry date is the earliest dated lot with quantity still
+        on hand; use the lot operations to review or update individual batches.
         The summary counts all pantry records, even when search or status
         filters are applied to the returned page. A zero quantity is out of
         stock; a positive quantity at or below its optional threshold is low.
@@ -148,9 +149,9 @@ paths:
         unit. A pair can be tracked only once; use the update operation to
         change an existing quantity or auto-restock setting. When autoRestock
         is true, future purchases with the exact same item and unit increase
-        this quantity. The optional expiry date applies to the tracked quantity
-        and is not changed by auto-restocking. Past purchases are not applied
-        retroactively.
+        this quantity. An optional receipt-line expiry date is copied to its
+        pantry lot; when unknown, it stays empty until set through the lot
+        operation. Past purchases are not applied retroactively.
       requestBody:
         required: true
         content:
@@ -204,6 +205,226 @@ paths:
           $ref: "#/components/responses/DuplicatePantryStock"
         "500":
           $ref: "#/components/responses/InternalServerError"
+  /api/pantry/waste:
+    get:
+      operationId: listPantryStockWaste
+      tags:
+        - Pantry stock
+      summary: List pantry waste history
+      description: Returns recorded discarded quantities, newest first. Waste entries keep item and batch details if pantry tracking for that item is later removed. Search filters by grocery item name.
+      parameters:
+        - name: search
+          in: query
+          required: false
+          description: Case-insensitive literal substring of the grocery item name.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 120
+        - name: page
+          in: query
+          required: false
+          description: One-based result page.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000000
+            default: 1
+        - name: pageSize
+          in: query
+          required: false
+          description: Number of waste records per page, up to 100.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: A page of discarded pantry quantities.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PantryStockWastePage"
+              example:
+                items:
+                  - id: "378231fe-2c64-4ac6-82bb-44e0bf87cd8b"
+                    lotId: "ee7104c9-915b-4789-9efc-134bda74a8bc"
+                    itemName: "Rice"
+                    unit: "kg"
+                    quantityWasted: 0.5
+                    quantityRemainingAfter: 1
+                    discardedAt: "2026-11-10T09:00:00.000Z"
+                    expiresOn: "2026-12-15"
+                    receivedAt: "2026-11-10T08:00:00.000Z"
+                    purchaseDate: "2026-11-09"
+                    storeName: "Market Basket"
+                page: 1
+                pageSize: 20
+                total: 1
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/pantry/lots:
+    get:
+      operationId: listPantryStockLots
+      tags:
+        - Pantry stock
+      summary: List current pantry stock lots
+      description: Returns current positive-quantity batches ordered by earliest expiry, with batches without an expiry date last.
+      parameters:
+        - name: search
+          in: query
+          required: false
+          description: Case-insensitive literal substring of the normalized grocery item name.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 120
+        - name: page
+          in: query
+          required: false
+          description: One-based result page.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000000
+            default: 1
+        - name: pageSize
+          in: query
+          required: false
+          description: Number of lots per page, up to 100.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: A page of current pantry lots.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PantryStockLotPage"
+              example:
+                items:
+                  - id: "ee7104c9-915b-4789-9efc-134bda74a8bc"
+                    pantryStockId: "e024aa98-29b2-4f40-a467-283ed82cbb44"
+                    itemName: "Rice"
+                    unit: "kg"
+                    quantityReceived: 2
+                    quantityRemaining: 1.5
+                    sourceType: purchase
+                    expiresOn: "2026-12-15"
+                    receivedAt: "2026-11-10T08:00:00.000Z"
+                    purchaseDate: "2026-11-09"
+                    storeName: "Market Basket"
+                page: 1
+                pageSize: 20
+                total: 1
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/pantry/lots/{lotId}:
+    parameters:
+      - name: lotId
+        in: path
+        required: true
+        description: Pantry stock lot UUID.
+        schema:
+          type: string
+          format: uuid
+    put:
+      operationId: updatePantryStockLotExpiry
+      tags:
+        - Pantry stock
+      summary: Update a stock lot expiry date
+      description: Updates or clears the expiry date for one active stock lot. The aggregate pantry expiry is recalculated as the earliest dated active lot.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePantryStockLotExpiryRequest"
+            example:
+              expiresOn: "2026-12-15"
+      responses:
+        "200":
+          description: The stock lot with its updated expiry date.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PantryStockLot"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/pantry/lots/{lotId}/waste:
+    parameters:
+      - name: lotId
+        in: path
+        required: true
+        description: Pantry stock lot UUID.
+        schema:
+          type: string
+          format: uuid
+    post:
+      operationId: recordPantryStockWaste
+      tags:
+        - Pantry stock
+      summary: Record discarded quantity from a pantry batch
+      description: |
+        Records a discard for one active batch, reduces that batch's remaining
+        quantity and the matching current pantry quantity atomically. The
+        receipt and its purchase line remain unchanged. Waste history preserves
+        the item's and batch's display details if pantry tracking is removed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecordPantryStockWasteRequest"
+            example:
+              quantity: 0.5
+      responses:
+        "201":
+          description: The discarded quantity was recorded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PantryStockWaste"
+              example:
+                id: "378231fe-2c64-4ac6-82bb-44e0bf87cd8b"
+                lotId: "ee7104c9-915b-4789-9efc-134bda74a8bc"
+                itemName: "Rice"
+                unit: "kg"
+                quantityWasted: 0.5
+                quantityRemainingAfter: 1
+                discardedAt: "2026-11-10T09:00:00.000Z"
+                expiresOn: "2026-12-15"
+                receivedAt: "2026-11-10T08:00:00.000Z"
+                purchaseDate: "2026-11-09"
+                storeName: "Market Basket"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: The requested quantity is greater than the amount remaining in this batch.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              example:
+                error:
+                  code: INSUFFICIENT_PANTRY_LOT_QUANTITY
+                  message: This batch has only 1 kg remaining.
+        "500":
+          $ref: "#/components/responses/InternalServerError"
   /api/pantry/{pantryStockId}:
     parameters:
       - name: pantryStockId
@@ -218,7 +439,7 @@ paths:
       tags:
         - Pantry stock
       summary: Update current pantry quantity
-      description: Replaces the current quantity, nullable low-stock threshold, auto-restock setting, and nullable expiry date. It does not change grocery purchase history.
+      description: Replaces the current quantity, nullable low-stock threshold, and auto-restock setting. The returned expiry date is the earliest dated lot still in stock; update individual dates through the pantry lot expiry operation.
       requestBody:
         required: true
         content:
@@ -229,7 +450,6 @@ paths:
               quantity: 0.75
               lowStockThreshold: 2
               autoRestock: true
-              expiresOn: "2026-12-15"
       responses:
         "200":
           description: The pantry stock record was updated.
@@ -567,6 +787,7 @@ paths:
                         quantity: 2
                         unit: "kg"
                         amountPaidCentavos: 11000
+                        expiresOn: "2026-12-15"
                         pantryAdded: true
                       - id: "b4c7c876-a686-4caf-b6fd-4861c3e3a718"
                         groceryItemId: "65fcaec9-a74a-4b8b-becb-0f0733762f35"
@@ -574,6 +795,7 @@ paths:
                         quantity: 1
                         unit: "pack"
                         amountPaidCentavos: 1300
+                        expiresOn: null
                         pantryAdded: false
                     createdAt: "2026-10-29T08:00:00.000Z"
                 page: 1
@@ -598,9 +820,9 @@ paths:
         create records, while existing pairs increase their quantity. When it
         is false or omitted, only auto-restock records are updated. The create
         response lists each pantry record updated; a purchase line is applied
-        at most once. Untracked receipt lines can be added later with the pantry
-        action for that purchase. Existing expiry dates are preserved because
-        receipts do not carry expiry information.
+        at most once. An optional expiry date on a receipt line is stored with
+        its pantry lot. Untracked receipt lines can be added later with the
+        pantry action for that purchase, which reuses the saved line date.
       requestBody:
         required: true
         content:
@@ -616,6 +838,7 @@ paths:
                   quantity: 2
                   unit: "kg"
                   amountPaidCentavos: 11000
+                  expiresOn: "2026-12-15"
                 - itemName: "Bananas"
                   quantity: 1
                   unit: "pack"
@@ -641,6 +864,7 @@ paths:
                     quantity: 2
                     unit: "kg"
                     amountPaidCentavos: 11000
+                    expiresOn: "2026-12-15"
                     pantryAdded: true
                   - id: "b4c7c876-a686-4caf-b6fd-4861c3e3a718"
                     groceryItemId: "65fcaec9-a74a-4b8b-becb-0f0733762f35"
@@ -648,6 +872,7 @@ paths:
                     quantity: 1
                     unit: "pack"
                     amountPaidCentavos: 1300
+                    expiresOn: null
                     pantryAdded: true
                 createdAt: "2026-10-29T08:00:00.000Z"
                 pantryRestockedItems:
@@ -678,6 +903,8 @@ paths:
         this request cannot add them twice. The purchase and pantry changes are
         committed together. The receipt's purchasedOn date remains unchanged in
         history; pantry stock is updated at the time this request is processed.
+        Optional expiry-date overrides can be provided for unadded lines. Lines
+        without an override keep the date saved on the receipt, if any.
       parameters:
         - name: purchaseId
           in: path
@@ -686,6 +913,16 @@ paths:
           schema:
             type: string
             format: uuid
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddPurchaseItemsToPantryRequest"
+            example:
+              expiryDates:
+                - purchaseItemId: "b4c7c876-a686-4caf-b6fd-4861c3e3a718"
+                  expiresOn: "2026-12-20"
       responses:
         "200":
           description: Previously untracked receipt lines were added. Repeating the request returns an empty list.
@@ -942,6 +1179,181 @@ components:
             $ref: "#/components/schemas/MeasurementUnit"
         total:
           type: integer
+    PantryStockLotSource:
+      type: string
+      enum: [opening_balance, purchase, manual_adjustment]
+    PantryStockLot:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - pantryStockId
+        - itemName
+        - unit
+        - quantityReceived
+        - quantityRemaining
+        - sourceType
+        - expiresOn
+        - receivedAt
+        - purchaseDate
+        - storeName
+      properties:
+        id:
+          type: string
+          format: uuid
+        pantryStockId:
+          type: string
+          format: uuid
+        itemName:
+          type: string
+        unit:
+          type: string
+        quantityReceived:
+          type: number
+          exclusiveMinimum: 0
+          maximum: 999999999.999
+          multipleOf: 0.001
+        quantityRemaining:
+          type: number
+          exclusiveMinimum: 0
+          maximum: 999999999.999
+          multipleOf: 0.001
+        sourceType:
+          $ref: "#/components/schemas/PantryStockLotSource"
+        expiresOn:
+          oneOf:
+            - type: string
+              format: date
+            - type: "null"
+        receivedAt:
+          type: string
+          format: date-time
+        purchaseDate:
+          oneOf:
+            - type: string
+              format: date
+            - type: "null"
+        storeName:
+          oneOf:
+            - type: string
+            - type: "null"
+    PantryStockLotPage:
+      type: object
+      additionalProperties: false
+      required: [items, page, pageSize, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PantryStockLot"
+        page:
+          type: integer
+          minimum: 1
+        pageSize:
+          type: integer
+          minimum: 1
+          maximum: 100
+        total:
+          type: integer
+          minimum: 0
+    PantryStockWaste:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - lotId
+        - itemName
+        - unit
+        - quantityWasted
+        - quantityRemainingAfter
+        - discardedAt
+        - expiresOn
+        - receivedAt
+        - purchaseDate
+        - storeName
+      properties:
+        id:
+          type: string
+          format: uuid
+        lotId:
+          oneOf:
+            - type: string
+              format: uuid
+            - type: "null"
+          description: Null if the related pantry lot was later removed.
+        itemName:
+          type: string
+        unit:
+          type: string
+        quantityWasted:
+          type: number
+          exclusiveMinimum: 0
+          maximum: 999999999.999
+          multipleOf: 0.001
+        quantityRemainingAfter:
+          type: number
+          minimum: 0
+          maximum: 999999999.999
+          multipleOf: 0.001
+        discardedAt:
+          type: string
+          format: date-time
+        expiresOn:
+          oneOf:
+            - type: string
+              format: date
+            - type: "null"
+        receivedAt:
+          type: string
+          format: date-time
+        purchaseDate:
+          oneOf:
+            - type: string
+              format: date
+            - type: "null"
+        storeName:
+          oneOf:
+            - type: string
+            - type: "null"
+    PantryStockWastePage:
+      type: object
+      additionalProperties: false
+      required: [items, page, pageSize, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PantryStockWaste"
+        page:
+          type: integer
+          minimum: 1
+        pageSize:
+          type: integer
+          minimum: 1
+          maximum: 100
+        total:
+          type: integer
+          minimum: 0
+    RecordPantryStockWasteRequest:
+      type: object
+      additionalProperties: false
+      required: [quantity]
+      properties:
+        quantity:
+          type: number
+          exclusiveMinimum: 0
+          maximum: 999999999.999
+          multipleOf: 0.001
+    UpdatePantryStockLotExpiryRequest:
+      type: object
+      additionalProperties: false
+      required: [expiresOn]
+      properties:
+        expiresOn:
+          oneOf:
+            - type: string
+              format: date
+            - type: "null"
     PantryStockStatus:
       type: string
       enum: [in_stock, low_stock, out_of_stock]
@@ -994,7 +1406,7 @@ components:
             - type: string
               format: date
             - type: "null"
-          description: Optional date applying to this record's tracked quantity.
+          description: Earliest expiry among active lots with a known date.
         status:
           $ref: "#/components/schemas/PantryStockStatus"
         updatedAt:
@@ -1085,7 +1497,7 @@ components:
               format: date
             - type: "null"
           default: null
-          description: Optional expiry date for the tracked quantity.
+          description: Optional expiry date for the initial pantry lot.
     UpdatePantryStockRequest:
       type: object
       additionalProperties: false
@@ -1093,7 +1505,6 @@ components:
         - quantity
         - lowStockThreshold
         - autoRestock
-        - expiresOn
       properties:
         quantity:
           type: number
@@ -1109,11 +1520,6 @@ components:
             - type: "null"
         autoRestock:
           type: boolean
-        expiresOn:
-          oneOf:
-            - type: string
-              format: date
-            - type: "null"
     StoreCategory:
       type: string
       enum:
@@ -1331,6 +1737,12 @@ components:
           minimum: 0
           maximum: 2147483647
           description: Amount paid for this line in PHP centavos.
+        expiresOn:
+          oneOf:
+            - type: string
+              format: date
+            - type: "null"
+          description: Optional expiry date stored for the pantry lot created from this receipt line.
     Purchase:
       type: object
       additionalProperties: false
@@ -1415,6 +1827,27 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/PantryRestockedItem"
+    AddPurchaseItemsToPantryRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        expiryDates:
+          type: array
+          maxItems: 100
+          description: Optional expiry-date overrides for receipt lines that have not been added to pantry stock yet.
+          items:
+            type: object
+            additionalProperties: false
+            required: [purchaseItemId, expiresOn]
+            properties:
+              purchaseItemId:
+                type: string
+                format: uuid
+              expiresOn:
+                oneOf:
+                  - type: string
+                    format: date
+                  - type: "null"
     PurchaseItem:
       type: object
       additionalProperties: false
@@ -1425,6 +1858,7 @@ components:
         - quantity
         - unit
         - amountPaidCentavos
+        - expiresOn
         - pantryAdded
       properties:
         id:
@@ -1444,6 +1878,12 @@ components:
           type: integer
           minimum: 0
           maximum: 2147483647
+        expiresOn:
+          oneOf:
+            - type: string
+              format: date
+            - type: "null"
+          description: Optional expiry saved for this receipt line and its pantry lot.
         pantryAdded:
           type: boolean
           description: Whether this receipt line has already been applied to pantry stock.

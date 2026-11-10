@@ -1,0 +1,36 @@
+$kind: http-example
+name: A page of pantry waste history.
+request:
+  url: "{{baseUrl}}/api/pantry/waste?page=1&pageSize=20"
+  method: GET
+  headers:
+    Accept: application/json
+response:
+  statusCode: 200
+  statusText: OK
+  headers:
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "items": [
+          {
+            "id": "378231fe-2c64-4ac6-82bb-44e0bf87cd8b",
+            "lotId": "ee7104c9-915b-4789-9efc-134bda74a8bc",
+            "itemName": "Rice",
+            "unit": "kg",
+            "quantityWasted": 0.5,
+            "quantityRemainingAfter": 1,
+            "discardedAt": "2026-11-10T09:00:00.000Z",
+            "expiresOn": "2026-12-15",
+            "receivedAt": "2026-11-10T08:00:00.000Z",
+            "purchaseDate": "2026-11-09",
+            "storeName": "Market Basket"
+          }
+        ],
+        "page": 1,
+        "pageSize": 20,
+        "total": 1
+      }
+order: 1000

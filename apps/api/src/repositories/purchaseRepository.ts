@@ -1,6 +1,6 @@
 import type { PoolClient } from 'pg';
 import { getPool, query } from '../db';
-import type { CreatePurchaseInput, PurchaseListQuery } from '../schemas/purchase';
+import type { AddPurchaseItemsToPantryInput, CreatePurchaseInput, PurchaseListQuery } from '../schemas/purchase';
 
 type PurchaseRow = {
   id: string;
@@ -19,6 +19,7 @@ type PurchaseItemRow = {
   quantity: string | number;
   unit: string;
   amountPaidCentavos: number;
+  expiresOn: string | null;
   pantryAdded: boolean;
 };
 
@@ -69,13 +70,14 @@ async function insertPurchaseItems(
        )
        INSERT INTO purchase_items (
          purchase_id, position, grocery_item_id, unit_id, item_name, quantity,
-         unit, amount_paid_centavos
+         unit, amount_paid_centavos, expires_on
        )
-       SELECT $1, $2, catalog_item.id, unit_record.id, $3, $4, $5, $6
+       SELECT $1, $2, catalog_item.id, unit_record.id, $3, $4, $5, $6, $7
        FROM catalog_item, unit_record
        RETURNING id, grocery_item_id AS "groceryItemId", item_name AS "itemName", quantity, unit,
-                 amount_paid_centavos AS "amountPaidCentavos"`,
-      [purchaseId, position, item.itemName, item.quantity, item.unit, item.amountPaidCentavos]
+                 amount_paid_centavos AS "amountPaidCentavos",
+                 expires_on::text AS "expiresOn"`,
+      [purchaseId, position, item.itemName, item.quantity, item.unit, item.amountPaidCentavos, item.expiresOn ?? null]
     );
     insertedItems.push(result.rows[0]);
   }
@@ -108,7 +110,8 @@ async function restockPantryFromPurchase(
     `WITH eligible_items AS MATERIALIZED (
        SELECT ps.id AS pantry_stock_id,
               pi.id AS purchase_item_id,
-              pi.quantity AS quantity_added
+              pi.quantity AS quantity_added,
+              pi.expires_on
        FROM pantry_stock ps
        JOIN purchase_items pi
          ON pi.grocery_item_id = ps.grocery_item_id
@@ -117,12 +120,25 @@ async function restockPantryFromPurchase(
          AND ($2::boolean = TRUE OR ps.auto_restock = TRUE)
        ORDER BY ps.id, pi.id
        FOR UPDATE OF ps
+     ), inserted_lots AS (
+       INSERT INTO pantry_stock_lots (
+         pantry_stock_id, source_type, source_purchase_item_id,
+         quantity_received, quantity_remaining, expires_on
+       )
+       SELECT eligible.pantry_stock_id, 'purchase', eligible.purchase_item_id,
+              eligible.quantity_added, eligible.quantity_added, eligible.expires_on
+       FROM eligible_items eligible
+       ON CONFLICT (source_purchase_item_id)
+         WHERE source_purchase_item_id IS NOT NULL
+         DO NOTHING
+       RETURNING id, source_purchase_item_id, pantry_stock_id,
+                 quantity_received AS quantity_added, expires_on
      ), recorded_movements AS (
        INSERT INTO pantry_stock_purchase_movements (
-         purchase_item_id, pantry_stock_id, quantity_added
+         purchase_item_id, pantry_stock_id, quantity_added, pantry_stock_lot_id
        )
-       SELECT purchase_item_id, pantry_stock_id, quantity_added
-       FROM eligible_items
+       SELECT source_purchase_item_id, pantry_stock_id, quantity_added, id
+       FROM inserted_lots
        ON CONFLICT (purchase_item_id) DO NOTHING
        RETURNING pantry_stock_id, quantity_added
      ), restock_totals AS (
@@ -132,6 +148,19 @@ async function restockPantryFromPurchase(
      ), updated_stock AS (
        UPDATE pantry_stock ps
        SET quantity = ps.quantity + totals.quantity_added,
+           expires_on = (
+             SELECT MIN(expiry)
+             FROM (
+               SELECT existing.expires_on AS expiry
+               FROM pantry_stock_lots existing
+               WHERE existing.pantry_stock_id = ps.id
+                 AND existing.quantity_remaining > 0
+               UNION ALL
+               SELECT new_lot.expires_on AS expiry
+               FROM inserted_lots new_lot
+               WHERE new_lot.pantry_stock_id = ps.id
+             ) active_expiries
+           ),
            updated_at = NOW()
        FROM restock_totals totals
        WHERE ps.id = totals.pantry_stock_id
@@ -231,7 +260,8 @@ export async function createPurchaseRecord(input: CreatePurchaseInput): Promise<
 }
 
 export async function addPurchaseItemsToPantryRecord(
-  purchaseId: string
+  purchaseId: string,
+  input: AddPurchaseItemsToPantryInput
 ): Promise<PantryRestockedItemRecord[] | null> {
   const client = await getPool().connect();
   let transactionStarted = false;
@@ -247,6 +277,20 @@ export async function addPurchaseItemsToPantryRecord(
       await client.query('ROLLBACK');
       transactionStarted = false;
       return null;
+    }
+
+    for (const expiryDate of input.expiryDates) {
+      await client.query(
+        `UPDATE purchase_items pi
+         SET expires_on = $3
+         WHERE pi.id = $1
+           AND pi.purchase_id = $2
+           AND NOT EXISTS (
+             SELECT 1 FROM pantry_stock_purchase_movements movement
+             WHERE movement.purchase_item_id = pi.id
+           )`,
+        [expiryDate.purchaseItemId, purchaseId, expiryDate.expiresOn]
+      );
     }
 
     const pantryRestockedItems = await restockPantryFromPurchase(client, purchaseId, true);
@@ -337,6 +381,7 @@ export async function listPurchaseRecords(input: PurchaseListQuery): Promise<{
       `SELECT id, purchase_id AS "purchaseId", item_name AS "itemName",
               grocery_item_id AS "groceryItemId", quantity, unit,
               amount_paid_centavos AS "amountPaidCentavos",
+              expires_on::text AS "expiresOn",
               EXISTS (
                 SELECT 1
                 FROM pantry_stock_purchase_movements movement
@@ -358,6 +403,7 @@ export async function listPurchaseRecords(input: PurchaseListQuery): Promise<{
       quantity: item.quantity,
       unit: item.unit,
       amountPaidCentavos: item.amountPaidCentavos,
+      expiresOn: item.expiresOn,
       pantryAdded: item.pantryAdded,
     });
     itemsByPurchase.set(item.purchaseId, purchaseItems);

@@ -9,6 +9,7 @@ export type CreatePurchaseItem = {
   quantity: number;
   unit: string;
   amountPaidCentavos: number;
+  expiresOn?: string | null;
 };
 
 export type CreatePurchaseRequest = {
@@ -21,6 +22,7 @@ export type CreatePurchaseRequest = {
 export type PurchaseItem = CreatePurchaseItem & {
   id: string;
   groceryItemId: string;
+  expiresOn: string | null;
   pantryAdded: boolean;
 };
 
@@ -171,6 +173,50 @@ export type PantryStockPage = {
   pageSize: number;
   total: number;
   summary: PantryStockSummary;
+};
+
+export type PantryStockLotSource = 'opening_balance' | 'purchase' | 'manual_adjustment';
+
+export type PantryStockLot = {
+  id: string;
+  pantryStockId: string;
+  itemName: string;
+  unit: string;
+  quantityReceived: number;
+  quantityRemaining: number;
+  sourceType: PantryStockLotSource;
+  expiresOn: string | null;
+  receivedAt: string;
+  purchaseDate: string | null;
+  storeName: string | null;
+};
+
+export type PantryStockLotPage = {
+  items: PantryStockLot[];
+  page: number;
+  pageSize: number;
+  total: number;
+};
+
+export type PantryStockWaste = {
+  id: string;
+  lotId: string | null;
+  itemName: string;
+  unit: string;
+  quantityWasted: number;
+  quantityRemainingAfter: number;
+  discardedAt: string;
+  expiresOn: string | null;
+  receivedAt: string;
+  purchaseDate: string | null;
+  storeName: string | null;
+};
+
+export type PantryStockWastePage = {
+  items: PantryStockWaste[];
+  page: number;
+  pageSize: number;
+  total: number;
 };
 
 export type GroceryItemPage = {
@@ -376,6 +422,59 @@ export async function fetchPantryStock(
   });
 }
 
+export async function fetchPantryStockLots(
+  page: number,
+  pageSize: number,
+  search: string,
+  signal: AbortSignal
+): Promise<PantryStockLotPage> {
+  const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+  if (search.trim()) params.set('search', search.trim());
+  return sendRequest<PantryStockLotPage>(`/api/pantry/lots?${params.toString()}`, {
+    headers: { Accept: 'application/json' },
+    signal,
+  });
+}
+
+export async function fetchPantryStockWaste(
+  page: number,
+  pageSize: number,
+  search: string,
+  signal: AbortSignal
+): Promise<PantryStockWastePage> {
+  const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+  if (search.trim()) params.set('search', search.trim());
+  return sendRequest<PantryStockWastePage>(`/api/pantry/waste?${params.toString()}`, {
+    headers: { Accept: 'application/json' },
+    signal,
+  });
+}
+
+export async function updatePantryStockLotExpiry(
+  id: string,
+  expiresOn: string | null
+): Promise<PantryStockLot> {
+  return sendRequest<PantryStockLot>(`/api/pantry/lots/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ expiresOn }),
+  });
+}
+
+export async function recordPantryStockWaste(lotId: string, quantity: number): Promise<PantryStockWaste> {
+  return sendRequest<PantryStockWaste>(`/api/pantry/lots/${encodeURIComponent(lotId)}/waste`, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ quantity }),
+  });
+}
+
 export async function createPantryStock(input: {
   groceryItemId: string;
   unitId: string;
@@ -396,7 +495,7 @@ export async function createPantryStock(input: {
 
 export async function updatePantryStock(
   id: string,
-  input: { quantity: number; lowStockThreshold: number | null; autoRestock: boolean; expiresOn: string | null }
+  input: { quantity: number; lowStockThreshold: number | null; autoRestock: boolean }
 ): Promise<PantryStockItem> {
   return sendRequest<PantryStockItem>(`/api/pantry/${encodeURIComponent(id)}`, {
     method: 'PUT',
@@ -445,12 +544,16 @@ export async function createPurchase(input: CreatePurchaseRequest): Promise<Purc
   });
 }
 
-export async function addPurchaseItemsToPantry(purchaseId: string): Promise<PantryRestockedItem[]> {
+export async function addPurchaseItemsToPantry(
+  purchaseId: string,
+  expiryDates: { purchaseItemId: string; expiresOn: string | null }[] = []
+): Promise<PantryRestockedItem[]> {
   const response = await sendRequest<{ pantryRestockedItems: PantryRestockedItem[] }>(
     `/api/purchases/${encodeURIComponent(purchaseId)}/pantry`,
     {
       method: 'POST',
-      headers: { Accept: 'application/json' },
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ expiryDates }),
     }
   );
   return response.pantryRestockedItems;

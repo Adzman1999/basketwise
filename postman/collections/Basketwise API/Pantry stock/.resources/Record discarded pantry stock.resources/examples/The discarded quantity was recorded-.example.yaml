@@ -1,0 +1,36 @@
+$kind: http-example
+name: The discarded quantity was recorded.
+request:
+  url: "{{baseUrl}}/api/pantry/lots/{{pantryStockLotId}}/waste"
+  method: POST
+  headers:
+    Content-Type: application/json
+    Accept: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "quantity": 0.5
+      }
+response:
+  statusCode: 201
+  statusText: Created
+  headers:
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "id": "378231fe-2c64-4ac6-82bb-44e0bf87cd8b",
+        "lotId": "ee7104c9-915b-4789-9efc-134bda74a8bc",
+        "itemName": "Rice",
+        "unit": "kg",
+        "quantityWasted": 0.5,
+        "quantityRemainingAfter": 1,
+        "discardedAt": "2026-11-10T09:00:00.000Z",
+        "expiresOn": "2026-12-15",
+        "receivedAt": "2026-11-10T08:00:00.000Z",
+        "purchaseDate": "2026-11-09",
+        "storeName": "Market Basket"
+      }
+order: 1000

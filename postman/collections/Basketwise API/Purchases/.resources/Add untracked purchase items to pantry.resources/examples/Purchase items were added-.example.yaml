@@ -5,6 +5,18 @@ request:
   method: POST
   headers:
     Accept: application/json
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "expiryDates": [
+          {
+            "purchaseItemId": "b4c7c876-a686-4caf-b6fd-4861c3e3a718",
+            "expiresOn": "2026-12-20"
+          }
+        ]
+      }
 response:
   statusCode: 200
   statusText: OK

@@ -1,0 +1,36 @@
+$kind: http-example
+name: A page of current pantry lots.
+request:
+  url: "{{baseUrl}}/api/pantry/lots?page=1&pageSize=20"
+  method: GET
+  headers:
+    Accept: application/json
+response:
+  statusCode: 200
+  statusText: OK
+  headers:
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "items": [
+          {
+            "id": "ee7104c9-915b-4789-9efc-134bda74a8bc",
+            "pantryStockId": "e024aa98-29b2-4f40-a467-283ed82cbb44",
+            "itemName": "Rice",
+            "unit": "kg",
+            "quantityReceived": 2,
+            "quantityRemaining": 1.5,
+            "sourceType": "purchase",
+            "expiresOn": "2026-12-15",
+            "receivedAt": "2026-11-10T08:00:00.000Z",
+            "purchaseDate": "2026-11-09",
+            "storeName": "Market Basket"
+          }
+        ],
+        "page": 1,
+        "pageSize": 20,
+        "total": 1
+      }
+order: 1000

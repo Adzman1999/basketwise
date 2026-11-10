@@ -36,6 +36,7 @@ response:
                 "quantity": 2,
                 "unit": "kg",
                 "amountPaidCentavos": 11000,
+                "expiresOn": "2026-12-15",
                 "pantryAdded": true
               },
               {
@@ -45,6 +46,7 @@ response:
                 "quantity": 1,
                 "unit": "pack",
                 "amountPaidCentavos": 1300,
+                "expiresOn": null,
                 "pantryAdded": false
               }
             ],
