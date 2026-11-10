@@ -1,17 +1,21 @@
 import {
   createPantryStockRecord,
   deletePantryStockRecord,
+  listPantryStockWasteRecords,
   listPantryStockLotRecords,
   listPantryStockRecords,
   pantryReferencesExist,
+  recordPantryStockWasteRecord,
   updatePantryStockRecord,
   updatePantryStockLotExpiryRecord,
 } from '../repositories/pantryStockRepository';
-import type { PantryStockLotRecord, PantryStockRecord } from '../repositories/pantryStockRepository';
+import type { PantryStockLotRecord, PantryStockRecord, PantryStockWasteRecord } from '../repositories/pantryStockRepository';
 import type {
   CreatePantryStockInput,
   PantryStockListQuery,
   PantryStockLotsListQuery,
+  PantryStockWasteListQuery,
+  RecordPantryStockWasteInput,
   UpdatePantryStockInput,
   UpdatePantryStockLotExpiryInput,
 } from '../schemas/pantryStock';
@@ -50,6 +54,16 @@ function presentLot(record: PantryStockLotRecord) {
   };
 }
 
+function presentWaste(record: PantryStockWasteRecord) {
+  return {
+    ...record,
+    quantityWasted: Number(record.quantityWasted),
+    quantityRemainingAfter: Number(record.quantityRemainingAfter),
+    discardedAt: record.discardedAt.toISOString(),
+    receivedAt: record.receivedAt.toISOString(),
+  };
+}
+
 export async function listPantryStock(input: PantryStockListQuery) {
   const result = await listPantryStockRecords(input);
   return {
@@ -71,12 +85,29 @@ export async function listPantryStockLots(input: PantryStockLotsListQuery) {
   };
 }
 
+export async function listPantryStockWaste(input: PantryStockWasteListQuery) {
+  const result = await listPantryStockWasteRecords(input);
+  return {
+    items: result.items.map(presentWaste),
+    page: input.page,
+    pageSize: input.pageSize,
+    total: result.total,
+  };
+}
+
 export async function updatePantryStockLotExpiry(
   id: string,
   input: UpdatePantryStockLotExpiryInput
 ) {
   const record = await updatePantryStockLotExpiryRecord(id, input);
   return record ? presentLot(record) : null;
+}
+
+export async function recordPantryStockWaste(lotId: string, input: RecordPantryStockWasteInput) {
+  const result = await recordPantryStockWasteRecord(lotId, input);
+  return result.kind === 'recorded'
+    ? { kind: result.kind, waste: presentWaste(result.record) }
+    : result;
 }
 
 export async function createPantryStock(input: CreatePantryStockInput) {

@@ -5,6 +5,8 @@ import {
   pantryStockListQuerySchema,
   pantryStockLotIdSchema,
   pantryStockLotsListQuerySchema,
+  pantryStockWasteListQuerySchema,
+  recordPantryStockWasteSchema,
   updatePantryStockSchema,
   updatePantryStockLotExpirySchema,
 } from '../schemas/pantryStock';
@@ -15,6 +17,8 @@ import {
   InvalidPantryReferenceError,
   listPantryStock,
   listPantryStockLots,
+  listPantryStockWaste,
+  recordPantryStockWaste,
   updatePantryStock,
   updatePantryStockLotExpiry,
 } from '../services/pantryStockService';
@@ -51,6 +55,17 @@ export async function listPantryStockLotsHandler(req: Request, res: Response) {
   }
 }
 
+export async function listPantryStockWasteHandler(req: Request, res: Response) {
+  const parsed = pantryStockWasteListQuerySchema.safeParse(req.query);
+  if (!parsed.success) return res.status(400).json(invalidRequest);
+  try {
+    return res.status(200).json(await listPantryStockWaste(parsed.data));
+  } catch (error) {
+    console.error('Failed to list pantry waste:', error);
+    return res.status(500).json(internalError);
+  }
+}
+
 export async function updatePantryStockLotExpiryHandler(req: Request, res: Response) {
   const idResult = pantryStockLotIdSchema.safeParse(req.params.lotId);
   const bodyResult = updatePantryStockLotExpirySchema.safeParse(req.body);
@@ -61,6 +76,28 @@ export async function updatePantryStockLotExpiryHandler(req: Request, res: Respo
     return res.status(200).json(lot);
   } catch (error) {
     console.error('Failed to update pantry stock lot expiry:', error);
+    return res.status(500).json(internalError);
+  }
+}
+
+export async function recordPantryStockWasteHandler(req: Request, res: Response) {
+  const idResult = pantryStockLotIdSchema.safeParse(req.params.lotId);
+  const bodyResult = recordPantryStockWasteSchema.safeParse(req.body);
+  if (!idResult.success || !bodyResult.success) return res.status(400).json(invalidRequest);
+  try {
+    const result = await recordPantryStockWaste(idResult.data, bodyResult.data);
+    if (result.kind === 'not_found') return res.status(404).json(notFound);
+    if (result.kind === 'insufficient_quantity') {
+      return res.status(409).json({
+        error: {
+          code: 'INSUFFICIENT_PANTRY_LOT_QUANTITY',
+          message: `This batch has only ${result.availableQuantity} ${result.unit} remaining.`,
+        },
+      });
+    }
+    return res.status(201).json(result.waste);
+  } catch (error) {
+    console.error('Failed to record pantry waste:', error);
     return res.status(500).json(internalError);
   }
 }

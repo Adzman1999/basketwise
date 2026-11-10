@@ -205,6 +205,67 @@ paths:
           $ref: "#/components/responses/DuplicatePantryStock"
         "500":
           $ref: "#/components/responses/InternalServerError"
+  /api/pantry/waste:
+    get:
+      operationId: listPantryStockWaste
+      tags:
+        - Pantry stock
+      summary: List pantry waste history
+      description: Returns recorded discarded quantities, newest first. Waste entries keep item and batch details if pantry tracking for that item is later removed. Search filters by grocery item name.
+      parameters:
+        - name: search
+          in: query
+          required: false
+          description: Case-insensitive literal substring of the grocery item name.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 120
+        - name: page
+          in: query
+          required: false
+          description: One-based result page.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000000
+            default: 1
+        - name: pageSize
+          in: query
+          required: false
+          description: Number of waste records per page, up to 100.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: A page of discarded pantry quantities.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PantryStockWastePage"
+              example:
+                items:
+                  - id: "378231fe-2c64-4ac6-82bb-44e0bf87cd8b"
+                    lotId: "ee7104c9-915b-4789-9efc-134bda74a8bc"
+                    itemName: "Rice"
+                    unit: "kg"
+                    quantityWasted: 0.5
+                    quantityRemainingAfter: 1
+                    discardedAt: "2026-11-10T09:00:00.000Z"
+                    expiresOn: "2026-12-15"
+                    receivedAt: "2026-11-10T08:00:00.000Z"
+                    purchaseDate: "2026-11-09"
+                    storeName: "Market Basket"
+                page: 1
+                pageSize: 20
+                total: 1
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
   /api/pantry/lots:
     get:
       operationId: listPantryStockLots
@@ -300,6 +361,68 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "404":
           $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/pantry/lots/{lotId}/waste:
+    parameters:
+      - name: lotId
+        in: path
+        required: true
+        description: Pantry stock lot UUID.
+        schema:
+          type: string
+          format: uuid
+    post:
+      operationId: recordPantryStockWaste
+      tags:
+        - Pantry stock
+      summary: Record discarded quantity from a pantry batch
+      description: |
+        Records a discard for one active batch, reduces that batch's remaining
+        quantity and the matching current pantry quantity atomically. The
+        receipt and its purchase line remain unchanged. Waste history preserves
+        the item's and batch's display details if pantry tracking is removed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecordPantryStockWasteRequest"
+            example:
+              quantity: 0.5
+      responses:
+        "201":
+          description: The discarded quantity was recorded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PantryStockWaste"
+              example:
+                id: "378231fe-2c64-4ac6-82bb-44e0bf87cd8b"
+                lotId: "ee7104c9-915b-4789-9efc-134bda74a8bc"
+                itemName: "Rice"
+                unit: "kg"
+                quantityWasted: 0.5
+                quantityRemainingAfter: 1
+                discardedAt: "2026-11-10T09:00:00.000Z"
+                expiresOn: "2026-12-15"
+                receivedAt: "2026-11-10T08:00:00.000Z"
+                purchaseDate: "2026-11-09"
+                storeName: "Market Basket"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: The requested quantity is greater than the amount remaining in this batch.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              example:
+                error:
+                  code: INSUFFICIENT_PANTRY_LOT_QUANTITY
+                  message: This batch has only 1 kg remaining.
         "500":
           $ref: "#/components/responses/InternalServerError"
   /api/pantry/{pantryStockId}:
@@ -1133,6 +1256,94 @@ components:
         total:
           type: integer
           minimum: 0
+    PantryStockWaste:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - lotId
+        - itemName
+        - unit
+        - quantityWasted
+        - quantityRemainingAfter
+        - discardedAt
+        - expiresOn
+        - receivedAt
+        - purchaseDate
+        - storeName
+      properties:
+        id:
+          type: string
+          format: uuid
+        lotId:
+          oneOf:
+            - type: string
+              format: uuid
+            - type: "null"
+          description: Null if the related pantry lot was later removed.
+        itemName:
+          type: string
+        unit:
+          type: string
+        quantityWasted:
+          type: number
+          exclusiveMinimum: 0
+          maximum: 999999999.999
+          multipleOf: 0.001
+        quantityRemainingAfter:
+          type: number
+          minimum: 0
+          maximum: 999999999.999
+          multipleOf: 0.001
+        discardedAt:
+          type: string
+          format: date-time
+        expiresOn:
+          oneOf:
+            - type: string
+              format: date
+            - type: "null"
+        receivedAt:
+          type: string
+          format: date-time
+        purchaseDate:
+          oneOf:
+            - type: string
+              format: date
+            - type: "null"
+        storeName:
+          oneOf:
+            - type: string
+            - type: "null"
+    PantryStockWastePage:
+      type: object
+      additionalProperties: false
+      required: [items, page, pageSize, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PantryStockWaste"
+        page:
+          type: integer
+          minimum: 1
+        pageSize:
+          type: integer
+          minimum: 1
+          maximum: 100
+        total:
+          type: integer
+          minimum: 0
+    RecordPantryStockWasteRequest:
+      type: object
+      additionalProperties: false
+      required: [quantity]
+      properties:
+        quantity:
+          type: number
+          exclusiveMinimum: 0
+          maximum: 999999999.999
+          multipleOf: 0.001
     UpdatePantryStockLotExpiryRequest:
       type: object
       additionalProperties: false

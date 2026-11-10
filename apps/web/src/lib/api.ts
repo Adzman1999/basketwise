@@ -198,6 +198,27 @@ export type PantryStockLotPage = {
   total: number;
 };
 
+export type PantryStockWaste = {
+  id: string;
+  lotId: string | null;
+  itemName: string;
+  unit: string;
+  quantityWasted: number;
+  quantityRemainingAfter: number;
+  discardedAt: string;
+  expiresOn: string | null;
+  receivedAt: string;
+  purchaseDate: string | null;
+  storeName: string | null;
+};
+
+export type PantryStockWastePage = {
+  items: PantryStockWaste[];
+  page: number;
+  pageSize: number;
+  total: number;
+};
+
 export type GroceryItemPage = {
   items: GroceryItem[];
   page: number;
@@ -415,6 +436,20 @@ export async function fetchPantryStockLots(
   });
 }
 
+export async function fetchPantryStockWaste(
+  page: number,
+  pageSize: number,
+  search: string,
+  signal: AbortSignal
+): Promise<PantryStockWastePage> {
+  const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+  if (search.trim()) params.set('search', search.trim());
+  return sendRequest<PantryStockWastePage>(`/api/pantry/waste?${params.toString()}`, {
+    headers: { Accept: 'application/json' },
+    signal,
+  });
+}
+
 export async function updatePantryStockLotExpiry(
   id: string,
   expiresOn: string | null
@@ -426,6 +461,17 @@ export async function updatePantryStockLotExpiry(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ expiresOn }),
+  });
+}
+
+export async function recordPantryStockWaste(lotId: string, quantity: number): Promise<PantryStockWaste> {
+  return sendRequest<PantryStockWaste>(`/api/pantry/lots/${encodeURIComponent(lotId)}/waste`, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ quantity }),
   });
 }
 

@@ -1,0 +1,29 @@
+$kind: http-example
+name: The discarded quantity exceeds the batch balance.
+request:
+  url: "{{baseUrl}}/api/pantry/lots/{{pantryStockLotId}}/waste"
+  method: POST
+  headers:
+    Content-Type: application/json
+    Accept: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "quantity": 2
+      }
+response:
+  statusCode: 409
+  statusText: Conflict
+  headers:
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "error": {
+          "code": "INSUFFICIENT_PANTRY_LOT_QUANTITY",
+          "message": "This batch has only 1 kg remaining."
+        }
+      }
+order: 2000

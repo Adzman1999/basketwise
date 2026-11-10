@@ -1,8 +1,10 @@
 import { getPool, query } from '../db';
 import type {
   CreatePantryStockInput,
+  PantryStockWasteListQuery,
   PantryStockListQuery,
   PantryStockLotsListQuery,
+  RecordPantryStockWasteInput,
   UpdatePantryStockInput,
   UpdatePantryStockLotExpiryInput,
 } from '../schemas/pantryStock';
@@ -28,6 +30,20 @@ export type PantryStockLotRecord = {
   quantityReceived: string | number;
   quantityRemaining: string | number;
   sourceType: 'opening_balance' | 'purchase' | 'manual_adjustment';
+  expiresOn: string | null;
+  receivedAt: Date;
+  purchaseDate: string | null;
+  storeName: string | null;
+};
+
+export type PantryStockWasteRecord = {
+  id: string;
+  lotId: string | null;
+  itemName: string;
+  unit: string;
+  quantityWasted: string | number;
+  quantityRemainingAfter: string | number;
+  discardedAt: Date;
   expiresOn: string | null;
   receivedAt: Date;
   purchaseDate: string | null;
@@ -139,6 +155,42 @@ export async function listPantryStockLotRecords(input: PantryStockLotsListQuery)
   return { items: itemResult.rows, total: countResult.rows[0]?.total ?? 0 };
 }
 
+export async function listPantryStockWasteRecords(input: PantryStockWasteListQuery): Promise<{
+  items: PantryStockWasteRecord[];
+  total: number;
+}> {
+  const offset = (input.page - 1) * input.pageSize;
+  const search = input.search?.trim().replace(/\s+/g, ' ').toLowerCase() ?? null;
+  const [countResult, itemResult] = await Promise.all([
+    query<{ total: number }>(
+      `SELECT COUNT(*)::int AS total
+       FROM pantry_stock_waste_events event
+       WHERE ($1::text IS NULL OR position($1 in lower(event.item_name)) > 0)`,
+      [search]
+    ),
+    query<PantryStockWasteRecord>(
+      `SELECT event.id,
+              event.pantry_stock_lot_id AS "lotId",
+              event.item_name AS "itemName",
+              event.unit,
+              event.quantity_wasted AS "quantityWasted",
+              event.quantity_remaining_after AS "quantityRemainingAfter",
+              event.discarded_at AS "discardedAt",
+              event.expires_on::text AS "expiresOn",
+              event.received_at AS "receivedAt",
+              event.purchase_date::text AS "purchaseDate",
+              event.store_name AS "storeName"
+       FROM pantry_stock_waste_events event
+       WHERE ($1::text IS NULL OR position($1 in lower(event.item_name)) > 0)
+       ORDER BY event.discarded_at DESC, event.id DESC
+       LIMIT $2 OFFSET $3`,
+      [search, input.pageSize, offset]
+    ),
+  ]);
+
+  return { items: itemResult.rows, total: countResult.rows[0]?.total ?? 0 };
+}
+
 export async function updatePantryStockLotExpiryRecord(
   id: string,
   input: UpdatePantryStockLotExpiryInput
@@ -224,6 +276,139 @@ export async function updatePantryStockLotExpiryRecord(
     await client.query('COMMIT');
     transactionStarted = false;
     return result.rows[0] ?? null;
+  } catch (error) {
+    if (transactionStarted) {
+      try {
+        await client.query('ROLLBACK');
+      } catch {
+        // Keep the original database error for the caller.
+      }
+    }
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function recordPantryStockWasteRecord(
+  lotId: string,
+  input: RecordPantryStockWasteInput
+): Promise<
+  | { kind: 'not_found' }
+  | { kind: 'insufficient_quantity'; availableQuantity: number; unit: string }
+  | { kind: 'recorded'; record: PantryStockWasteRecord }
+> {
+  const client = await getPool().connect();
+  let transactionStarted = false;
+
+  try {
+    await client.query('BEGIN');
+    transactionStarted = true;
+
+    const lotReference = await client.query<{ pantryStockId: string }>(
+      'SELECT pantry_stock_id AS "pantryStockId" FROM pantry_stock_lots WHERE id = $1',
+      [lotId]
+    );
+    const pantryStockId = lotReference.rows[0]?.pantryStockId;
+    if (!pantryStockId) {
+      await client.query('ROLLBACK');
+      transactionStarted = false;
+      return { kind: 'not_found' };
+    }
+
+    const stockLock = await client.query(
+      'SELECT id FROM pantry_stock WHERE id = $1 FOR UPDATE',
+      [pantryStockId]
+    );
+    if (stockLock.rowCount !== 1) {
+      await client.query('ROLLBACK');
+      transactionStarted = false;
+      return { kind: 'not_found' };
+    }
+
+    const lotResult = await client.query<{ quantityRemaining: string | number; unit: string }>(
+      `SELECT lot.quantity_remaining AS "quantityRemaining", mu.name AS unit
+       FROM pantry_stock_lots lot
+       JOIN pantry_stock ps ON ps.id = lot.pantry_stock_id
+       JOIN measurement_units mu ON mu.id = ps.unit_id
+       WHERE lot.id = $1 AND lot.pantry_stock_id = $2
+       FOR UPDATE OF lot`,
+      [lotId, pantryStockId]
+    );
+    const lot = lotResult.rows[0];
+    if (!lot) {
+      await client.query('ROLLBACK');
+      transactionStarted = false;
+      return { kind: 'not_found' };
+    }
+
+    const availableQuantity = Number(lot.quantityRemaining);
+    const availableThousandths = Math.round(availableQuantity * 1000);
+    const wastedThousandths = Math.round(input.quantity * 1000);
+    if (wastedThousandths > availableThousandths) {
+      await client.query('ROLLBACK');
+      transactionStarted = false;
+      return { kind: 'insufficient_quantity', availableQuantity, unit: lot.unit };
+    }
+    const quantityRemainingAfter = (availableThousandths - wastedThousandths) / 1000;
+
+    await client.query(
+      `UPDATE pantry_stock_lots
+       SET quantity_remaining = quantity_remaining - $2::numeric
+       WHERE id = $1`,
+      [lotId, input.quantity]
+    );
+    await client.query(
+      `UPDATE pantry_stock ps
+       SET quantity = ps.quantity - $2::numeric,
+           expires_on = (
+             SELECT MIN(expires_on)
+             FROM pantry_stock_lots
+             WHERE pantry_stock_id = ps.id AND quantity_remaining > 0
+           ),
+           updated_at = NOW()
+       WHERE ps.id = $1`,
+      [pantryStockId, input.quantity]
+    );
+    const eventResult = await client.query<{ id: string }>(
+      `INSERT INTO pantry_stock_waste_events (
+         pantry_stock_lot_id, item_name, unit, quantity_wasted,
+         quantity_remaining_after, expires_on, received_at, purchase_date, store_name
+       )
+       SELECT $1, gi.name, mu.name, $2, $3, lot.expires_on, lot.received_at,
+              p.purchased_on, p.store_name
+       FROM pantry_stock_lots lot
+       JOIN pantry_stock ps ON ps.id = lot.pantry_stock_id
+       JOIN grocery_items gi ON gi.id = ps.grocery_item_id
+       JOIN measurement_units mu ON mu.id = ps.unit_id
+       LEFT JOIN purchase_items pi ON pi.id = lot.source_purchase_item_id
+       LEFT JOIN purchases p ON p.id = pi.purchase_id
+       WHERE ps.id = $4 AND lot.id = $1
+       RETURNING id`,
+      [lotId, input.quantity, quantityRemainingAfter, pantryStockId]
+    );
+    const recordResult = await client.query<PantryStockWasteRecord>(
+      `SELECT event.id,
+              event.pantry_stock_lot_id AS "lotId",
+              event.item_name AS "itemName",
+              event.unit,
+              event.quantity_wasted AS "quantityWasted",
+              event.quantity_remaining_after AS "quantityRemainingAfter",
+              event.discarded_at AS "discardedAt",
+              event.expires_on::text AS "expiresOn",
+              event.received_at AS "receivedAt",
+              event.purchase_date::text AS "purchaseDate",
+              event.store_name AS "storeName"
+       FROM pantry_stock_waste_events event
+       WHERE event.id = $1`,
+      [eventResult.rows[0]?.id]
+    );
+
+    await client.query('COMMIT');
+    transactionStarted = false;
+    const record = recordResult.rows[0];
+    if (!record) throw new Error('The pantry waste record was not returned after insertion.');
+    return { kind: 'recorded', record };
   } catch (error) {
     if (transactionStarted) {
       try {

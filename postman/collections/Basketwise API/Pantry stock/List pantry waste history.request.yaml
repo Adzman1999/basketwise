@@ -1,0 +1,22 @@
+$kind: http-request
+description: Lists discarded quantities newest first. Item and batch details remain available if pantry tracking is later removed.
+url: '{{baseUrl}}/api/pantry/waste?page=1&pageSize=20'
+method: GET
+headers:
+  Accept: application/json
+queryParams:
+  - key: search
+    value: rice
+    disabled: true
+    description: Literal, case-insensitive substring of an item name.
+  - key: page
+    value: '1'
+    disabled: false
+    description: One-based result page.
+  - key: pageSize
+    value: '20'
+    disabled: false
+    description: Number of waste records per page, up to 100.
+settings: {}
+examples: './.resources/List pantry waste history.resources/examples'
+order: 6000
