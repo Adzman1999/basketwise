@@ -48,4 +48,4 @@ Track the current quantity of grocery items in the household pantry and flag ite
 
 ## Follow-up
 
-Consider food waste tracking next. If the household needs accurate expiry across separately purchased batches, evolve pantry stock into per-lot records rather than expanding the single-date field.
+Step 15 begins evolving aggregate pantry quantities into separate stock lots so separately received batches can retain their own expiry dates. Food waste tracking can then reduce a specific lot without changing purchase history.

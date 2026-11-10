@@ -117,12 +117,25 @@ async function restockPantryFromPurchase(
          AND ($2::boolean = TRUE OR ps.auto_restock = TRUE)
        ORDER BY ps.id, pi.id
        FOR UPDATE OF ps
+     ), inserted_lots AS (
+       INSERT INTO pantry_stock_lots (
+         pantry_stock_id, source_type, source_purchase_item_id,
+         quantity_received, quantity_remaining
+       )
+       SELECT eligible.pantry_stock_id, 'purchase', eligible.purchase_item_id,
+              eligible.quantity_added, eligible.quantity_added
+       FROM eligible_items eligible
+       ON CONFLICT (source_purchase_item_id)
+         WHERE source_purchase_item_id IS NOT NULL
+         DO NOTHING
+       RETURNING id, source_purchase_item_id, pantry_stock_id,
+                 quantity_received AS quantity_added
      ), recorded_movements AS (
        INSERT INTO pantry_stock_purchase_movements (
-         purchase_item_id, pantry_stock_id, quantity_added
+         purchase_item_id, pantry_stock_id, quantity_added, pantry_stock_lot_id
        )
-       SELECT purchase_item_id, pantry_stock_id, quantity_added
-       FROM eligible_items
+       SELECT source_purchase_item_id, pantry_stock_id, quantity_added, id
+       FROM inserted_lots
        ON CONFLICT (purchase_item_id) DO NOTHING
        RETURNING pantry_stock_id, quantity_added
      ), restock_totals AS (

@@ -1,4 +1,4 @@
-import { query } from '../db';
+import { getPool, query } from '../db';
 import type { CreatePantryStockInput, PantryStockListQuery, UpdatePantryStockInput } from '../schemas/pantryStock';
 
 export type PantryStockRecord = {
@@ -86,55 +86,166 @@ export async function pantryReferencesExist(groceryItemId: string, unitId: strin
 }
 
 export async function createPantryStockRecord(input: CreatePantryStockInput): Promise<PantryStockRecord | null> {
-  const result = await query<PantryStockRecord>(
-    `INSERT INTO pantry_stock (
-       grocery_item_id, unit_id, quantity, low_stock_threshold, auto_restock, expires_on
-     )
-     VALUES ($1, $2, $3, $4, $5, $6)
-     ON CONFLICT (grocery_item_id, unit_id) DO NOTHING
-     RETURNING id,
-               grocery_item_id AS "groceryItemId",
-               (SELECT name FROM grocery_items WHERE id = grocery_item_id) AS "itemName",
-               unit_id AS "unitId",
-               (SELECT name FROM measurement_units WHERE id = unit_id) AS unit,
-               quantity,
-               low_stock_threshold AS "lowStockThreshold",
-               auto_restock AS "autoRestock",
-               expires_on::text AS "expiresOn",
-               updated_at AS "updatedAt"`,
-    [input.groceryItemId, input.unitId, input.quantity, input.lowStockThreshold ?? null, input.autoRestock, input.expiresOn ?? null]
-  );
-  return result.rows[0] ?? null;
+  const client = await getPool().connect();
+  let transactionStarted = false;
+
+  try {
+    await client.query('BEGIN');
+    transactionStarted = true;
+    const result = await client.query<PantryStockRecord>(
+      `INSERT INTO pantry_stock (
+         grocery_item_id, unit_id, quantity, low_stock_threshold, auto_restock, expires_on
+       )
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (grocery_item_id, unit_id) DO NOTHING
+       RETURNING id,
+                 grocery_item_id AS "groceryItemId",
+                 (SELECT name FROM grocery_items WHERE id = grocery_item_id) AS "itemName",
+                 unit_id AS "unitId",
+                 (SELECT name FROM measurement_units WHERE id = unit_id) AS unit,
+                 quantity,
+                 low_stock_threshold AS "lowStockThreshold",
+                 auto_restock AS "autoRestock",
+                 expires_on::text AS "expiresOn",
+                 updated_at AS "updatedAt"`,
+      [input.groceryItemId, input.unitId, input.quantity, input.lowStockThreshold ?? null, input.autoRestock, input.expiresOn ?? null]
+    );
+    const stock = result.rows[0];
+
+    if (!stock) {
+      await client.query('COMMIT');
+      transactionStarted = false;
+      return null;
+    }
+
+    if (input.quantity > 0) {
+      await client.query(
+        `INSERT INTO pantry_stock_lots (
+           pantry_stock_id, source_type, quantity_received, quantity_remaining, expires_on
+         )
+         VALUES ($1, 'manual_adjustment', $2, $2, $3)`,
+        [stock.id, input.quantity, input.expiresOn ?? null]
+      );
+    }
+
+    await client.query('COMMIT');
+    transactionStarted = false;
+    return stock;
+  } catch (error) {
+    if (transactionStarted) {
+      try {
+        await client.query('ROLLBACK');
+      } catch {
+        // Keep the original database error for the caller.
+      }
+    }
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 export async function updatePantryStockRecord(
   id: string,
   input: UpdatePantryStockInput
 ): Promise<PantryStockRecord | null> {
-  const result = await query<PantryStockRecord>(
-    `UPDATE pantry_stock ps
-     SET quantity = $2,
-         low_stock_threshold = $3,
-         auto_restock = $4,
-         expires_on = $5,
-         updated_at = NOW()
-     FROM grocery_items gi, measurement_units mu
-     WHERE ps.id = $1
-       AND gi.id = ps.grocery_item_id
-       AND mu.id = ps.unit_id
-     RETURNING ps.id,
-               ps.grocery_item_id AS "groceryItemId",
-               (SELECT item.name FROM grocery_items item WHERE item.id = ps.grocery_item_id) AS "itemName",
-               ps.unit_id AS "unitId",
-               (SELECT measure.name FROM measurement_units measure WHERE measure.id = ps.unit_id) AS unit,
-               ps.quantity,
-               ps.low_stock_threshold AS "lowStockThreshold",
-               ps.auto_restock AS "autoRestock",
-               ps.expires_on::text AS "expiresOn",
-               ps.updated_at AS "updatedAt"`,
-    [id, input.quantity, input.lowStockThreshold, input.autoRestock, input.expiresOn]
-  );
-  return result.rows[0] ?? null;
+  const client = await getPool().connect();
+  let transactionStarted = false;
+
+  try {
+    await client.query('BEGIN');
+    transactionStarted = true;
+    const currentResult = await client.query<{ quantity: string | number }>(
+      'SELECT quantity FROM pantry_stock WHERE id = $1 FOR UPDATE',
+      [id]
+    );
+    const current = currentResult.rows[0];
+
+    if (!current) {
+      await client.query('COMMIT');
+      transactionStarted = false;
+      return null;
+    }
+
+    const quantityInThousandths = (quantity: string | number) => Math.round(Number(quantity) * 1000);
+    const quantityDelta = quantityInThousandths(input.quantity) - quantityInThousandths(current.quantity);
+
+    if (quantityDelta > 0) {
+      const quantityAdded = quantityDelta / 1000;
+      await client.query(
+        `INSERT INTO pantry_stock_lots (
+           pantry_stock_id, source_type, quantity_received, quantity_remaining, expires_on
+         )
+         VALUES ($1, 'manual_adjustment', $2, $2, $3)`,
+        [id, quantityAdded, input.expiresOn]
+      );
+    } else if (quantityDelta < 0) {
+      const quantityRemoved = -quantityDelta / 1000;
+      await client.query(
+        `WITH ordered_lots AS (
+           SELECT id,
+                  quantity_remaining,
+                  COALESCE(
+                    SUM(quantity_remaining) OVER (
+                      ORDER BY expires_on ASC NULLS LAST, received_at ASC, id ASC
+                      ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
+                    ),
+                    0
+                  ) AS quantity_before
+           FROM pantry_stock_lots
+           WHERE pantry_stock_id = $1
+             AND quantity_remaining > 0
+         )
+         UPDATE pantry_stock_lots lot
+         SET quantity_remaining = GREATEST(
+           0,
+           lot.quantity_remaining - GREATEST(0, $2::numeric - ordered.quantity_before)
+         )
+         FROM ordered_lots ordered
+         WHERE lot.id = ordered.id`,
+        [id, quantityRemoved]
+      );
+    }
+
+    const result = await client.query<PantryStockRecord>(
+      `UPDATE pantry_stock ps
+       SET quantity = $2,
+           low_stock_threshold = $3,
+           auto_restock = $4,
+           expires_on = $5,
+           updated_at = NOW()
+       FROM grocery_items gi, measurement_units mu
+       WHERE ps.id = $1
+         AND gi.id = ps.grocery_item_id
+         AND mu.id = ps.unit_id
+       RETURNING ps.id,
+                 ps.grocery_item_id AS "groceryItemId",
+                 (SELECT item.name FROM grocery_items item WHERE item.id = ps.grocery_item_id) AS "itemName",
+                 ps.unit_id AS "unitId",
+                 (SELECT measure.name FROM measurement_units measure WHERE measure.id = ps.unit_id) AS unit,
+                 ps.quantity,
+                 ps.low_stock_threshold AS "lowStockThreshold",
+                 ps.auto_restock AS "autoRestock",
+                 ps.expires_on::text AS "expiresOn",
+                 ps.updated_at AS "updatedAt"`,
+      [id, input.quantity, input.lowStockThreshold, input.autoRestock, input.expiresOn]
+    );
+
+    await client.query('COMMIT');
+    transactionStarted = false;
+    return result.rows[0] ?? null;
+  } catch (error) {
+    if (transactionStarted) {
+      try {
+        await client.query('ROLLBACK');
+      } catch {
+        // Keep the original database error for the caller.
+      }
+    }
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 export async function deletePantryStockRecord(id: string): Promise<boolean> {
