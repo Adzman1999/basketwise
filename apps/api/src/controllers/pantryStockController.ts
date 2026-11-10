@@ -3,7 +3,10 @@ import {
   createPantryStockSchema,
   pantryStockIdSchema,
   pantryStockListQuerySchema,
+  pantryStockLotIdSchema,
+  pantryStockLotsListQuerySchema,
   updatePantryStockSchema,
+  updatePantryStockLotExpirySchema,
 } from '../schemas/pantryStock';
 import {
   createPantryStock,
@@ -11,7 +14,9 @@ import {
   DuplicatePantryStockError,
   InvalidPantryReferenceError,
   listPantryStock,
+  listPantryStockLots,
   updatePantryStock,
+  updatePantryStockLotExpiry,
 } from '../services/pantryStockService';
 
 const invalidRequest = {
@@ -31,6 +36,31 @@ export async function listPantryStockHandler(req: Request, res: Response) {
     return res.status(200).json(await listPantryStock(parsed.data));
   } catch (error) {
     console.error('Failed to list pantry stock:', error);
+    return res.status(500).json(internalError);
+  }
+}
+
+export async function listPantryStockLotsHandler(req: Request, res: Response) {
+  const parsed = pantryStockLotsListQuerySchema.safeParse(req.query);
+  if (!parsed.success) return res.status(400).json(invalidRequest);
+  try {
+    return res.status(200).json(await listPantryStockLots(parsed.data));
+  } catch (error) {
+    console.error('Failed to list pantry stock lots:', error);
+    return res.status(500).json(internalError);
+  }
+}
+
+export async function updatePantryStockLotExpiryHandler(req: Request, res: Response) {
+  const idResult = pantryStockLotIdSchema.safeParse(req.params.lotId);
+  const bodyResult = updatePantryStockLotExpirySchema.safeParse(req.body);
+  if (!idResult.success || !bodyResult.success) return res.status(400).json(invalidRequest);
+  try {
+    const lot = await updatePantryStockLotExpiry(idResult.data, bodyResult.data);
+    if (!lot) return res.status(404).json(notFound);
+    return res.status(200).json(lot);
+  } catch (error) {
+    console.error('Failed to update pantry stock lot expiry:', error);
     return res.status(500).json(internalError);
   }
 }

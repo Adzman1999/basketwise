@@ -29,6 +29,16 @@ export const pantryStockListQuerySchema = z.object({
 }).strict();
 
 export const pantryStockIdSchema = z.string().uuid();
+export const pantryStockLotIdSchema = z.string().uuid();
+
+export const pantryStockLotsListQuerySchema = z.object({
+  ...pagination,
+  search: z.string().trim().min(1).max(120).optional(),
+}).strict();
+
+export const updatePantryStockLotExpirySchema = z.object({
+  expiresOn: calendarDate.nullable(),
+}).strict();
 
 export const createPantryStockSchema = z.object({
   groceryItemId: z.string().uuid(),
@@ -43,9 +53,10 @@ export const updatePantryStockSchema = z.object({
   quantity,
   lowStockThreshold: quantity.nullable(),
   autoRestock: z.boolean(),
-  expiresOn: calendarDate.nullable(),
 }).strict();
 
 export type PantryStockListQuery = z.infer<typeof pantryStockListQuerySchema>;
+export type PantryStockLotsListQuery = z.infer<typeof pantryStockLotsListQuerySchema>;
+export type UpdatePantryStockLotExpiryInput = z.infer<typeof updatePantryStockLotExpirySchema>;
 export type CreatePantryStockInput = z.infer<typeof createPantryStockSchema>;
 export type UpdatePantryStockInput = z.infer<typeof updatePantryStockSchema>;

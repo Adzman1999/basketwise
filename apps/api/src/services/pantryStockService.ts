@@ -1,12 +1,20 @@
 import {
   createPantryStockRecord,
   deletePantryStockRecord,
+  listPantryStockLotRecords,
   listPantryStockRecords,
   pantryReferencesExist,
   updatePantryStockRecord,
+  updatePantryStockLotExpiryRecord,
 } from '../repositories/pantryStockRepository';
-import type { PantryStockRecord } from '../repositories/pantryStockRepository';
-import type { CreatePantryStockInput, PantryStockListQuery, UpdatePantryStockInput } from '../schemas/pantryStock';
+import type { PantryStockLotRecord, PantryStockRecord } from '../repositories/pantryStockRepository';
+import type {
+  CreatePantryStockInput,
+  PantryStockListQuery,
+  PantryStockLotsListQuery,
+  UpdatePantryStockInput,
+  UpdatePantryStockLotExpiryInput,
+} from '../schemas/pantryStock';
 
 export class DuplicatePantryStockError extends Error {
   constructor() {
@@ -33,6 +41,15 @@ function presentStock(record: PantryStockRecord) {
   return { ...record, quantity, lowStockThreshold, status };
 }
 
+function presentLot(record: PantryStockLotRecord) {
+  return {
+    ...record,
+    quantityReceived: Number(record.quantityReceived),
+    quantityRemaining: Number(record.quantityRemaining),
+    receivedAt: record.receivedAt.toISOString(),
+  };
+}
+
 export async function listPantryStock(input: PantryStockListQuery) {
   const result = await listPantryStockRecords(input);
   return {
@@ -42,6 +59,24 @@ export async function listPantryStock(input: PantryStockListQuery) {
     total: result.total,
     summary: result.summary,
   };
+}
+
+export async function listPantryStockLots(input: PantryStockLotsListQuery) {
+  const result = await listPantryStockLotRecords(input);
+  return {
+    items: result.items.map(presentLot),
+    page: input.page,
+    pageSize: input.pageSize,
+    total: result.total,
+  };
+}
+
+export async function updatePantryStockLotExpiry(
+  id: string,
+  input: UpdatePantryStockLotExpiryInput
+) {
+  const record = await updatePantryStockLotExpiryRecord(id, input);
+  return record ? presentLot(record) : null;
 }
 
 export async function createPantryStock(input: CreatePantryStockInput) {

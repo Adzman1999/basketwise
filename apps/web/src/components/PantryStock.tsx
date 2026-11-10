@@ -25,6 +25,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { philippineDateString } from '@/lib/dates';
+import PantryExpiryLots from '@/components/PantryExpiryLots';
 import {
   addPurchaseItemsToPantry,
   deletePantryStock,
@@ -124,7 +125,6 @@ function PantryStockFormDialog({
   const [quantity, setQuantity] = useState(String(item.quantity));
   const [threshold, setThreshold] = useState(item.lowStockThreshold === null ? '' : String(item.lowStockThreshold));
   const [autoRestock, setAutoRestock] = useState(item.autoRestock);
-  const [expiresOn, setExpiresOn] = useState(item.expiresOn ?? '');
   const [formError, setFormError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
@@ -143,7 +143,6 @@ function PantryStockFormDialog({
         quantity: parsedQuantity,
         lowStockThreshold: parsedThreshold,
         autoRestock,
-        expiresOn: expiresOn || null,
       });
       onSaved();
       onOpenChange(false);
@@ -212,18 +211,10 @@ function PantryStockFormDialog({
               </div>
             </Label>
 
-            <Label htmlFor="pantry-expires-on" className="grid gap-2 text-sm font-medium">
-              Expiry date <span className="font-normal text-muted-foreground">· optional</span>
-              <Input
-                id="pantry-expires-on"
-                type="date"
-                className="h-10 w-full"
-                value={expiresOn}
-                onChange={(event) => setExpiresOn(event.target.value)}
-                disabled={isSaving}
-              />
-            </Label>
-            <p className="-mt-2 text-xs leading-5 text-muted-foreground">This date applies to the tracked item and unit quantity. Purchases leave it unchanged because receipts do not include expiry dates.</p>
+            <div className="flex items-start gap-2.5 rounded-lg border bg-muted/20 p-3 text-xs leading-5 text-muted-foreground">
+              <CalendarDays aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" />
+              <span>Manage expiry dates for individual batches in Pantry stock → Expiry dates.</span>
+            </div>
 
             <label htmlFor="pantry-auto-restock" className="flex cursor-pointer items-start gap-3 rounded-lg border bg-muted/20 p-3.5">
               <Input
@@ -437,10 +428,14 @@ export default function PantryStock() {
       )}
 
       <Tabs defaultValue="pantry" className="space-y-3">
-        <TabsList className="grid h-10 w-full grid-cols-2 sm:inline-flex sm:w-auto" aria-label="Pantry stock sections">
+        <TabsList className="grid h-10 w-full grid-cols-3 sm:inline-flex sm:w-auto" aria-label="Pantry stock sections">
           <TabsTrigger value="pantry" className="min-w-0 gap-1.5 px-2.5 text-xs sm:px-3 sm:text-sm">
             <Boxes aria-hidden="true" className="size-4 shrink-0" />
             <span className="truncate">Your pantry</span>
+          </TabsTrigger>
+          <TabsTrigger value="expiry" className="min-w-0 gap-1.5 px-2.5 text-xs sm:px-3 sm:text-sm">
+            <CalendarDays aria-hidden="true" className="size-4 shrink-0" />
+            <span className="truncate">Expiry dates</span>
           </TabsTrigger>
           <TabsTrigger value="review" className="min-w-0 gap-1.5 px-2.5 text-xs sm:px-3 sm:text-sm">
             <ReceiptText aria-hidden="true" className="size-4 shrink-0" />
@@ -596,6 +591,10 @@ export default function PantryStock() {
                   </CardContent>
                 </Card>
               )}
+        </TabsContent>
+
+        <TabsContent value="expiry" className="mt-0">
+          <PantryExpiryLots onUpdated={() => setRefreshKey((current) => current + 1)} />
         </TabsContent>
 
         <TabsContent value="pantry" className="mt-0">

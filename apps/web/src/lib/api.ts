@@ -173,6 +173,29 @@ export type PantryStockPage = {
   summary: PantryStockSummary;
 };
 
+export type PantryStockLotSource = 'opening_balance' | 'purchase' | 'manual_adjustment';
+
+export type PantryStockLot = {
+  id: string;
+  pantryStockId: string;
+  itemName: string;
+  unit: string;
+  quantityReceived: number;
+  quantityRemaining: number;
+  sourceType: PantryStockLotSource;
+  expiresOn: string | null;
+  receivedAt: string;
+  purchaseDate: string | null;
+  storeName: string | null;
+};
+
+export type PantryStockLotPage = {
+  items: PantryStockLot[];
+  page: number;
+  pageSize: number;
+  total: number;
+};
+
 export type GroceryItemPage = {
   items: GroceryItem[];
   page: number;
@@ -376,6 +399,34 @@ export async function fetchPantryStock(
   });
 }
 
+export async function fetchPantryStockLots(
+  page: number,
+  pageSize: number,
+  search: string,
+  signal: AbortSignal
+): Promise<PantryStockLotPage> {
+  const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+  if (search.trim()) params.set('search', search.trim());
+  return sendRequest<PantryStockLotPage>(`/api/pantry/lots?${params.toString()}`, {
+    headers: { Accept: 'application/json' },
+    signal,
+  });
+}
+
+export async function updatePantryStockLotExpiry(
+  id: string,
+  expiresOn: string | null
+): Promise<PantryStockLot> {
+  return sendRequest<PantryStockLot>(`/api/pantry/lots/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ expiresOn }),
+  });
+}
+
 export async function createPantryStock(input: {
   groceryItemId: string;
   unitId: string;
@@ -396,7 +447,7 @@ export async function createPantryStock(input: {
 
 export async function updatePantryStock(
   id: string,
-  input: { quantity: number; lowStockThreshold: number | null; autoRestock: boolean; expiresOn: string | null }
+  input: { quantity: number; lowStockThreshold: number | null; autoRestock: boolean }
 ): Promise<PantryStockItem> {
   return sendRequest<PantryStockItem>(`/api/pantry/${encodeURIComponent(id)}`, {
     method: 'PUT',

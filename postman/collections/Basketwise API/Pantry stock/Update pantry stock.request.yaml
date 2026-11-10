@@ -1,5 +1,5 @@
 $kind: http-request
-description: Sets the current quantity, low-stock threshold, auto-restock preference, and optional expiry date. Receipt history is unchanged.
+description: Sets the current quantity, low-stock threshold, and auto-restock preference. Per-lot expiry dates are managed through the pantry lot expiry request.
 url: '{{baseUrl}}/api/pantry/{{pantryStockId}}'
 method: PUT
 headers:
@@ -11,8 +11,7 @@ body:
     {
       "quantity": 0.75,
       "lowStockThreshold": 2,
-      "autoRestock": true,
-      "expiresOn": "2026-12-15"
+      "autoRestock": true
     }
 settings: {}
 order: 3000
