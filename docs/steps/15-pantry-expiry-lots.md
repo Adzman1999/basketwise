@@ -7,16 +7,17 @@ Track pantry quantities as separate batches so each batch can keep its own recei
 ## Current increment
 
 - Migration `010_pantry_stock_lots.sql` adds `pantry_stock_lots`, with received and remaining quantities, source, received date, and optional expiry date.
+- Migration `011_purchase_item_expiry_date.sql` stores an optional expiry date on each purchase line, including when the receipt is not added to pantry right away.
 - Existing positive pantry quantities are copied into one `opening_balance` lot per pantry record. Their current expiry date is retained. The received date is the migration time because the original inventory date is unknown; receipt purchase dates are not treated as pantry receipt dates.
 - Purchase movement rows gain a lot reference. New receipt restocks create one lot per receipt line, linked to the purchase movement.
 - Manual stock creation and quantity increases create adjustment lots. Quantity reductions update remaining lot quantities in expiry-first order, with unknown expiries last. This is a stock count adjustment; it does not yet record why stock was removed.
-- Newly restocked purchase lots have unknown expiry until the user sets a date in the Expiry dates tab. They are stored with `expires_on = NULL`; an older aggregate expiry is not copied to a new batch.
+- Purchase lines can save an optional expiry date. When the line is added to Pantry stock, its own date is stored on its new lot; a blank date stays unknown and can be filled in later from the Expiry dates tab.
 - The Pantry stock page has an Expiry dates tab that lists active lots, searches by item, highlights expired and soon-to-expire batches, and allows each lot's date to be set or cleared.
 - The `pantry_stock.expires_on` field remains for compatibility and reflects the earliest dated active lot. Quantity corrections and lot expiry edits keep this aggregate value in sync.
 
 ## Remaining increments
 
-1. Capture an optional expiry date when a purchase is added to pantry, including when reviewing a skipped receipt.
+1. Let users set missing expiry dates while reviewing older skipped receipts before they are added to pantry stock.
 2. Add a waste action that records discarded quantity and reduces the selected lot without changing receipt history.
 
 ## Decisions
@@ -30,5 +31,5 @@ Track pantry quantities as separate batches so each batch can keep its own recei
 
 ## Verification
 
-- Migration `010_pantry_stock_lots.sql` was applied to the local `basketwise_dev` database; all four positive pantry records received matching opening lots.
-- API and web typechecks passed. Postman collection lint and OpenAPI syntax lint passed. Purchase-time expiry input and waste tracking remain future increments; API behavior tests were not run.
+- Migrations `010_pantry_stock_lots.sql` and `011_purchase_item_expiry_date.sql` were applied to the local `basketwise_dev` database; all four positive pantry records received matching opening lots.
+- API and web typechecks passed. Postman collection lint and OpenAPI syntax lint passed. Inline expiry entry for older skipped receipts and waste tracking remain future increments; API behavior tests were not run.

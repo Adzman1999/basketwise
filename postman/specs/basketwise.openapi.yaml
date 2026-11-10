@@ -149,9 +149,9 @@ paths:
         unit. A pair can be tracked only once; use the update operation to
         change an existing quantity or auto-restock setting. When autoRestock
         is true, future purchases with the exact same item and unit increase
-        this quantity. The optional expiry date applies to the initial stock
-        lot; later purchases create separate lots with unknown expiry until set
-        through the lot operation. Past purchases are not applied retroactively.
+        this quantity. An optional receipt-line expiry date is copied to its
+        pantry lot; when unknown, it stays empty until set through the lot
+        operation. Past purchases are not applied retroactively.
       requestBody:
         required: true
         content:
@@ -695,9 +695,9 @@ paths:
         create records, while existing pairs increase their quantity. When it
         is false or omitted, only auto-restock records are updated. The create
         response lists each pantry record updated; a purchase line is applied
-        at most once. Untracked receipt lines can be added later with the pantry
-        action for that purchase. Existing expiry dates are preserved because
-        receipts do not carry expiry information.
+        at most once. An optional expiry date on a receipt line is stored with
+        its pantry lot. Untracked receipt lines can be added later with the
+        pantry action for that purchase, which reuses the saved line date.
       requestBody:
         required: true
         content:
@@ -713,6 +713,7 @@ paths:
                   quantity: 2
                   unit: "kg"
                   amountPaidCentavos: 11000
+                  expiresOn: "2026-12-15"
                 - itemName: "Bananas"
                   quantity: 1
                   unit: "pack"
@@ -1509,6 +1510,12 @@ components:
           minimum: 0
           maximum: 2147483647
           description: Amount paid for this line in PHP centavos.
+        expiresOn:
+          oneOf:
+            - type: string
+              format: date
+            - type: "null"
+          description: Optional expiry date stored for the pantry lot created from this receipt line.
     Purchase:
       type: object
       additionalProperties: false

@@ -9,6 +9,7 @@ export type CreatePurchaseItem = {
   quantity: number;
   unit: string;
   amountPaidCentavos: number;
+  expiresOn?: string | null;
 };
 
 export type CreatePurchaseRequest = {

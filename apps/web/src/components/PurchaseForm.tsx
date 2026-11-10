@@ -34,6 +34,7 @@ type DraftItem = {
   quantity: string;
   unit: string;
   unitPrice: string;
+  expiresOn: string;
 };
 
 type PendingPurchase = Omit<CreatePurchaseRequest, 'addToPantry'>;
@@ -91,7 +92,7 @@ function formatPesoAmount(centavos: bigint): string {
 }
 
 function emptyItem(id: number): DraftItem {
-  return { id, itemName: '', quantity: '1', unit: 'item', unitPrice: '' };
+  return { id, itemName: '', quantity: '1', unit: 'item', unitPrice: '', expiresOn: '' };
 }
 
 const inputClassName = 'h-10 w-full min-w-0 rounded-md bg-background text-base sm:text-sm';
@@ -564,7 +565,13 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
         return;
       }
 
-      purchaseItems.push({ itemName, quantity, unit, amountPaidCentavos: Number(amountPaidCentavos) });
+      purchaseItems.push({
+        itemName,
+        quantity,
+        unit,
+        amountPaidCentavos: Number(amountPaidCentavos),
+        expiresOn: item.expiresOn || null,
+      });
     }
 
     const totalPaidCentavos = purchaseItems.reduce((total, item) => total + BigInt(item.amountPaidCentavos), 0n);
@@ -891,6 +898,21 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
                           disabled={isSaving || unitsLoading || !spendingPeriod}
                         />
                       </Label>
+                    </div>
+
+                    <div className="mt-4 max-w-md">
+                      <Label htmlFor={`purchase-item-${item.id}-expires-on`} className={labelClassName}>
+                        Expiry date <span className="font-normal text-muted-foreground">· optional</span>
+                        <Input
+                          id={`purchase-item-${item.id}-expires-on`}
+                          className={inputClassName}
+                          type="date"
+                          value={item.expiresOn}
+                          onChange={(event) => updateItem(item.id, { expiresOn: event.target.value })}
+                          disabled={isSaving || !spendingPeriod}
+                        />
+                      </Label>
+                      <p className="mt-1 text-xs leading-5 text-muted-foreground">Saved with this receipt and applied to its pantry batch when added.</p>
                     </div>
 
                     <div className="mt-3 flex items-center justify-between gap-3 rounded-md bg-muted/40 px-3 py-2 text-sm">

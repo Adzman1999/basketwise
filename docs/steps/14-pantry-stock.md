@@ -23,18 +23,20 @@ Track the current quantity of grocery items in the household pantry and flag ite
 - Migration `007_pantry_stock.sql` stores current quantity, optional low-stock threshold, and last-updated time.
 - Migration `008_pantry_auto_restock.sql` adds the per-record opt-in and a unique receipt-line movement ledger.
 - Migration `009_pantry_expiry_date.sql` adds an optional date-only expiry field and an index for non-null dates.
+- Migration `010_pantry_stock_lots.sql` adds per-batch stock records and backfills current positive quantities as opening lots.
+- Migration `011_purchase_item_expiry_date.sql` adds an optional expiry date to purchase lines so new pantry lots can keep the date from the receipt form.
 - `GET /api/pantry` lists filtered and paginated records and includes household-wide counts for in-stock, low-stock, and out-of-stock items.
 - `POST /api/pantry` creates one record per grocery item and unit. Duplicate pairs return `409`; clients should update the existing record.
 - `PUT /api/pantry/{pantryStockId}` replaces the current quantity, threshold, and auto-restock setting; its expiry date is derived from the earliest dated active lot.
 - `GET /api/pantry/lots` lists active batches and `PUT /api/pantry/lots/{lotId}` updates or clears one batch's expiry date.
 - `DELETE /api/pantry/{pantryStockId}` removes pantry tracking while preserving grocery receipts.
 - `GET /api/purchases` supports `pantryStatus=pending` to return receipts that contain at least one line not yet applied to pantry stock.
-- `POST /api/purchases` updates opted-in pantry records as part of saving the receipt. With `addToPantry: true`, it creates or updates records for every receipt item and unit. Its response reports each changed record and resulting on-hand quantity; a receipt line is applied at most once.
+- `POST /api/purchases` updates opted-in pantry records as part of saving the receipt. With `addToPantry: true`, it creates or updates records for every receipt item and unit. Optional receipt-line expiry dates are carried into their pantry lots. Its response reports each changed record and resulting on-hand quantity; a receipt line is applied at most once.
 - `POST /api/purchases/{purchaseId}/pantry` adds receipt lines that were previously skipped. It is idempotent, leaves the receipt date unchanged, updates current stock at request time, and purchase records report `pantryAdded` for each line.
 - OpenAPI and the local Postman collection describe pantry operations and purchase-to-pantry updates.
 - The Pantry stock page supports item search, stock-status filtering, pagination, low-stock and out-of-stock summaries, quantity adjustments, record removal, and the auto-restock setting. It directs users to Grocery spending when no stock records exist.
 - Pantry stock includes an Expiry dates tab to review active batches, highlight expired and soon-to-expire lots, and update each lot's date.
-- Purchase creation asks whether to add the receipt to pantry stock and confirms which pantry quantities were updated.
+- Purchase creation asks whether to add the receipt to pantry stock, accepts optional expiry dates per item, and confirms which pantry quantities were updated.
 - Pantry stock lets users review and select skipped receipts. Its reminder explains that old purchases should only be selected when their items are still on hand and that adding them updates current stock without backdating inventory.
 
 ## Verification

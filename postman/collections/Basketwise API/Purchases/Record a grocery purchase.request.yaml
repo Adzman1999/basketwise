@@ -4,7 +4,8 @@ description: |
   by summing each item's amountPaidCentavos. Set addToPantry to true to add all
   receipt lines to pantry stock; new item and unit pairs are created, and
   existing pairs increase their quantities. Records opted into auto-restock
-  still update when addToPantry is false. Existing expiry dates are preserved.
+  still update when addToPantry is false. An optional expiry date on each line
+  is saved with its pantry batch.
 url: '{{baseUrl}}/api/purchases'
 method: POST
 headers:
@@ -22,7 +23,8 @@ body:
           "itemName": "Rice",
           "quantity": 2,
           "unit": "kg",
-          "amountPaidCentavos": 11000
+          "amountPaidCentavos": 11000,
+          "expiresOn": "2026-12-15"
         },
         {
           "itemName": "Bananas",
