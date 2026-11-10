@@ -664,6 +664,7 @@ paths:
                         quantity: 2
                         unit: "kg"
                         amountPaidCentavos: 11000
+                        expiresOn: "2026-12-15"
                         pantryAdded: true
                       - id: "b4c7c876-a686-4caf-b6fd-4861c3e3a718"
                         groceryItemId: "65fcaec9-a74a-4b8b-becb-0f0733762f35"
@@ -671,6 +672,7 @@ paths:
                         quantity: 1
                         unit: "pack"
                         amountPaidCentavos: 1300
+                        expiresOn: null
                         pantryAdded: false
                     createdAt: "2026-10-29T08:00:00.000Z"
                 page: 1
@@ -739,6 +741,7 @@ paths:
                     quantity: 2
                     unit: "kg"
                     amountPaidCentavos: 11000
+                    expiresOn: "2026-12-15"
                     pantryAdded: true
                   - id: "b4c7c876-a686-4caf-b6fd-4861c3e3a718"
                     groceryItemId: "65fcaec9-a74a-4b8b-becb-0f0733762f35"
@@ -746,6 +749,7 @@ paths:
                     quantity: 1
                     unit: "pack"
                     amountPaidCentavos: 1300
+                    expiresOn: null
                     pantryAdded: true
                 createdAt: "2026-10-29T08:00:00.000Z"
                 pantryRestockedItems:
@@ -776,6 +780,8 @@ paths:
         this request cannot add them twice. The purchase and pantry changes are
         committed together. The receipt's purchasedOn date remains unchanged in
         history; pantry stock is updated at the time this request is processed.
+        Optional expiry-date overrides can be provided for unadded lines. Lines
+        without an override keep the date saved on the receipt, if any.
       parameters:
         - name: purchaseId
           in: path
@@ -784,6 +790,16 @@ paths:
           schema:
             type: string
             format: uuid
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddPurchaseItemsToPantryRequest"
+            example:
+              expiryDates:
+                - purchaseItemId: "b4c7c876-a686-4caf-b6fd-4861c3e3a718"
+                  expiresOn: "2026-12-20"
       responses:
         "200":
           description: Previously untracked receipt lines were added. Repeating the request returns an empty list.
@@ -1600,6 +1616,27 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/PantryRestockedItem"
+    AddPurchaseItemsToPantryRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        expiryDates:
+          type: array
+          maxItems: 100
+          description: Optional expiry-date overrides for receipt lines that have not been added to pantry stock yet.
+          items:
+            type: object
+            additionalProperties: false
+            required: [purchaseItemId, expiresOn]
+            properties:
+              purchaseItemId:
+                type: string
+                format: uuid
+              expiresOn:
+                oneOf:
+                  - type: string
+                    format: date
+                  - type: "null"
     PurchaseItem:
       type: object
       additionalProperties: false
@@ -1610,6 +1647,7 @@ components:
         - quantity
         - unit
         - amountPaidCentavos
+        - expiresOn
         - pantryAdded
       properties:
         id:
@@ -1629,6 +1667,12 @@ components:
           type: integer
           minimum: 0
           maximum: 2147483647
+        expiresOn:
+          oneOf:
+            - type: string
+              format: date
+            - type: "null"
+          description: Optional expiry saved for this receipt line and its pantry lot.
         pantryAdded:
           type: boolean
           description: Whether this receipt line has already been applied to pantry stock.

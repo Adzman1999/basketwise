@@ -50,7 +50,8 @@ response:
             "itemName": "Rice",
             "quantity": 2,
             "unit": "kg",
-            "amountPaidCentavos": 11000
+            "amountPaidCentavos": 11000,
+            "expiresOn": "2026-12-15"
           },
           {
             "id": "b4c7c876-a686-4caf-b6fd-4861c3e3a718",
@@ -58,7 +59,8 @@ response:
             "itemName": "Bananas",
             "quantity": 1,
             "unit": "pack",
-            "amountPaidCentavos": 1300
+            "amountPaidCentavos": 1300,
+            "expiresOn": null
           }
         ],
         "createdAt": "2026-10-29T08:00:00.000Z",

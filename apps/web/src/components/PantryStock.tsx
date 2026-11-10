@@ -296,6 +296,7 @@ export default function PantryStock() {
   const [pendingPageNumber, setPendingPageNumber] = useState(1);
   const [pendingRefreshKey, setPendingRefreshKey] = useState(0);
   const [selectedPendingPurchaseIds, setSelectedPendingPurchaseIds] = useState<string[]>([]);
+  const [pendingExpiryDates, setPendingExpiryDates] = useState<Record<string, string>>({});
   const [isAddingPendingPurchases, setIsAddingPendingPurchases] = useState(false);
   const [pendingActionError, setPendingActionError] = useState('');
   const [pendingActionNotice, setPendingActionNotice] = useState('');
@@ -358,7 +359,18 @@ export default function PantryStock() {
     const failedPurchaseIds: string[] = [];
     for (const purchaseId of selectedPendingPurchaseIds) {
       try {
-        const changedItems = await addPurchaseItemsToPantry(purchaseId);
+        const purchase = pendingPage?.items.find((item) => item.id === purchaseId);
+        if (!purchase) {
+          failedPurchaseIds.push(purchaseId);
+          continue;
+        }
+        const expiryDates = purchase.items
+          .filter((item) => !item.pantryAdded)
+          .map((item) => ({
+            purchaseItemId: item.id,
+            expiresOn: pendingExpiryDates[item.id] ?? item.expiresOn,
+          }));
+        const changedItems = await addPurchaseItemsToPantry(purchaseId, expiryDates);
         changedItemCount += changedItems.length;
       } catch {
         failedPurchaseIds.push(purchaseId);
@@ -507,39 +519,66 @@ export default function PantryStock() {
                       const isSelected = selectedPendingPurchaseIds.includes(purchase.id);
                       const checkboxId = `review-purchase-${purchase.id}`;
                       return (
-                        <label
+                        <div
                           key={purchase.id}
-                          htmlFor={checkboxId}
-                          className={`flex cursor-pointer items-center gap-2.5 rounded-md border px-2.5 py-2 transition-colors ${isSelected ? 'border-primary/40 bg-primary/[0.04]' : 'bg-background hover:bg-muted/30'}`}
+                          className={`rounded-md border px-2.5 py-2 transition-colors ${isSelected ? 'border-primary/40 bg-primary/[0.04]' : 'bg-background'}`}
                         >
-                          <Input
-                            id={checkboxId}
-                            type="checkbox"
-                            className="size-4 shrink-0 rounded border-input p-0 accent-primary shadow-none focus-visible:ring-2 focus-visible:ring-ring"
-                            checked={isSelected}
-                            onChange={() => togglePendingPurchase(purchase.id)}
-                            disabled={isAddingPendingPurchases}
-                            aria-label={`Select receipt from ${purchase.storeName || 'grocery trip'} dated ${formatDateOnly(purchase.purchasedOn)}`}
-                          />
-                          <span className="min-w-0 flex-1">
-                            <span className="flex min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-0.5">
-                              <span className="min-w-0 truncate text-xs font-medium">{purchase.storeName || 'Grocery trip'}</span>
-                              <span className="flex shrink-0 items-center gap-1.5 text-[11px] text-muted-foreground">
-                                <time dateTime={purchase.purchasedOn}>{formatDateOnly(purchase.purchasedOn)}</time>
-                                <span aria-hidden="true">·</span>
-                                {pendingItems.length} {pendingItems.length === 1 ? 'item' : 'items'}
-                              </span>
-                            </span>
-                            <span className="mt-1 flex min-w-0 flex-wrap gap-x-2 gap-y-0.5 text-[11px] leading-4 text-muted-foreground">
-                              {pendingItems.map((item) => (
-                                <span key={item.id} className="inline-flex min-w-0 max-w-full items-baseline gap-1">
-                                  <span className="max-w-40 truncate font-medium text-foreground">{item.itemName}</span>
-                                  <span className="shrink-0">{formatQuantity(item.quantity)} {item.unit}</span>
+                          <div className="flex items-center gap-2.5">
+                            <Input
+                              id={checkboxId}
+                              type="checkbox"
+                              className="size-4 shrink-0 rounded border-input p-0 accent-primary shadow-none focus-visible:ring-2 focus-visible:ring-ring"
+                              checked={isSelected}
+                              onChange={() => togglePendingPurchase(purchase.id)}
+                              disabled={isAddingPendingPurchases}
+                              aria-label={`Select receipt from ${purchase.storeName || 'grocery trip'} dated ${formatDateOnly(purchase.purchasedOn)}`}
+                            />
+                            <label htmlFor={checkboxId} className="min-w-0 flex-1 cursor-pointer">
+                              <span className="flex min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-0.5">
+                                <span className="min-w-0 truncate text-xs font-medium">{purchase.storeName || 'Grocery trip'}</span>
+                                <span className="flex shrink-0 items-center gap-1.5 text-[11px] text-muted-foreground">
+                                  <time dateTime={purchase.purchasedOn}>{formatDateOnly(purchase.purchasedOn)}</time>
+                                  <span aria-hidden="true">·</span>
+                                  {pendingItems.length} {pendingItems.length === 1 ? 'item' : 'items'}
                                 </span>
-                              ))}
-                            </span>
-                          </span>
-                        </label>
+                              </span>
+                              <span className="mt-1 flex min-w-0 flex-wrap gap-x-2 gap-y-0.5 text-[11px] leading-4 text-muted-foreground">
+                                {pendingItems.map((item) => (
+                                  <span key={item.id} className="inline-flex min-w-0 max-w-full items-baseline gap-1">
+                                    <span className="max-w-40 truncate font-medium text-foreground">{item.itemName}</span>
+                                    <span className="shrink-0">{formatQuantity(item.quantity)} {item.unit}</span>
+                                  </span>
+                                ))}
+                              </span>
+                            </label>
+                          </div>
+                          {pendingItems.length > 0 && (
+                            <details className="mt-2 border-t pt-1.5">
+                              <summary className="cursor-pointer text-[11px] font-medium text-muted-foreground hover:text-foreground">
+                                Expiry dates <span className="font-normal">· optional</span>
+                              </summary>
+                              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                                {pendingItems.map((item) => {
+                                  const expiryInputId = `review-expiry-${item.id}`;
+                                  return (
+                                    <Label key={item.id} htmlFor={expiryInputId} className="grid min-w-0 gap-1 text-xs font-medium">
+                                      <span className="truncate">{item.itemName} · {formatQuantity(item.quantity)} {item.unit}</span>
+                                      <Input
+                                        id={expiryInputId}
+                                        type="date"
+                                        className="h-9 w-full min-w-0"
+                                        value={pendingExpiryDates[item.id] ?? item.expiresOn ?? ''}
+                                        onChange={(event) => setPendingExpiryDates((current) => ({ ...current, [item.id]: event.target.value }))}
+                                        disabled={isAddingPendingPurchases}
+                                      />
+                                    </Label>
+                                  );
+                                })}
+                              </div>
+                              <p className="mt-1 text-[11px] leading-4 text-muted-foreground">Leave unknown dates blank. Expired items are still added as on-hand stock.</p>
+                            </details>
+                          )}
+                        </div>
                       );
                     })}
                   </div>
@@ -567,11 +606,11 @@ export default function PantryStock() {
 
                 {pendingPage && pendingPage.total > pendingPurchasePageSize && (
                   <nav className="flex items-center justify-between gap-3 border-t pt-2" aria-label="Purchases to review pages">
-                    <Button type="button" variant="outline" size="sm" onClick={() => setPendingPageNumber((current) => current - 1)} disabled={pendingPageNumber <= 1 || isAddingPendingPurchases}>
+                    <Button type="button" variant="outline" size="sm" onClick={() => { setSelectedPendingPurchaseIds([]); setPendingPageNumber((current) => current - 1); }} disabled={pendingPageNumber <= 1 || isAddingPendingPurchases}>
                       <ArrowLeft aria-hidden="true" /> Previous
                     </Button>
                     <span className="text-xs tabular-nums text-muted-foreground">Showing {(pendingPageNumber - 1) * pendingPurchasePageSize + 1}–{Math.min(pendingPageNumber * pendingPurchasePageSize, pendingPage.total)} of {pendingPage.total} receipts</span>
-                    <Button type="button" variant="outline" size="sm" onClick={() => setPendingPageNumber((current) => current + 1)} disabled={pendingPageNumber >= pendingTotalPages || isAddingPendingPurchases}>
+                    <Button type="button" variant="outline" size="sm" onClick={() => { setSelectedPendingPurchaseIds([]); setPendingPageNumber((current) => current + 1); }} disabled={pendingPageNumber >= pendingTotalPages || isAddingPendingPurchases}>
                       Next <ArrowRight aria-hidden="true" />
                     </Button>
                   </nav>

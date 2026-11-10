@@ -1,6 +1,6 @@
 import type { PoolClient } from 'pg';
 import { getPool, query } from '../db';
-import type { CreatePurchaseInput, PurchaseListQuery } from '../schemas/purchase';
+import type { AddPurchaseItemsToPantryInput, CreatePurchaseInput, PurchaseListQuery } from '../schemas/purchase';
 
 type PurchaseRow = {
   id: string;
@@ -19,6 +19,7 @@ type PurchaseItemRow = {
   quantity: string | number;
   unit: string;
   amountPaidCentavos: number;
+  expiresOn: string | null;
   pantryAdded: boolean;
 };
 
@@ -74,7 +75,8 @@ async function insertPurchaseItems(
        SELECT $1, $2, catalog_item.id, unit_record.id, $3, $4, $5, $6, $7
        FROM catalog_item, unit_record
        RETURNING id, grocery_item_id AS "groceryItemId", item_name AS "itemName", quantity, unit,
-                 amount_paid_centavos AS "amountPaidCentavos"`,
+                 amount_paid_centavos AS "amountPaidCentavos",
+                 expires_on::text AS "expiresOn"`,
       [purchaseId, position, item.itemName, item.quantity, item.unit, item.amountPaidCentavos, item.expiresOn ?? null]
     );
     insertedItems.push(result.rows[0]);
@@ -258,7 +260,8 @@ export async function createPurchaseRecord(input: CreatePurchaseInput): Promise<
 }
 
 export async function addPurchaseItemsToPantryRecord(
-  purchaseId: string
+  purchaseId: string,
+  input: AddPurchaseItemsToPantryInput
 ): Promise<PantryRestockedItemRecord[] | null> {
   const client = await getPool().connect();
   let transactionStarted = false;
@@ -274,6 +277,20 @@ export async function addPurchaseItemsToPantryRecord(
       await client.query('ROLLBACK');
       transactionStarted = false;
       return null;
+    }
+
+    for (const expiryDate of input.expiryDates) {
+      await client.query(
+        `UPDATE purchase_items pi
+         SET expires_on = $3
+         WHERE pi.id = $1
+           AND pi.purchase_id = $2
+           AND NOT EXISTS (
+             SELECT 1 FROM pantry_stock_purchase_movements movement
+             WHERE movement.purchase_item_id = pi.id
+           )`,
+        [expiryDate.purchaseItemId, purchaseId, expiryDate.expiresOn]
+      );
     }
 
     const pantryRestockedItems = await restockPantryFromPurchase(client, purchaseId, true);
@@ -364,6 +381,7 @@ export async function listPurchaseRecords(input: PurchaseListQuery): Promise<{
       `SELECT id, purchase_id AS "purchaseId", item_name AS "itemName",
               grocery_item_id AS "groceryItemId", quantity, unit,
               amount_paid_centavos AS "amountPaidCentavos",
+              expires_on::text AS "expiresOn",
               EXISTS (
                 SELECT 1
                 FROM pantry_stock_purchase_movements movement
@@ -385,6 +403,7 @@ export async function listPurchaseRecords(input: PurchaseListQuery): Promise<{
       quantity: item.quantity,
       unit: item.unit,
       amountPaidCentavos: item.amountPaidCentavos,
+      expiresOn: item.expiresOn,
       pantryAdded: item.pantryAdded,
     });
     itemsByPurchase.set(item.purchaseId, purchaseItems);

@@ -22,6 +22,7 @@ export type CreatePurchaseRequest = {
 export type PurchaseItem = CreatePurchaseItem & {
   id: string;
   groceryItemId: string;
+  expiresOn: string | null;
   pantryAdded: boolean;
 };
 
@@ -497,12 +498,16 @@ export async function createPurchase(input: CreatePurchaseRequest): Promise<Purc
   });
 }
 
-export async function addPurchaseItemsToPantry(purchaseId: string): Promise<PantryRestockedItem[]> {
+export async function addPurchaseItemsToPantry(
+  purchaseId: string,
+  expiryDates: { purchaseItemId: string; expiresOn: string | null }[] = []
+): Promise<PantryRestockedItem[]> {
   const response = await sendRequest<{ pantryRestockedItems: PantryRestockedItem[] }>(
     `/api/purchases/${encodeURIComponent(purchaseId)}/pantry`,
     {
       method: 'POST',
-      headers: { Accept: 'application/json' },
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ expiryDates }),
     }
   );
   return response.pantryRestockedItems;
