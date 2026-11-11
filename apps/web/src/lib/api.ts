@@ -226,6 +226,44 @@ export type GroceryItemPage = {
   total: number;
 };
 
+export type RecipeIngredientInput = {
+  groceryItemId: string;
+  unitId: string;
+  quantity: number;
+};
+
+export type RecipeIngredient = RecipeIngredientInput & {
+  id: string;
+  recipeId: string;
+  itemName: string;
+  unit: string;
+  unitPriceCentavos: number | null;
+  lineCostCentavos: number | null;
+  pricePurchasedOn: string | null;
+  priceStoreName: string | null;
+};
+
+export type Recipe = {
+  id: string;
+  name: string;
+  servings: number;
+  createdAt: string;
+  updatedAt: string;
+  ingredients: RecipeIngredient[];
+  pricedIngredientCount: number;
+  unpricedIngredientCount: number;
+  partialCostCentavos: number;
+  totalCostCentavos: number | null;
+  costPerServingCentavos: number | null;
+};
+
+export type RecipePage = {
+  items: Recipe[];
+  page: number;
+  pageSize: number;
+  total: number;
+};
+
 export type PriceObservation = {
   purchaseItemId: string;
   purchaseId: string;
@@ -274,6 +312,7 @@ async function sendRequest<T>(url: string, init: RequestInit): Promise<T> {
   }
 
   if (!response.ok) throw new Error(await readErrorMessage(response));
+  if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
 }
 
@@ -367,6 +406,42 @@ export async function fetchGroceryItems(
   return sendRequest<GroceryItemPage>(`/api/grocery-items?${params.toString()}`, {
     headers: { Accept: 'application/json' },
     signal,
+  });
+}
+
+export async function fetchRecipes(
+  page: number,
+  pageSize: number,
+  search: string,
+  signal: AbortSignal
+): Promise<RecipePage> {
+  const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+  if (search.trim()) params.set('search', search.trim());
+  return sendRequest<RecipePage>(`/api/recipes?${params.toString()}`, {
+    headers: { Accept: 'application/json' },
+    signal,
+  });
+}
+
+export async function saveRecipe(
+  recipeId: string | null,
+  input: { name: string; servings: number; ingredients: RecipeIngredientInput[] }
+): Promise<Recipe> {
+  const isUpdate = recipeId !== null;
+  return sendRequest<Recipe>(isUpdate ? `/api/recipes/${encodeURIComponent(recipeId)}` : '/api/recipes', {
+    method: isUpdate ? 'PUT' : 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(input),
+  });
+}
+
+export async function deleteRecipe(recipeId: string): Promise<void> {
+  await sendRequest<void>(`/api/recipes/${encodeURIComponent(recipeId)}`, {
+    method: 'DELETE',
+    headers: { Accept: 'application/json' },
   });
 }
 

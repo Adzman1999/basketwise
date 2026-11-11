@@ -1,0 +1,15 @@
+$kind: http-example
+name: The recipe was deleted.
+request:
+  url: "{{baseUrl}}/api/recipes/{{recipeId}}"
+  method: DELETE
+  headers:
+    Accept: application/json
+response:
+  statusCode: 204
+  statusText: No Content
+  headers: {}
+  body:
+    type: text
+    content: ''
+order: 1000

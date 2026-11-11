@@ -1,0 +1,58 @@
+$kind: http-example
+name: The recipe and ingredient list were updated.
+request:
+  url: "{{baseUrl}}/api/recipes/{{recipeId}}"
+  method: PUT
+  headers:
+    Content-Type: application/json
+    Accept: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "name": "Chicken adobo",
+        "servings": 4,
+        "ingredients": [
+          {
+            "groceryItemId": "b94ab4f4-cb08-48ce-83a9-ff99f6eb488c",
+            "unitId": "f56094ec-d967-4011-a490-5ae9ef49e310",
+            "quantity": 1
+          }
+        ]
+      }
+response:
+  statusCode: 200
+  statusText: OK
+  headers:
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "id": "7409983c-2061-4bb4-a6e6-720a5644a1c9",
+        "name": "Chicken adobo",
+        "servings": 4,
+        "createdAt": "2026-11-11T08:00:00.000Z",
+        "updatedAt": "2026-11-11T09:00:00.000Z",
+        "ingredients": [
+          {
+            "id": "794de16d-7e7c-4265-8a45-dfd4e38f6ecf",
+            "recipeId": "7409983c-2061-4bb4-a6e6-720a5644a1c9",
+            "groceryItemId": "b94ab4f4-cb08-48ce-83a9-ff99f6eb488c",
+            "itemName": "Chicken",
+            "unitId": "f56094ec-d967-4011-a490-5ae9ef49e310",
+            "unit": "kg",
+            "quantity": 1,
+            "unitPriceCentavos": 24000,
+            "lineCostCentavos": 24000,
+            "pricePurchasedOn": "2026-11-10",
+            "priceStoreName": "Market Basket"
+          }
+        ],
+        "pricedIngredientCount": 1,
+        "unpricedIngredientCount": 0,
+        "partialCostCentavos": 24000,
+        "totalCostCentavos": 24000,
+        "costPerServingCentavos": 6000
+      }
+order: 1000
