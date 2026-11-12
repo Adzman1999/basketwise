@@ -63,8 +63,8 @@ function formatUnitPrice(centavos: number): string {
   return unitPriceFormatter.format(centavos / 100);
 }
 
-function formatQuantity(quantity: number): string {
-  return new Intl.NumberFormat('en-PH', { maximumFractionDigits: 3 }).format(quantity);
+function formatScaledQuantity(quantity: number): string {
+  return new Intl.NumberFormat('en-PH', { maximumFractionDigits: 6 }).format(quantity);
 }
 
 function formatDateOnly(date: string): string {
@@ -390,7 +390,33 @@ function RecipeDetailsDialog({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const [targetServings, setTargetServings] = useState(String(recipe.servings));
+  useEffect(() => {
+    setTargetServings(String(recipe.servings));
+  }, [recipe.id, recipe.servings]);
+
+  const parsedTargetServings = Number(targetServings);
+  const isValidTargetServings = Number.isInteger(parsedTargetServings)
+    && parsedTargetServings >= 1
+    && parsedTargetServings <= 1000;
+  const scaleRatio = isValidTargetServings ? parsedTargetServings / recipe.servings : 1;
+  const scaledIngredients = recipe.ingredients.map((ingredient) => ({
+    ...ingredient,
+    scaledQuantity: ingredient.quantity * scaleRatio,
+    scaledLineCostCentavos: ingredient.lineCostCentavos === null
+      ? null
+      : Math.round((ingredient.unitPriceCentavos ?? ingredient.lineCostCentavos) * ingredient.quantity * scaleRatio),
+  }));
   const hasFullCost = recipe.totalCostCentavos !== null;
+  const scaledPartialCostCentavos = scaledIngredients.reduce(
+    (total, ingredient) => total + (ingredient.scaledLineCostCentavos ?? 0),
+    0,
+  );
+  const scaledTotalCostCentavos = hasFullCost ? scaledPartialCostCentavos : null;
+  const scaledCostPerServingCentavos = scaledTotalCostCentavos !== null && isValidTargetServings
+    ? Math.round(scaledTotalCostCentavos / parsedTargetServings)
+    : null;
+  const displayedServings = isValidTargetServings ? parsedTargetServings : recipe.servings;
 
   return (
     <Dialog open onOpenChange={onOpenChange}>
@@ -407,25 +433,50 @@ function RecipeDetailsDialog({
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-5 sm:px-6">
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="rounded-lg border bg-primary/[0.04] p-4">
-              <p className="text-xs text-muted-foreground">Estimated recipe cost</p>
-              {hasFullCost ? (
-                <p className="mt-1 text-2xl font-semibold tabular-nums">{formatCost(recipe.totalCostCentavos as number)}</p>
+              <p className="text-xs text-muted-foreground">
+                Estimated cost for {displayedServings} {displayedServings === 1 ? 'serving' : 'servings'}
+              </p>
+              {scaledTotalCostCentavos !== null ? (
+                <p className="mt-1 text-2xl font-semibold tabular-nums">{formatCost(scaledTotalCostCentavos)}</p>
               ) : (
                 <p className="mt-1 text-lg font-semibold">Incomplete price data</p>
               )}
               <p className="mt-1 text-xs text-muted-foreground">
                 {hasFullCost
                   ? `${recipe.pricedIngredientCount} of ${recipe.ingredients.length} ingredients priced from receipts`
-                  : `${recipe.unpricedIngredientCount} ${recipe.unpricedIngredientCount === 1 ? 'ingredient has' : 'ingredients have'} no matching unit price · partial ${formatCost(recipe.partialCostCentavos)}`}
+                  : `${recipe.unpricedIngredientCount} ${recipe.unpricedIngredientCount === 1 ? 'ingredient has' : 'ingredients have'} no matching unit price · partial ${formatCost(scaledPartialCostCentavos)}`}
               </p>
             </div>
             <div className="rounded-lg border bg-muted/20 p-4">
               <p className="text-xs text-muted-foreground">Cost per serving</p>
-              {recipe.costPerServingCentavos === null
+              {scaledCostPerServingCentavos === null
                 ? <p className="mt-1 text-lg font-semibold">Not available yet</p>
-                : <p className="mt-1 text-2xl font-semibold tabular-nums">{formatCost(recipe.costPerServingCentavos)}</p>}
-              <p className="mt-1 text-xs text-muted-foreground">Calculated from current ingredient price observations.</p>
+                : <p className="mt-1 text-2xl font-semibold tabular-nums">{formatCost(scaledCostPerServingCentavos)}</p>}
+              <p className="mt-1 text-xs text-muted-foreground">Based on current ingredient price observations.</p>
             </div>
+          </div>
+
+          <div className="grid gap-3 rounded-lg border bg-muted/20 p-4 sm:grid-cols-[minmax(0,1fr)_9rem] sm:items-end">
+            <div>
+              <Label htmlFor="recipe-target-servings" className="text-sm font-medium">Scale ingredients for</Label>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                The saved recipe makes {recipe.servings} {recipe.servings === 1 ? 'serving' : 'servings'}. Scaling only changes this estimate.
+              </p>
+            </div>
+            <Input
+              id="recipe-target-servings"
+              type="number"
+              min="1"
+              max="1000"
+              step="1"
+              inputMode="numeric"
+              value={targetServings}
+              onChange={(event) => setTargetServings(event.target.value)}
+              aria-invalid={!isValidTargetServings}
+            />
+            {!isValidTargetServings && (
+              <p className="text-xs text-destructive sm:col-span-2">Enter a whole number from 1 to 1,000.</p>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -434,11 +485,11 @@ function RecipeDetailsDialog({
               <Badge variant="secondary">Latest same-unit price</Badge>
             </div>
             <ul className="divide-y rounded-lg border">
-              {recipe.ingredients.map((ingredient) => (
+              {scaledIngredients.map((ingredient) => (
                 <li key={ingredient.id} className="grid min-w-0 gap-2 px-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-4">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">{ingredient.itemName}</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">{formatQuantity(ingredient.quantity)} {ingredient.unit}
+                    <p className="mt-0.5 text-xs text-muted-foreground">{formatScaledQuantity(ingredient.scaledQuantity)} {ingredient.unit}
                       {ingredient.unitPriceCentavos === null ? ' · No matching price recorded' : ` · ${formatUnitPrice(ingredient.unitPriceCentavos)} / ${ingredient.unit}`}
                     </p>
                     {ingredient.pricePurchasedOn && (
@@ -448,7 +499,7 @@ function RecipeDetailsDialog({
                     )}
                   </div>
                   <p className="text-right text-sm font-semibold tabular-nums">
-                    {ingredient.lineCostCentavos === null ? '—' : formatCost(ingredient.lineCostCentavos)}
+                    {ingredient.scaledLineCostCentavos === null ? '—' : formatCost(ingredient.scaledLineCostCentavos)}
                   </p>
                 </li>
               ))}
