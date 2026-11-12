@@ -44,6 +44,8 @@ response:
             "unit": "kg",
             "quantity": 1,
             "unitPriceCentavos": 24000,
+            "priceSourceUnit": "kg",
+            "priceConversionFactor": 1,
             "lineCostCentavos": 24000,
             "pricePurchasedOn": "2026-11-10",
             "priceStoreName": "Market Basket"

@@ -1,7 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { Activity, CheckCircle2, ReceiptText, RefreshCw } from 'lucide-react';
 import AppSidebar from '@/components/AppSidebar';
-import GroceryCatalog from '@/components/GroceryCatalog';
 import MonthlyBudget from '@/components/MonthlyBudget';
 import Overview from '@/components/Overview';
 import PantryStock from '@/components/PantryStock';
@@ -26,6 +25,7 @@ type ConnectionState =
 
 const pageSize = 8;
 const Recipes = lazy(() => import('@/components/Recipes'));
+const GroceryCatalog = lazy(() => import('@/components/GroceryCatalog'));
 const emptyPurchaseFilterOptions: PurchaseFilterOptions = { store: '', from: '', to: '' };
 const quantityFormatter = new Intl.NumberFormat('en-PH', { maximumFractionDigits: 3 });
 
@@ -236,7 +236,9 @@ export default function App() {
                 <h1 className="sr-only">{currentSectionLabel}</h1>
 
                 {activeHref === '#grocery-catalog' ? (
-                  <GroceryCatalog refreshKey={catalogRefresh} />
+                  <Suspense fallback={<div className="space-y-3" role="status" aria-label="Loading grocery catalog"><Skeleton className="h-9 w-2/5" /><Skeleton className="h-48" /></div>}>
+                    <GroceryCatalog refreshKey={catalogRefresh} />
+                  </Suspense>
                 ) : activeHref === '#pantry' ? (
                   <PantryStock />
                 ) : activeHref === '#budget' ? (

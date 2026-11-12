@@ -238,6 +238,8 @@ export type RecipeIngredient = RecipeIngredientInput & {
   itemName: string;
   unit: string;
   unitPriceCentavos: number | null;
+  priceSourceUnit: string | null;
+  priceConversionFactor: number | null;
   lineCostCentavos: number | null;
   pricePurchasedOn: string | null;
   priceStoreName: string | null;
@@ -267,6 +269,7 @@ export type RecipePage = {
 export type PriceObservation = {
   purchaseItemId: string;
   purchaseId: string;
+  unitId: string;
   purchasedOn: string;
   storeName?: string;
   itemName: string;
@@ -278,10 +281,25 @@ export type PriceObservation = {
 
 export type PriceHistoryPage = {
   groceryItem: GroceryItem;
+  units: Array<{ id: string; name: string }>;
   items: PriceObservation[];
   page: number;
   pageSize: number;
   total: number;
+};
+
+export type GroceryItemUnitConversion = {
+  id: string;
+  purchaseUnitId: string;
+  purchaseUnit: string;
+  recipeUnitId: string;
+  recipeUnit: string;
+  recipeUnitsPerPurchaseUnit: number;
+};
+
+export type GroceryItemUnitConversionPage = {
+  groceryItem: GroceryItem;
+  items: GroceryItemUnitConversion[];
 };
 
 type ApiErrorResponse = {
@@ -606,6 +624,46 @@ export async function fetchGroceryItemPriceHistory(
     `/api/grocery-items/${encodeURIComponent(groceryItemId)}/price-history?${params.toString()}`,
     { headers: { Accept: 'application/json' }, signal }
   );
+}
+
+export async function fetchGroceryItemUnitConversions(
+  groceryItemId: string,
+  signal: AbortSignal
+): Promise<GroceryItemUnitConversionPage> {
+  return sendRequest<GroceryItemUnitConversionPage>(
+    `/api/grocery-items/${encodeURIComponent(groceryItemId)}/unit-conversions`,
+    { headers: { Accept: 'application/json' }, signal }
+  );
+}
+
+export async function saveGroceryItemUnitConversion(
+  groceryItemId: string,
+  input: { purchaseUnitId: string; recipeUnitId: string; recipeUnitsPerPurchaseUnit: number }
+): Promise<GroceryItemUnitConversion> {
+  return sendRequest<GroceryItemUnitConversion>(
+    `/api/grocery-items/${encodeURIComponent(groceryItemId)}/unit-conversions`,
+    {
+      method: 'PUT',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    }
+  );
+}
+
+export async function deleteGroceryItemUnitConversion(
+  groceryItemId: string,
+  conversionId: string
+): Promise<void> {
+  let response: Response;
+  try {
+    response = await fetch(
+      `/api/grocery-items/${encodeURIComponent(groceryItemId)}/unit-conversions/${encodeURIComponent(conversionId)}`,
+      { method: 'DELETE', headers: { Accept: 'application/json' } }
+    );
+  } catch {
+    throw new Error('Could not reach the API. Check that the backend is running.');
+  }
+  if (!response.ok) throw new Error(await readErrorMessage(response));
 }
 
 export async function createPurchase(input: CreatePurchaseRequest): Promise<Purchase> {

@@ -484,7 +484,7 @@ paths:
       tags:
         - Recipes
       summary: List recipes and ingredient cost estimates
-      description: Returns paginated recipes with ingredient lines and costs calculated from the latest grocery purchase observation for the same saved item and exact measurement unit. If any ingredient has no matching observation, totalCostCentavos and costPerServingCentavos are null while partialCostCentavos contains the priced lines. Prices can come from different receipt dates; no unit conversion is performed.
+      description: Returns paginated recipes with ingredient lines and costs calculated from the latest compatible purchase observation for each grocery item. Exact units, standard g/kg and ml/l conversions, and saved item-specific yields are supported. If any ingredient has no compatible observation, totalCostCentavos and costPerServingCentavos are null while partialCostCentavos contains the priced lines.
       parameters:
         - name: search
           in: query
@@ -514,7 +514,7 @@ paths:
             default: 20
       responses:
         "200":
-          description: Recipes with their latest same-unit ingredient prices.
+          description: Recipes with their latest compatible ingredient prices.
           content:
             application/json:
               schema:
@@ -532,9 +532,11 @@ paths:
                         groceryItemId: "b94ab4f4-cb08-48ce-83a9-ff99f6eb488c"
                         itemName: "Chicken"
                         unitId: "f56094ec-d967-4011-a490-5ae9ef49e310"
-                        unit: "kg"
-                        quantity: 0.5
-                        unitPriceCentavos: 24000
+                        unit: "g"
+                        quantity: 500
+                        unitPriceCentavos: 24
+                        priceSourceUnit: "kg"
+                        priceConversionFactor: 1000
                         lineCostCentavos: 12000
                         pricePurchasedOn: "2026-11-10"
                         priceStoreName: "Market Basket"
@@ -546,6 +548,8 @@ paths:
                         unit: "l"
                         quantity: 0.04
                         unitPriceCentavos: 12500
+                        priceSourceUnit: "l"
+                        priceConversionFactor: 1
                         lineCostCentavos: 500
                         pricePurchasedOn: "2026-11-09"
                         priceStoreName: "Market Basket"
@@ -566,7 +570,7 @@ paths:
       tags:
         - Recipes
       summary: Create a recipe and its ingredients
-      description: Saves the recipe and ingredient lines together. Ingredient items and units must already exist in the grocery catalog. Cost estimates are derived from the latest exact same-unit purchase prices and are not saved as fixed values.
+      description: Saves the recipe and ingredient lines together. Ingredient items and units must already exist in the grocery catalog. Cost estimates use the latest compatible receipt prices and saved unit conversions; estimates are not saved as fixed values.
       requestBody:
         required: true
         content:
@@ -623,7 +627,7 @@ paths:
       tags:
         - Recipes
       summary: Get a recipe and its ingredient costs
-      description: Returns a recipe using the same latest same-unit price estimates as the recipe list.
+      description: Returns a recipe using the same latest compatible price estimates as the recipe list.
       responses:
         "200":
           description: The recipe with its ingredient costs.
@@ -642,7 +646,7 @@ paths:
       tags:
         - Recipes
       summary: Replace a recipe and its ingredients
-      description: Replaces the recipe name, serving count, and complete ingredient list atomically. The recipe ID is retained; receipt history is unchanged.
+      description: Replaces the recipe name, serving count, and complete ingredient list atomically. The recipe ID is retained; receipt history and saved item conversions are unchanged.
       requestBody:
         required: true
         content:
@@ -1234,11 +1238,10 @@ paths:
       summary: List recorded prices for a grocery item
       description: |
         Returns price observations derived from saved purchase lines, newest
-        first. Unit labels are matched after trimming, lowercasing, and
-        collapsing whitespace. No conversions are made between units, so
-        observations with different units must not be compared directly.
-        unitPriceCentavos is amountPaidCentavos divided by quantity and rounded
-        to six decimal places.
+        first. unitPriceCentavos is amountPaidCentavos divided by quantity and
+        rounded to six decimal places. The units list contains units recorded
+        for this item and can be used to configure item-specific package yields.
+        Recipe costing supports standard g/kg and ml/l conversions separately.
       parameters:
         - name: groceryItemId
           in: path
@@ -1283,9 +1286,13 @@ paths:
                 groceryItem:
                   id: "b94ab4f4-cb08-48ce-83a9-ff99f6eb488c"
                   name: "Rice"
+                units:
+                  - id: "f56094ec-d967-4011-a490-5ae9ef49e310"
+                    name: "kg"
                 items:
                   - purchaseItemId: "f557ea81-8e28-4bc0-bf38-92b0a1c3331a"
                     purchaseId: "7ef38c55-13ec-4e49-9b50-7d97eb8f5001"
+                    unitId: "f56094ec-d967-4011-a490-5ae9ef49e310"
                     purchasedOn: "2026-10-29"
                     storeName: "Neighborhood Market"
                     itemName: "Rice"
@@ -1296,6 +1303,98 @@ paths:
                 page: 1
                 pageSize: 20
                 total: 1
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/grocery-items/{groceryItemId}/unit-conversions:
+    get:
+      operationId: listGroceryItemUnitConversions
+      tags:
+        - Grocery items
+      summary: List saved unit yields for a grocery item
+      description: Returns item-specific relationships between a receipt unit and a recipe unit, such as 1 can of tomatoes = 400 g. Standard g/kg and ml/l conversions are automatic and are not listed here.
+      parameters:
+        - name: groceryItemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Saved unit yields for this grocery item.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroceryItemUnitConversionPage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    put:
+      operationId: saveGroceryItemUnitConversion
+      tags:
+        - Grocery items
+      summary: Save a unit yield for a grocery item
+      description: Sets how many recipe units are contained in one receipt unit for this item. Saving the same unit pair again updates its yield; the relationship works in either direction when costing recipes.
+      parameters:
+        - name: groceryItemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SaveGroceryItemUnitConversionRequest"
+            example:
+              purchaseUnitId: "f56094ec-d967-4011-a490-5ae9ef49e310"
+              recipeUnitId: "ffdc2944-55a2-48ce-a879-e6a27f553090"
+              recipeUnitsPerPurchaseUnit: 400
+      responses:
+        "200":
+          description: The unit yield was saved or updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroceryItemUnitConversion"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/grocery-items/{groceryItemId}/unit-conversions/{conversionId}:
+    delete:
+      operationId: deleteGroceryItemUnitConversion
+      tags:
+        - Grocery items
+      summary: Remove a unit yield
+      description: Removes an item-specific unit yield. Recipe costs return to exact or standard metric unit matching if no other compatible price remains.
+      parameters:
+        - name: groceryItemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: conversionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: The unit yield was removed; no response body is returned.
         "400":
           $ref: "#/components/responses/BadRequest"
         "404":
@@ -1735,6 +1834,8 @@ components:
         - unit
         - quantity
         - unitPriceCentavos
+        - priceSourceUnit
+        - priceConversionFactor
         - lineCostCentavos
         - pricePurchasedOn
         - priceStoreName
@@ -1765,13 +1866,24 @@ components:
             - type: number
               minimum: 0
             - type: "null"
-          description: Latest recorded price per this exact unit, in PHP centavos.
+          description: Latest compatible price normalized to this recipe unit, in PHP centavos.
+        priceSourceUnit:
+          oneOf:
+            - type: string
+            - type: "null"
+          description: Receipt unit used for the latest compatible price observation.
+        priceConversionFactor:
+          oneOf:
+            - type: number
+              exclusiveMinimum: 0
+            - type: "null"
+          description: Recipe units contained in one receipt unit, or 1 for an exact unit match.
         lineCostCentavos:
           oneOf:
             - type: integer
               minimum: 0
             - type: "null"
-          description: Ingredient quantity multiplied by the latest same-unit price, rounded to the nearest centavo.
+          description: Ingredient quantity multiplied by the compatible unit price, rounded to the nearest centavo.
         pricePurchasedOn:
           oneOf:
             - type: string
@@ -1831,7 +1943,7 @@ components:
             - type: integer
               minimum: 0
             - type: "null"
-          description: Complete recipe estimate; null until all ingredients have a matching same-unit purchase price.
+          description: Complete recipe estimate; null until all ingredients have a compatible purchase price.
         costPerServingCentavos:
           oneOf:
             - type: integer
@@ -2289,12 +2401,70 @@ components:
           type: integer
         total:
           type: integer
+    GroceryItemUnitConversion:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - purchaseUnitId
+        - purchaseUnit
+        - recipeUnitId
+        - recipeUnit
+        - recipeUnitsPerPurchaseUnit
+      properties:
+        id:
+          type: string
+          format: uuid
+        purchaseUnitId:
+          type: string
+          format: uuid
+        purchaseUnit:
+          type: string
+        recipeUnitId:
+          type: string
+          format: uuid
+        recipeUnit:
+          type: string
+        recipeUnitsPerPurchaseUnit:
+          type: number
+          exclusiveMinimum: 0
+          multipleOf: 0.000000001
+          description: Number of recipe units contained in one purchase unit.
+    GroceryItemUnitConversionPage:
+      type: object
+      additionalProperties: false
+      required: [groceryItem, items]
+      properties:
+        groceryItem:
+          $ref: "#/components/schemas/GroceryItem"
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/GroceryItemUnitConversion"
+    SaveGroceryItemUnitConversionRequest:
+      type: object
+      additionalProperties: false
+      required: [purchaseUnitId, recipeUnitId, recipeUnitsPerPurchaseUnit]
+      properties:
+        purchaseUnitId:
+          type: string
+          format: uuid
+        recipeUnitId:
+          type: string
+          format: uuid
+        recipeUnitsPerPurchaseUnit:
+          type: number
+          exclusiveMinimum: 0
+          maximum: 999999999.999999999
+          multipleOf: 0.000000001
+          description: Number of recipe units contained in one purchase unit.
     PriceObservation:
       type: object
       additionalProperties: false
       required:
         - purchaseItemId
         - purchaseId
+        - unitId
         - purchasedOn
         - itemName
         - quantity
@@ -2306,6 +2476,9 @@ components:
           type: string
           format: uuid
         purchaseId:
+          type: string
+          format: uuid
+        unitId:
           type: string
           format: uuid
         purchasedOn:
@@ -2332,6 +2505,7 @@ components:
       additionalProperties: false
       required:
         - groceryItem
+        - units
         - items
         - page
         - pageSize
@@ -2339,6 +2513,19 @@ components:
       properties:
         groceryItem:
           $ref: "#/components/schemas/GroceryItem"
+        units:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [id, name]
+            properties:
+              id:
+                type: string
+                format: uuid
+              name:
+                type: string
+          description: Distinct units recorded on this item's purchase lines.
         items:
           type: array
           items:

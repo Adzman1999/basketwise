@@ -1,16 +1,24 @@
-import { useEffect, useState } from 'react';
-import { AlertCircle, ArrowLeft, ArrowRight, ChevronRight, Search, Tags } from 'lucide-react';
+import { useEffect, useState, type FormEvent } from 'react';
+import { AlertCircle, ArrowLeft, ArrowLeftRight, ArrowRight, ChevronRight, Pencil, Search, Tags, Trash2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   fetchGroceryItemPriceHistory,
   fetchGroceryItems,
+  fetchGroceryItemUnitConversions,
+  fetchUnits,
+  saveGroceryItemUnitConversion,
+  deleteGroceryItemUnitConversion,
+  type GroceryItemUnitConversion,
   type GroceryItemPage,
+  type MeasurementUnit,
   type PriceHistoryPage,
 } from '@/lib/api';
 
@@ -50,6 +58,10 @@ function formatUnitPrice(centavos: number, unit: string): string {
 
 function formatQuantity(quantity: number): string {
   return new Intl.NumberFormat('en-PH', { maximumFractionDigits: 3 }).format(quantity);
+}
+
+function formatConversionQuantity(quantity: number): string {
+  return new Intl.NumberFormat('en-PH', { maximumFractionDigits: 9 }).format(quantity);
 }
 
 function HighlightedCatalogName({ name, query }: { name: string; query: string }) {
@@ -115,6 +127,194 @@ function LoadingCards({ count = 3 }: { count?: number }) {
       ))}
       <span className="sr-only">Loading items…</span>
     </div>
+  );
+}
+
+type ConversionState =
+  | { kind: 'loading' }
+  | { kind: 'loaded'; conversions: GroceryItemUnitConversion[]; units: MeasurementUnit[] }
+  | { kind: 'error'; message: string };
+
+function UnitConversionManager({
+  itemId,
+  itemName,
+  purchaseUnits,
+}: {
+  itemId: string;
+  itemName: string;
+  purchaseUnits: Array<{ id: string; name: string }>;
+}) {
+  const [state, setState] = useState<ConversionState>({ kind: 'loading' });
+  const [purchaseUnitId, setPurchaseUnitId] = useState('');
+  const [recipeUnitId, setRecipeUnitId] = useState('');
+  const [yieldQuantity, setYieldQuantity] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [error, setError] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void Promise.all([fetchGroceryItemUnitConversions(itemId, controller.signal), fetchUnits(controller.signal)])
+      .then(([conversionPage, unitPage]) => {
+        if (!controller.signal.aborted) {
+          setState({ kind: 'loaded', conversions: conversionPage.items, units: unitPage.items });
+        }
+      })
+      .catch((caughtError: unknown) => {
+        if (controller.signal.aborted) return;
+        setState({ kind: 'error', message: caughtError instanceof Error ? caughtError.message : 'Could not load unit conversions.' });
+      });
+    return () => controller.abort();
+  }, [itemId]);
+
+  const savedConversions = state.kind === 'loaded' ? state.conversions : [];
+  const purchaseUnitOptions = Array.from(
+    new Map([
+      ...purchaseUnits,
+      ...savedConversions.map((conversion) => ({ id: conversion.purchaseUnitId, name: conversion.purchaseUnit })),
+    ].map((unit) => [unit.id, unit] as const)).values(),
+  );
+
+  function beginEdit(conversion: GroceryItemUnitConversion) {
+    setPurchaseUnitId(conversion.purchaseUnitId);
+    setRecipeUnitId(conversion.recipeUnitId);
+    setYieldQuantity(String(conversion.recipeUnitsPerPurchaseUnit));
+    setEditingId(conversion.id);
+    setError('');
+  }
+
+  function resetForm() {
+    setPurchaseUnitId('');
+    setRecipeUnitId('');
+    setYieldQuantity('');
+    setEditingId(null);
+    setError('');
+  }
+
+  async function handleSave(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError('');
+    const parsedYield = Number(yieldQuantity);
+    if (!purchaseUnitId || !recipeUnitId || purchaseUnitId === recipeUnitId
+      || !Number.isFinite(parsedYield) || parsedYield <= 0 || parsedYield > 999_999_999.999999999
+      || Math.abs(parsedYield * 1_000_000_000 - Math.round(parsedYield * 1_000_000_000)) >= 0.0001) {
+      setError('Choose two different units and enter a positive amount with up to 9 decimal places.');
+      return;
+    }
+    setIsSaving(true);
+    try {
+      const saved = await saveGroceryItemUnitConversion(itemId, {
+        purchaseUnitId,
+        recipeUnitId,
+        recipeUnitsPerPurchaseUnit: parsedYield,
+      });
+      setState((current) => current.kind === 'loaded'
+        ? {
+          ...current,
+          conversions: [...current.conversions.filter((conversion) => conversion.id !== saved.id), saved]
+            .sort((left, right) => left.purchaseUnit.localeCompare(right.purchaseUnit) || left.recipeUnit.localeCompare(right.recipeUnit)),
+        }
+        : current);
+      resetForm();
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : 'Could not save this conversion.');
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleDelete(conversion: GroceryItemUnitConversion) {
+    setError('');
+    setDeletingId(conversion.id);
+    try {
+      await deleteGroceryItemUnitConversion(itemId, conversion.id);
+      setState((current) => current.kind === 'loaded'
+        ? { ...current, conversions: current.conversions.filter((saved) => saved.id !== conversion.id) }
+        : current);
+      if (editingId === conversion.id) resetForm();
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : 'Could not delete this conversion.');
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  return (
+    <section className="mt-5 border-t pt-5" aria-labelledby="unit-conversions-title">
+      <div className="flex items-start gap-2.5">
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"><ArrowLeftRight aria-hidden="true" className="size-4" /></span>
+        <div className="min-w-0">
+          <h3 id="unit-conversions-title" className="text-sm font-semibold">Unit yields &amp; conversions</h3>
+          <p className="mt-0.5 text-xs leading-5 text-muted-foreground">Set package yields for this item, such as 1 can = 400 g. Grams/kg and milliliters/liters convert automatically.</p>
+        </div>
+      </div>
+
+      {state.kind === 'loading' && <Skeleton className="mt-4 h-20" />}
+      {state.kind === 'error' && (
+        <Alert variant="destructive" className="mt-4">
+          <AlertCircle aria-hidden="true" />
+          <AlertTitle>Conversions could not load</AlertTitle>
+          <AlertDescription>{state.message}</AlertDescription>
+        </Alert>
+      )}
+      {state.kind === 'loaded' && (
+        <>
+          <form onSubmit={(event) => void handleSave(event)} className="mt-4 grid gap-3 rounded-lg border bg-muted/10 p-3 sm:grid-cols-[minmax(0,1fr)_8rem_minmax(0,1fr)_auto] sm:items-end">
+            <Label className="grid min-w-0 gap-1.5 text-xs font-medium">
+              Receipt unit
+              <Select value={purchaseUnitId || 'unselected'} onValueChange={(value) => setPurchaseUnitId(value === 'unselected' ? '' : value)} disabled={isSaving || editingId !== null}>
+                <SelectTrigger className="h-10 w-full"><SelectValue placeholder="Bought as" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="unselected">Choose unit</SelectItem>
+                  {purchaseUnitOptions.map((unit) => <SelectItem key={unit.id} value={unit.id}>{unit.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </Label>
+            <Label htmlFor={`unit-yield-${itemId}`} className="grid min-w-0 gap-1.5 text-xs font-medium">
+              Yields
+              <Input id={`unit-yield-${itemId}`} type="number" min="0.000000001" max="999999999.999999999" step="0.000000001" inputMode="decimal" value={yieldQuantity} onChange={(event) => setYieldQuantity(event.target.value)} placeholder="e.g. 400" disabled={isSaving} required />
+            </Label>
+            <Label className="grid min-w-0 gap-1.5 text-xs font-medium">
+              Recipe unit
+              <Select value={recipeUnitId || 'unselected'} onValueChange={(value) => setRecipeUnitId(value === 'unselected' ? '' : value)} disabled={isSaving || editingId !== null}>
+                <SelectTrigger className="h-10 w-full"><SelectValue placeholder="Converts to" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="unselected">Choose unit</SelectItem>
+                  {state.units.map((unit) => <SelectItem key={unit.id} value={unit.id}>{unit.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </Label>
+            <div className="flex gap-2 sm:justify-self-end">
+              <Button type="submit" size="sm" disabled={isSaving || purchaseUnitOptions.length === 0 || state.units.length === 0}>{isSaving ? 'Saving…' : editingId ? 'Update' : 'Save yield'}</Button>
+              {editingId && <Button type="button" variant="outline" size="sm" onClick={resetForm} disabled={isSaving}>Cancel</Button>}
+            </div>
+            <p className="text-[11px] leading-4 text-muted-foreground sm:col-span-4">
+              Means 1 selected receipt unit contains the amount entered in the recipe unit. This rule only applies to {itemName}.
+            </p>
+          </form>
+
+          {error && <Alert variant="destructive" className="mt-3"><AlertCircle aria-hidden="true" /><AlertTitle>Unit conversion update failed</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>}
+
+          <div className="mt-3 space-y-2">
+            {state.conversions.map((conversion) => (
+              <div key={conversion.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2.5">
+                <p className="min-w-0 text-sm font-medium">1 {conversion.purchaseUnit} = {formatConversionQuantity(conversion.recipeUnitsPerPurchaseUnit)} {conversion.recipeUnit}</p>
+                <div className="flex shrink-0 gap-1">
+                  <Button type="button" variant="ghost" size="icon" aria-label={`Edit conversion from ${conversion.purchaseUnit} to ${conversion.recipeUnit}`} title="Edit conversion" onClick={() => beginEdit(conversion)} disabled={isSaving || deletingId !== null}><Pencil aria-hidden="true" /></Button>
+                  <Button type="button" variant="ghost" size="icon" aria-label={`Delete conversion from ${conversion.purchaseUnit} to ${conversion.recipeUnit}`} title="Delete conversion" onClick={() => void handleDelete(conversion)} disabled={isSaving || deletingId !== null}>
+                    {deletingId === conversion.id ? <span className="text-xs">…</span> : <Trash2 aria-hidden="true" />}
+                  </Button>
+                </div>
+              </div>
+            ))}
+            {state.conversions.length === 0 && (
+              <p className="rounded-md border border-dashed px-3 py-3 text-xs text-muted-foreground">No item-specific yields saved. Compatible recipe costs will use exact units and standard metric conversions.</p>
+            )}
+          </div>
+        </>
+      )}
+    </section>
   );
 }
 
@@ -212,7 +412,7 @@ export default function GroceryCatalog({ refreshKey }: { refreshKey: number }) {
           <Badge variant="secondary" className="w-fit gap-1.5"><Tags aria-hidden="true" className="size-4" /> Item insights</Badge>
           <h2 id="grocery-catalog-title" className="text-2xl font-semibold tracking-tight">Catalog &amp; price history</h2>
           <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-            Browse grocery items from your receipts and compare recorded prices within the same unit.
+            Browse receipt prices and save item-specific yields for recipe costing.
           </p>
         </div>
         {catalogPage && <p className="text-sm text-muted-foreground">{catalogPage.total} {catalogPage.total === 1 ? 'item' : 'items'}</p>}
@@ -317,7 +517,7 @@ export default function GroceryCatalog({ refreshKey }: { refreshKey: number }) {
             )}
           </CardHeader>
           <CardContent className="p-4 pt-0 sm:p-5 sm:pt-0">
-            <p className="text-sm text-muted-foreground">Prices are listed by their receipt unit. Different units stay separate.</p>
+            <p className="text-sm text-muted-foreground">Prices are listed by their receipt unit. Recipe costs can use standard conversions and item-specific yields.</p>
             <Separator className="my-4" />
 
             <div className="space-y-2.5" aria-live="polite">
@@ -386,6 +586,14 @@ export default function GroceryCatalog({ refreshKey }: { refreshKey: number }) {
                 label="Price history pages"
                 onPageChange={setPriceHistoryPageNumber}
                 disabled={priceHistoryState.kind === 'loading'}
+              />
+            )}
+            {selectedItem && priceHistoryPage && (
+              <UnitConversionManager
+                key={selectedItem.id}
+                itemId={selectedItem.id}
+                itemName={selectedItem.name}
+                purchaseUnits={priceHistoryPage.units}
               />
             )}
           </CardContent>

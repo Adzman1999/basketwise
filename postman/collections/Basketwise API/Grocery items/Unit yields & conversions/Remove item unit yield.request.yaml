@@ -1,0 +1,15 @@
+$kind: http-request
+description: Removes an item-specific package yield.
+url: '{{baseUrl}}/api/grocery-items/{{lastGroceryItemId}}/unit-conversions/{{lastUnitConversionId}}'
+method: DELETE
+headers:
+  Accept: application/json
+settings: {}
+order: 3000
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('returns HTTP 204', function () {
+        pm.response.to.have.status(204);
+      });

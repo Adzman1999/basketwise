@@ -1,5 +1,5 @@
 $kind: http-request
-description: Gets a recipe with the current same-unit ingredient cost estimates.
+description: Gets a recipe with the current compatible ingredient cost estimates.
 url: '{{baseUrl}}/api/recipes/{{recipeId}}'
 method: GET
 headers:

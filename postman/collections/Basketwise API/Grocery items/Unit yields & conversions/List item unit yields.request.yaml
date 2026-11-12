@@ -1,0 +1,25 @@
+$kind: http-request
+description: Lists saved package yields for a grocery item. Standard g/kg and ml/l conversions are automatic.
+url: '{{baseUrl}}/api/grocery-items/{{lastGroceryItemId}}/unit-conversions'
+method: GET
+headers:
+  Accept: application/json
+settings: {}
+examples: './.resources/List item unit yields.resources/examples'
+order: 1000
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('returns HTTP 200', function () {
+        pm.response.to.have.status(200);
+      });
+
+      pm.test('returns unit yields for the requested grocery item', function () {
+        const body = pm.response.json();
+        pm.expect(body.groceryItem.id).to.eql(pm.collectionVariables.get('lastGroceryItemId'));
+        pm.expect(body.items).to.be.an('array');
+        body.items.forEach(function (conversion) {
+          pm.expect(conversion.recipeUnitsPerPurchaseUnit).to.be.above(0);
+        });
+      });

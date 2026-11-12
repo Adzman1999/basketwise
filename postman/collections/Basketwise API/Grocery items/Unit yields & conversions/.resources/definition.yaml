@@ -1,0 +1,3 @@
+$kind: collection
+description: Manage item-specific yields between receipt units and recipe units.
+order: 3000

@@ -11,6 +11,8 @@ export type RecipeIngredientRecord = {
   unit: string;
   quantity: string | number;
   unitPriceCentavos: string | number | null;
+  priceSourceUnit: string | null;
+  priceConversionFactor: string | number | null;
   pricePurchasedOn: string | null;
   priceStoreName: string | null;
 };
@@ -36,22 +38,55 @@ async function listIngredientRecords(recipeIds: string[]): Promise<RecipeIngredi
             ri.grocery_item_id AS "groceryItemId",
             gi.name AS "itemName",
             ri.unit_id AS "unitId",
-            mu.name AS unit,
+            recipe_unit.name AS unit,
             ri.quantity,
             latest_price."unitPriceCentavos",
+            latest_price."priceSourceUnit",
+            latest_price."priceConversionFactor",
             latest_price."pricePurchasedOn",
             latest_price."priceStoreName"
      FROM recipe_ingredients ri
      JOIN grocery_items gi ON gi.id = ri.grocery_item_id
-     JOIN measurement_units mu ON mu.id = ri.unit_id
+     JOIN measurement_units recipe_unit ON recipe_unit.id = ri.unit_id
      LEFT JOIN LATERAL (
-       SELECT round(pi.amount_paid_centavos::numeric / pi.quantity, 6)::float8 AS "unitPriceCentavos",
+       SELECT round(
+                (pi.amount_paid_centavos::numeric / pi.quantity) / unit_conversion.factor,
+                6
+              )::float8 AS "unitPriceCentavos",
+              purchase_unit.name AS "priceSourceUnit",
+              unit_conversion.factor::float8 AS "priceConversionFactor",
               p.purchased_on::text AS "pricePurchasedOn",
               p.store_name AS "priceStoreName"
        FROM purchase_items pi
        JOIN purchases p ON p.id = pi.purchase_id
+       JOIN measurement_units purchase_unit ON purchase_unit.id = pi.unit_id
+       CROSS JOIN LATERAL (
+         SELECT COALESCE(
+           CASE WHEN pi.unit_id = ri.unit_id THEN 1::numeric END,
+           (
+             SELECT conversion.recipe_units_per_purchase_unit
+             FROM grocery_item_unit_conversions conversion
+             WHERE conversion.grocery_item_id = ri.grocery_item_id
+               AND conversion.purchase_unit_id = pi.unit_id
+               AND conversion.recipe_unit_id = ri.unit_id
+           ),
+           (
+             SELECT 1::numeric / conversion.recipe_units_per_purchase_unit
+             FROM grocery_item_unit_conversions conversion
+             WHERE conversion.grocery_item_id = ri.grocery_item_id
+               AND conversion.purchase_unit_id = ri.unit_id
+               AND conversion.recipe_unit_id = pi.unit_id
+           ),
+           CASE
+             WHEN purchase_unit.normalized_name = 'kg' AND recipe_unit.normalized_name = 'g' THEN 1000::numeric
+             WHEN purchase_unit.normalized_name = 'g' AND recipe_unit.normalized_name = 'kg' THEN 0.001::numeric
+             WHEN purchase_unit.normalized_name = 'l' AND recipe_unit.normalized_name = 'ml' THEN 1000::numeric
+             WHEN purchase_unit.normalized_name = 'ml' AND recipe_unit.normalized_name = 'l' THEN 0.001::numeric
+           END
+         ) AS factor
+       ) unit_conversion
        WHERE pi.grocery_item_id = ri.grocery_item_id
-         AND pi.unit_id = ri.unit_id
+         AND unit_conversion.factor IS NOT NULL
        ORDER BY p.purchased_on DESC, p.created_at DESC, pi.id DESC
        LIMIT 1
      ) latest_price ON TRUE

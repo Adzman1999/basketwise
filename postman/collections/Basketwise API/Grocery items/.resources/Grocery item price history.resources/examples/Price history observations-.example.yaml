@@ -24,10 +24,17 @@ response:
           "id": "b94ab4f4-cb08-48ce-83a9-ff99f6eb488c",
           "name": "Rice"
         },
+        "units": [
+          {
+            "id": "f56094ec-d967-4011-a490-5ae9ef49e310",
+            "name": "kg"
+          }
+        ],
         "items": [
           {
             "purchaseItemId": "f557ea81-8e28-4bc0-bf38-92b0a1c3331a",
             "purchaseId": "7ef38c55-13ec-4e49-9b50-7d97eb8f5001",
+            "unitId": "f56094ec-d967-4011-a490-5ae9ef49e310",
             "purchasedOn": "2026-10-29",
             "storeName": "Neighborhood Market",
             "itemName": "Rice",

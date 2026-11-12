@@ -267,7 +267,7 @@ function RecipeEditorDialog({
       <DialogContent className="flex max-h-[94dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl">
         <DialogHeader className="shrink-0 border-b bg-background px-4 py-4 text-left sm:px-6">
           <DialogTitle>{recipe ? 'Edit recipe' : 'Create a recipe'}</DialogTitle>
-          <DialogDescription>Build a recipe from saved grocery items. Ingredient estimates use the latest recorded price in the same unit.</DialogDescription>
+          <DialogDescription>Build a recipe from saved grocery items. Estimates can use matching units or a saved conversion for that item.</DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
           <div className="flex-1 space-y-5 overflow-y-auto px-4 py-5 sm:px-6">
@@ -356,7 +356,7 @@ function RecipeEditorDialog({
                       <Trash2 aria-hidden="true" />
                     </Button>
                     {ingredient.itemName && ingredient.unitName && (
-                      <p className="text-[11px] leading-4 text-muted-foreground sm:col-span-4">Estimated price uses recorded observations for {ingredient.itemName} per {ingredient.unitName} only.</p>
+                      <p className="text-[11px] leading-4 text-muted-foreground sm:col-span-4">Uses a matching receipt unit, a standard metric conversion, or a saved conversion for {ingredient.itemName}.</p>
                     )}
                   </div>
                 ))}
@@ -365,7 +365,7 @@ function RecipeEditorDialog({
 
             <div className="flex items-start gap-2.5 rounded-lg border bg-muted/20 p-3 text-xs leading-5 text-muted-foreground">
               <ChefHat aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" />
-              <span>Costs update from each ingredient's latest receipt price in the exact same unit. No unit conversions are applied. Recipes do not change pantry stock.</span>
+              <span>Costs use each ingredient's latest compatible receipt price. Grams and kilograms, and milliliters and liters, convert automatically. Set package yields in Catalog &amp; price history. Recipes do not change pantry stock.</span>
             </div>
             {error && <Alert variant="destructive"><AlertCircle aria-hidden="true" /><AlertTitle>Could not save recipe</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>}
           </div>
@@ -482,7 +482,7 @@ function RecipeDetailsDialog({
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-3">
               <h3 className="text-sm font-semibold">Ingredient cost breakdown</h3>
-              <Badge variant="secondary">Latest same-unit price</Badge>
+              <Badge variant="secondary">Latest compatible price</Badge>
             </div>
             <ul className="divide-y rounded-lg border">
               {scaledIngredients.map((ingredient) => (
@@ -490,8 +490,16 @@ function RecipeDetailsDialog({
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">{ingredient.itemName}</p>
                     <p className="mt-0.5 text-xs text-muted-foreground">{formatScaledQuantity(ingredient.scaledQuantity)} {ingredient.unit}
-                      {ingredient.unitPriceCentavos === null ? ' · No matching price recorded' : ` · ${formatUnitPrice(ingredient.unitPriceCentavos)} / ${ingredient.unit}`}
+                      {ingredient.unitPriceCentavos === null ? ' · No compatible price recorded' : ` · ${formatUnitPrice(ingredient.unitPriceCentavos)} / ${ingredient.unit}`}
                     </p>
+                    {ingredient.unitPriceCentavos === null && (
+                      <p className="mt-0.5 text-[11px] text-muted-foreground">If bought in another unit, set its yield in Catalog &amp; price history.</p>
+                    )}
+                    {ingredient.priceSourceUnit && ingredient.priceConversionFactor !== null && ingredient.priceSourceUnit !== ingredient.unit && (
+                      <p className="mt-0.5 text-[11px] text-muted-foreground">
+                        Converted from receipt unit: 1 {ingredient.priceSourceUnit} = {formatScaledQuantity(ingredient.priceConversionFactor)} {ingredient.unit}
+                      </p>
+                    )}
                     {ingredient.pricePurchasedOn && (
                       <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
                         Latest price: {ingredient.priceStoreName || 'Grocery trip'} · {formatDateOnly(ingredient.pricePurchasedOn)}
@@ -616,7 +624,7 @@ export default function Recipes() {
         <div className="space-y-1.5">
           <Badge variant="secondary" className="w-fit gap-1.5"><ChefHat aria-hidden="true" className="size-4" /> Kitchen planning</Badge>
           <h2 className="text-2xl font-semibold tracking-tight">Recipes & ingredient costs</h2>
-          <p className="max-w-2xl text-sm leading-6 text-muted-foreground">Estimate each recipe from the latest grocery prices recorded for the same item and unit.</p>
+          <p className="max-w-2xl text-sm leading-6 text-muted-foreground">Estimate each recipe from the latest compatible grocery price, including saved item yields.</p>
         </div>
         <Button type="button" onClick={() => openEditor(null)}><CirclePlus aria-hidden="true" /> Create recipe</Button>
       </div>

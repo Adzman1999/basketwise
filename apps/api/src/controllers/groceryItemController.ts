@@ -1,6 +1,18 @@
 import type { Request, Response } from 'express';
-import { groceryItemIdSchema, groceryItemListQuerySchema, priceHistoryQuerySchema } from '../schemas/groceryItem';
-import { listGroceryItemPriceHistory, listGroceryItems } from '../services/groceryItemService';
+import {
+  groceryItemIdSchema,
+  groceryItemListQuerySchema,
+  groceryItemUnitConversionIdSchema,
+  priceHistoryQuerySchema,
+  saveGroceryItemUnitConversionSchema,
+} from '../schemas/groceryItem';
+import {
+  deleteGroceryItemUnitConversion,
+  listGroceryItemPriceHistory,
+  listGroceryItemUnitConversions,
+  listGroceryItems,
+  saveGroceryItemUnitConversion,
+} from '../services/groceryItemService';
 
 const invalidRequest = {
   error: {
@@ -46,6 +58,47 @@ export async function listGroceryItemPriceHistoryHandler(req: Request, res: Resp
     return res.status(200).json(history);
   } catch (error) {
     console.error('Failed to list grocery item price history:', error);
+    return res.status(500).json(internalError);
+  }
+}
+
+export async function listGroceryItemUnitConversionsHandler(req: Request, res: Response) {
+  const idResult = groceryItemIdSchema.safeParse(req.params.groceryItemId);
+  if (!idResult.success) return res.status(400).json(invalidRequest);
+  try {
+    const conversions = await listGroceryItemUnitConversions(idResult.data);
+    if (!conversions) return res.status(404).json(notFound);
+    return res.status(200).json(conversions);
+  } catch (error) {
+    console.error('Failed to list grocery item unit conversions:', error);
+    return res.status(500).json(internalError);
+  }
+}
+
+export async function saveGroceryItemUnitConversionHandler(req: Request, res: Response) {
+  const idResult = groceryItemIdSchema.safeParse(req.params.groceryItemId);
+  const bodyResult = saveGroceryItemUnitConversionSchema.safeParse(req.body);
+  if (!idResult.success || !bodyResult.success) return res.status(400).json(invalidRequest);
+  try {
+    const conversion = await saveGroceryItemUnitConversion(idResult.data, bodyResult.data);
+    if (!conversion) return res.status(404).json(notFound);
+    return res.status(200).json(conversion);
+  } catch (error) {
+    console.error('Failed to save grocery item unit conversion:', error);
+    return res.status(500).json(internalError);
+  }
+}
+
+export async function deleteGroceryItemUnitConversionHandler(req: Request, res: Response) {
+  const idResult = groceryItemIdSchema.safeParse(req.params.groceryItemId);
+  const conversionIdResult = groceryItemUnitConversionIdSchema.safeParse(req.params.conversionId);
+  if (!idResult.success || !conversionIdResult.success) return res.status(400).json(invalidRequest);
+  try {
+    const deleted = await deleteGroceryItemUnitConversion(idResult.data, conversionIdResult.data);
+    if (!deleted) return res.status(404).json(notFound);
+    return res.status(204).end();
+  } catch (error) {
+    console.error('Failed to delete grocery item unit conversion:', error);
     return res.status(500).json(internalError);
   }
 }
