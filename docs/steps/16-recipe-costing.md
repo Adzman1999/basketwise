@@ -13,12 +13,15 @@ Save household recipes with ingredient quantities and estimate recipe and per-se
 - Grams and kilograms, and milliliters and liters, convert automatically. Catalog & price history lets the user define reusable item-specific yields such as 1 can = 400 ml.
 - Recipe details show the receipt unit and conversion used for each estimate.
 - Recipe details can scale ingredient quantities and cost estimates for 1–1,000 servings without changing the saved recipe.
+- Recipes can save optional cooking instructions and a meal category (breakfast, lunch, dinner, snack, dessert, drinks, or other). Category filtering works independently of recipe-name search.
 - Each price source shows its receipt date and store. A recipe estimate can combine prices from different receipt dates and changes when new grocery purchases are recorded.
 - Recipes do not change pantry quantities or grocery receipts.
 
 ## Decisions
 
 - Recipe ingredients use saved grocery catalog items and measurement units; free-text ingredients are not accepted.
+- Ingredient quantities and units follow the stock-item recipe pattern used in BacchusSQL, while Basketwise recipes remain household meals and do not require commercial menu-item or size records.
+- Cooking instructions are optional plain text, and categories use a small built-in meal list to keep filtering consistent.
 - Custom yields are saved per grocery item because package sizes differ by item. A saved relationship works in either direction.
 - Only g/kg and ml/l convert automatically. Other units require an explicit item-specific yield; mass, volume, and item units are never guessed to be equivalent.
 - Recipe costs are estimates based on the latest observed price, not fixed prices saved on the recipe.
@@ -27,11 +30,11 @@ Save household recipes with ingredient quantities and estimate recipe and per-se
 
 ## Future increments
 
-- Add recipe instructions and categories.
+- Consider recipe photos or richer step-by-step instructions after the basic cost and meal-planning workflow is in use.
 
 ## Verification
 
 - API and web typechecks and production builds passed.
-- Local migrations `014_grocery_item_unit_conversions.sql` and `015_grocery_item_unit_conversion_lookup.sql` were applied.
-- Postman collection lint, OpenAPI syntax lint, and `git diff --check` passed. Full OpenAPI governance lint requires a Postman sign-in and was not run.
+- Local migration `016_recipe_metadata.sql` was applied. Earlier migrations `014_grocery_item_unit_conversions.sql` and `015_grocery_item_unit_conversion_lookup.sql` were already applied.
+- Postman collection lint, OpenAPI syntax lint, and `git diff --check` passed. Full OpenAPI governance lint requires a Postman sign-in and was not run. The installed Postman CLI (1.76.0) does not recognize `postman status`.
 - Automated API and UI tests were not run.

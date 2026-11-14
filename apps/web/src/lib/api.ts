@@ -232,6 +232,28 @@ export type RecipeIngredientInput = {
   quantity: number;
 };
 
+export const recipeCategories = [
+  'breakfast',
+  'lunch',
+  'dinner',
+  'snack',
+  'dessert',
+  'drinks',
+  'other',
+] as const;
+
+export type RecipeCategory = (typeof recipeCategories)[number];
+
+export const recipeCategoryLabels: Record<RecipeCategory, string> = {
+  breakfast: 'Breakfast',
+  lunch: 'Lunch',
+  dinner: 'Dinner',
+  snack: 'Snack',
+  dessert: 'Dessert',
+  drinks: 'Drinks',
+  other: 'Other',
+};
+
 export type RecipeIngredient = RecipeIngredientInput & {
   id: string;
   recipeId: string;
@@ -249,6 +271,8 @@ export type Recipe = {
   id: string;
   name: string;
   servings: number;
+  category: RecipeCategory | null;
+  instructions: string | null;
   createdAt: string;
   updatedAt: string;
   ingredients: RecipeIngredient[];
@@ -431,10 +455,12 @@ export async function fetchRecipes(
   page: number,
   pageSize: number,
   search: string,
+  category: RecipeCategory | 'uncategorized' | null,
   signal: AbortSignal
 ): Promise<RecipePage> {
   const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
   if (search.trim()) params.set('search', search.trim());
+  if (category) params.set('category', category);
   return sendRequest<RecipePage>(`/api/recipes?${params.toString()}`, {
     headers: { Accept: 'application/json' },
     signal,
@@ -443,7 +469,13 @@ export async function fetchRecipes(
 
 export async function saveRecipe(
   recipeId: string | null,
-  input: { name: string; servings: number; ingredients: RecipeIngredientInput[] }
+  input: {
+    name: string;
+    servings: number;
+    category: RecipeCategory | null;
+    instructions: string | null;
+    ingredients: RecipeIngredientInput[];
+  }
 ): Promise<Recipe> {
   const isUpdate = recipeId !== null;
   return sendRequest<Recipe>(isUpdate ? `/api/recipes/${encodeURIComponent(recipeId)}` : '/api/recipes', {

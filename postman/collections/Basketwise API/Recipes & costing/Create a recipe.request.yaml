@@ -1,5 +1,5 @@
 $kind: http-request
-description: Saves a recipe and its ingredient lines atomically. Ingredient catalog items and units must already exist; estimated prices are resolved from matching purchase history.
+description: Saves a recipe's serving yield, optional meal category and cooking instructions, and ingredient lines atomically. Ingredient catalog items and units must already exist; estimated prices are resolved from matching purchase history.
 url: '{{baseUrl}}/api/recipes'
 method: POST
 headers:
@@ -11,6 +11,8 @@ body:
     {
       "name": "Chicken adobo",
       "servings": 2,
+      "category": "dinner",
+      "instructions": "Brown the chicken, add the sauce, then simmer until tender.",
       "ingredients": [
         {
           "groceryItemId": "{{chickenGroceryItemId}}",

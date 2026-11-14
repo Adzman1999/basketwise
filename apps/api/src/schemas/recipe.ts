@@ -19,14 +19,29 @@ const recipeIngredientSchema = z.object({
 
 export const recipeIdSchema = z.string().uuid();
 
+export const recipeCategories = [
+  'breakfast',
+  'lunch',
+  'dinner',
+  'snack',
+  'dessert',
+  'drinks',
+  'other',
+] as const;
+
+export const recipeCategorySchema = z.enum(recipeCategories);
+
 export const recipeListQuerySchema = z.object({
   ...pagination,
   search: z.string().trim().min(1).max(120).optional(),
+  category: z.union([recipeCategorySchema, z.literal('uncategorized')]).optional(),
 }).strict();
 
 export const saveRecipeSchema = z.object({
   name: z.string().trim().min(1).max(120).transform((value) => value.replace(/\s+/g, ' ')),
   servings: z.number().int().min(1).max(1000),
+  category: recipeCategorySchema.nullable().optional().transform((value) => value ?? null),
+  instructions: z.string().trim().max(5000).nullable().optional().transform((value) => value || null),
   ingredients: z.array(recipeIngredientSchema).min(1).max(100),
 }).strict().superRefine((recipe, context) => {
   const seen = new Set<string>();

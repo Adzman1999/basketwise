@@ -1,5 +1,5 @@
 $kind: http-request
-description: Replaces the recipe name, serving count, and complete ingredient list atomically.
+description: Replaces the recipe name, serving yield, optional category and instructions, and complete ingredient list atomically.
 url: '{{baseUrl}}/api/recipes/{{recipeId}}'
 method: PUT
 headers:
@@ -14,6 +14,8 @@ body:
     {
       "name": "Chicken adobo",
       "servings": 4,
+      "category": "dinner",
+      "instructions": "Brown the chicken, add the sauce, then simmer until tender.",
       "ingredients": [
         {
           "groceryItemId": "{{chickenGroceryItemId}}",

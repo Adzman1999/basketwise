@@ -1,5 +1,5 @@
 import { useEffect, useId, useState, type FormEvent } from 'react';
-import { AlertCircle, ArrowLeft, ArrowRight, ChefHat, CirclePlus, Pencil, Plus, Search, Trash2, Utensils } from 'lucide-react';
+import { AlertCircle, ArrowLeft, ArrowRight, BookOpenText, ChefHat, CirclePlus, Pencil, Plus, Search, Trash2, Utensils } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -9,15 +9,19 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Textarea } from '@/components/ui/textarea';
 import {
   deleteRecipe,
   fetchGroceryItems,
   fetchRecipes,
   fetchUnits,
   saveRecipe,
+  recipeCategories,
+  recipeCategoryLabels,
   type GroceryItem,
   type MeasurementUnit,
   type Recipe,
+  type RecipeCategory,
 } from '@/lib/api';
 
 type RecipeListState =
@@ -196,6 +200,8 @@ function RecipeEditorDialog({
 }) {
   const [name, setName] = useState(recipe?.name ?? '');
   const [servings, setServings] = useState(recipe ? String(recipe.servings) : '2');
+  const [category, setCategory] = useState<RecipeCategory | 'uncategorized'>(recipe?.category ?? 'uncategorized');
+  const [instructions, setInstructions] = useState(recipe?.instructions ?? '');
   const [ingredients, setIngredients] = useState<RecipeIngredientDraft[]>(() => (
     recipe?.ingredients.length ? recipe.ingredients.map((ingredient) => makeIngredientDraft(ingredient)) : [makeIngredientDraft()]
   ));
@@ -247,6 +253,8 @@ function RecipeEditorDialog({
       const saved = await saveRecipe(recipe?.id ?? null, {
         name: name.trim(),
         servings: parsedServings,
+        category: category === 'uncategorized' ? null : category,
+        instructions: instructions.trim() || null,
         ingredients: parsedIngredients.map(({ draft, quantity }) => ({
           groceryItemId: draft.groceryItemId,
           unitId: draft.unitId,
@@ -281,6 +289,31 @@ function RecipeEditorDialog({
                 <Input id="recipe-servings" className="h-10 w-full" type="number" min="1" max="1000" step="1" value={servings} onChange={(event) => setServings(event.target.value)} required disabled={isSaving} />
               </Label>
             </div>
+
+            <Label htmlFor="recipe-category" className="grid min-w-0 gap-2 text-sm font-medium sm:max-w-xs">
+                Category
+                <Select value={category} onValueChange={(value) => setCategory(value as RecipeCategory | 'uncategorized')} disabled={isSaving}>
+                  <SelectTrigger id="recipe-category" className="h-10 w-full"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="uncategorized">No category</SelectItem>
+                    {recipeCategories.map((option) => <SelectItem key={option} value={option}>{recipeCategoryLabels[option]}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+            </Label>
+
+            <Label htmlFor="recipe-instructions" className="grid gap-2 text-sm font-medium">
+              Cooking instructions <span className="font-normal text-muted-foreground">· optional</span>
+              <Textarea
+                id="recipe-instructions"
+                value={instructions}
+                onChange={(event) => setInstructions(event.target.value)}
+                maxLength={5000}
+                rows={5}
+                placeholder="Add preparation steps, cooking times, or notes for next time."
+                disabled={isSaving}
+              />
+              <span className="text-xs font-normal text-muted-foreground">{instructions.length.toLocaleString()} / 5,000 characters</span>
+            </Label>
 
             <div className="space-y-3">
               <div className="flex flex-wrap items-end justify-between gap-2">
@@ -427,6 +460,7 @@ function RecipeDetailsDialog({
             <div className="min-w-0 space-y-1">
               <DialogTitle className="truncate">{recipe.name}</DialogTitle>
               <DialogDescription>{recipe.servings} {recipe.servings === 1 ? 'serving' : 'servings'} · {recipe.ingredients.length} {recipe.ingredients.length === 1 ? 'ingredient' : 'ingredients'}</DialogDescription>
+              {recipe.category && <Badge variant="outline" className="mt-1 w-fit">{recipeCategoryLabels[recipe.category]}</Badge>}
             </div>
           </div>
         </DialogHeader>
@@ -478,6 +512,13 @@ function RecipeDetailsDialog({
               <p className="text-xs text-destructive sm:col-span-2">Enter a whole number from 1 to 1,000.</p>
             )}
           </div>
+
+          {recipe.instructions && (
+            <section className="space-y-2 rounded-lg border bg-muted/20 p-4">
+              <h3 className="flex items-center gap-2 text-sm font-semibold"><BookOpenText aria-hidden="true" className="size-4 text-primary" /> Cooking instructions</h3>
+              <p className="whitespace-pre-wrap text-sm leading-6 text-muted-foreground">{recipe.instructions}</p>
+            </section>
+          )}
 
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-3">
@@ -575,6 +616,7 @@ export default function Recipes() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [searchText, setSearchText] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<RecipeCategory | 'uncategorized' | 'all'>('all');
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
   const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
@@ -591,7 +633,7 @@ export default function Recipes() {
   useEffect(() => {
     const controller = new AbortController();
     setState({ kind: 'loading' });
-    void fetchRecipes(pageNumber, pageSize, searchQuery, controller.signal)
+    void fetchRecipes(pageNumber, pageSize, searchQuery, categoryFilter === 'all' ? null : categoryFilter, controller.signal)
       .then((page) => {
         if (!controller.signal.aborted) setState({ kind: 'loaded', page });
       })
@@ -600,10 +642,11 @@ export default function Recipes() {
         setState({ kind: 'error', message: error instanceof Error ? error.message : 'Could not load recipes.' });
       });
     return () => controller.abort();
-  }, [pageNumber, refreshKey, searchQuery]);
+  }, [pageNumber, refreshKey, searchQuery, categoryFilter]);
 
   const page = state.kind === 'loaded' ? state.page : null;
   const totalPages = Math.max(1, Math.ceil((page?.total ?? 0) / pageSize));
+  const hasActiveFilters = Boolean(searchQuery) || categoryFilter !== 'all';
 
   function openEditor(recipe: Recipe | null) {
     setSelectedRecipe(null);
@@ -635,9 +678,19 @@ export default function Recipes() {
             <CardTitle className="flex items-center gap-2 text-base"><Utensils aria-hidden="true" className="size-4 text-primary" /> Your recipes</CardTitle>
             <CardDescription>Cost estimates change as you record new grocery prices.</CardDescription>
           </div>
-          <div className="relative w-full min-w-0 sm:max-w-sm">
-            <Search aria-hidden="true" className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input className="h-10 w-full min-w-0 pl-9" value={searchText} onChange={(event) => setSearchText(event.target.value)} placeholder="Search recipes" aria-label="Search recipes" />
+          <div className="flex w-full min-w-0 flex-col gap-2 sm:max-w-xl sm:flex-row">
+            <div className="relative min-w-0 flex-1">
+              <Search aria-hidden="true" className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input className="h-10 w-full min-w-0 pl-9" value={searchText} onChange={(event) => setSearchText(event.target.value)} placeholder="Search recipes" aria-label="Search recipes" />
+            </div>
+            <Select value={categoryFilter} onValueChange={(value) => { setCategoryFilter(value as RecipeCategory | 'uncategorized' | 'all'); setPageNumber(1); }}>
+              <SelectTrigger className="h-10 w-full sm:w-44" aria-label="Filter recipes by category"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All categories</SelectItem>
+                <SelectItem value="uncategorized">No category</SelectItem>
+                {recipeCategories.map((option) => <SelectItem key={option} value={option}>{recipeCategoryLabels[option]}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </div>
         </CardHeader>
         <CardContent className="p-4 pt-0 sm:p-5 sm:pt-0">
@@ -661,11 +714,11 @@ export default function Recipes() {
           {page && page.items.length === 0 && (
             <div className="flex min-h-56 flex-col items-center justify-center rounded-lg border border-dashed bg-muted/20 px-6 text-center">
               <span className="mb-3 flex size-10 items-center justify-center rounded-full bg-primary/10 text-primary"><ChefHat aria-hidden="true" className="size-5" /></span>
-              <p className="text-sm font-medium">{searchQuery ? 'No recipes match your search' : 'No recipes saved yet'}</p>
+              <p className="text-sm font-medium">{hasActiveFilters ? 'No recipes match these filters' : 'No recipes saved yet'}</p>
               <p className="mt-1 max-w-md text-sm leading-6 text-muted-foreground">
-                {searchQuery ? 'Try a different recipe name.' : 'Create a recipe from your saved grocery items. Record a purchase first if you need to add new ingredients to the catalog.'}
+                {hasActiveFilters ? 'Try another name or category.' : 'Create a recipe from your saved grocery items. Record a purchase first if you need to add new ingredients to the catalog.'}
               </p>
-              {!searchQuery && <Button type="button" variant="outline" className="mt-4" onClick={() => openEditor(null)}><Plus aria-hidden="true" /> Create your first recipe</Button>}
+              {!hasActiveFilters && <Button type="button" variant="outline" className="mt-4" onClick={() => openEditor(null)}><Plus aria-hidden="true" /> Create your first recipe</Button>}
             </div>
           )}
 
@@ -681,6 +734,7 @@ export default function Recipes() {
                           <div className="min-w-0">
                             <h3 className="truncate text-sm font-semibold">{recipe.name}</h3>
                             <p className="mt-0.5 text-xs text-muted-foreground">{recipe.servings} {recipe.servings === 1 ? 'serving' : 'servings'} · {recipe.ingredients.length} {recipe.ingredients.length === 1 ? 'ingredient' : 'ingredients'}</p>
+                            {recipe.category && <Badge variant="outline" className="mt-1 px-1.5 py-0 text-[10px]">{recipeCategoryLabels[recipe.category]}</Badge>}
                           </div>
                         </div>
                         <Badge variant={recipe.unpricedIngredientCount > 0 ? 'outline' : 'secondary'} className="shrink-0">

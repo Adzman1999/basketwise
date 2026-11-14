@@ -19,6 +19,8 @@ response:
             "id": "7409983c-2061-4bb4-a6e6-720a5644a1c9",
             "name": "Chicken adobo",
             "servings": 2,
+            "category": "dinner",
+            "instructions": "Brown the chicken, add the sauce, then simmer until tender.",
             "createdAt": "2026-11-11T08:00:00.000Z",
             "updatedAt": "2026-11-11T08:00:00.000Z",
             "ingredients": [

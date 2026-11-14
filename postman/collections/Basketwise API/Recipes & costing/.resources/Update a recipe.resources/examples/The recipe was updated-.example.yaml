@@ -12,6 +12,8 @@ request:
       {
         "name": "Chicken adobo",
         "servings": 4,
+        "category": "dinner",
+        "instructions": "Brown the chicken, add the sauce, then simmer until tender.",
         "ingredients": [
           {
             "groceryItemId": "b94ab4f4-cb08-48ce-83a9-ff99f6eb488c",
@@ -32,6 +34,8 @@ response:
         "id": "7409983c-2061-4bb4-a6e6-720a5644a1c9",
         "name": "Chicken adobo",
         "servings": 4,
+        "category": "dinner",
+        "instructions": "Brown the chicken, add the sauce, then simmer until tender.",
         "createdAt": "2026-11-11T08:00:00.000Z",
         "updatedAt": "2026-11-11T09:00:00.000Z",
         "ingredients": [
