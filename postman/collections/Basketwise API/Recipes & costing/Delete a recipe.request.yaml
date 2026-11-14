@@ -1,0 +1,12 @@
+$kind: http-request
+description: Deletes a recipe and its ingredient list. Grocery purchases and price history remain unchanged.
+url: '{{baseUrl}}/api/recipes/{{recipeId}}'
+method: DELETE
+headers:
+  Accept: application/json
+pathVariables:
+  - key: recipeId
+    value: '{{recipeId}}'
+settings: {}
+examples: './.resources/Delete a recipe.resources/examples'
+order: 5000

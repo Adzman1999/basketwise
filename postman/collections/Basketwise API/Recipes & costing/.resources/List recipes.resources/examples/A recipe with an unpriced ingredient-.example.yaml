@@ -1,0 +1,63 @@
+$kind: http-example
+name: A recipe with one ingredient that has no matching unit price.
+request:
+  url: "{{baseUrl}}/api/recipes?page=1&pageSize=20"
+  method: GET
+  headers:
+    Accept: application/json
+response:
+  statusCode: 200
+  statusText: OK
+  headers:
+    Content-Type: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "items": [
+          {
+            "id": "7409983c-2061-4bb4-a6e6-720a5644a1c9",
+            "name": "Chicken adobo",
+            "servings": 2,
+            "createdAt": "2026-11-11T08:00:00.000Z",
+            "updatedAt": "2026-11-11T08:00:00.000Z",
+            "ingredients": [
+              {
+                "id": "794de16d-7e7c-4265-8a45-dfd4e38f6ecf",
+                "recipeId": "7409983c-2061-4bb4-a6e6-720a5644a1c9",
+                "groceryItemId": "b94ab4f4-cb08-48ce-83a9-ff99f6eb488c",
+                "itemName": "Chicken",
+                "unitId": "f56094ec-d967-4011-a490-5ae9ef49e310",
+                "unit": "kg",
+                "quantity": 0.5,
+                "unitPriceCentavos": 24000,
+                "lineCostCentavos": 12000,
+                "pricePurchasedOn": "2026-11-10",
+                "priceStoreName": "Market Basket"
+              },
+              {
+                "id": "357c71e2-087e-44c2-9ce8-449405a592a8",
+                "recipeId": "7409983c-2061-4bb4-a6e6-720a5644a1c9",
+                "groceryItemId": "9b5662aa-cfa0-4da0-a918-42db0e8a29cd",
+                "itemName": "Soy sauce",
+                "unitId": "f56094ec-d967-4011-a490-5ae9ef49e311",
+                "unit": "l",
+                "quantity": 0.04,
+                "unitPriceCentavos": null,
+                "lineCostCentavos": null,
+                "pricePurchasedOn": null,
+                "priceStoreName": null
+              }
+            ],
+            "pricedIngredientCount": 1,
+            "unpricedIngredientCount": 1,
+            "partialCostCentavos": 12000,
+            "totalCostCentavos": null,
+            "costPerServingCentavos": null
+          }
+        ],
+        "page": 1,
+        "pageSize": 20,
+        "total": 1
+      }
+order: 2000

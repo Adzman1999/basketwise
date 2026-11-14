@@ -8,6 +8,7 @@ import healthRoutes from './routes/health';
 import groceryItemRoutes from './routes/groceryItems';
 import pantryStockRoutes from './routes/pantryStock';
 import purchaseRoutes from './routes/purchases';
+import recipeRoutes from './routes/recipes';
 import storeRoutes from './routes/stores';
 import unitRoutes from './routes/units';
 
@@ -23,6 +24,7 @@ export function createApp() {
   }
 
   app.use('/api', purchaseRoutes);
+  app.use('/api', recipeRoutes);
   app.use('/api', budgetRoutes);
   app.use('/api', groceryItemRoutes);
   app.use('/api', pantryStockRoutes);

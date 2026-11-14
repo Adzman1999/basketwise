@@ -1,0 +1,12 @@
+$kind: http-request
+description: Gets a recipe with the current same-unit ingredient cost estimates.
+url: '{{baseUrl}}/api/recipes/{{recipeId}}'
+method: GET
+headers:
+  Accept: application/json
+pathVariables:
+  - key: recipeId
+    value: '{{recipeId}}'
+settings: {}
+examples: './.resources/Get recipe details.resources/examples'
+order: 3000

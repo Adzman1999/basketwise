@@ -1,0 +1,27 @@
+$kind: http-request
+description: Replaces the recipe name, serving count, and complete ingredient list atomically.
+url: '{{baseUrl}}/api/recipes/{{recipeId}}'
+method: PUT
+headers:
+  Content-Type: application/json
+  Accept: application/json
+pathVariables:
+  - key: recipeId
+    value: '{{recipeId}}'
+body:
+  type: json
+  content: |-
+    {
+      "name": "Chicken adobo",
+      "servings": 4,
+      "ingredients": [
+        {
+          "groceryItemId": "{{chickenGroceryItemId}}",
+          "unitId": "{{kilogramUnitId}}",
+          "quantity": 1
+        }
+      ]
+    }
+settings: {}
+examples: './.resources/Update a recipe.resources/examples'
+order: 4000

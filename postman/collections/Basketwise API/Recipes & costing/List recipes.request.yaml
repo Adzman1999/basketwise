@@ -1,0 +1,22 @@
+$kind: http-request
+description: Lists saved recipes with estimates from each ingredient's latest grocery purchase price in the same saved unit. Total and per-serving estimates remain null while any ingredient is unpriced.
+url: '{{baseUrl}}/api/recipes?page=1&pageSize=20'
+method: GET
+headers:
+  Accept: application/json
+queryParams:
+  - key: search
+    value: chicken
+    disabled: true
+    description: Literal, case-insensitive substring of a recipe name.
+  - key: page
+    value: '1'
+    disabled: false
+    description: One-based result page.
+  - key: pageSize
+    value: '20'
+    disabled: false
+    description: Number of recipes per page, up to 100.
+settings: {}
+examples: './.resources/List recipes.resources/examples'
+order: 1000

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { Activity, CheckCircle2, ReceiptText, RefreshCw } from 'lucide-react';
 import AppSidebar from '@/components/AppSidebar';
 import GroceryCatalog from '@/components/GroceryCatalog';
@@ -16,6 +16,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
+import { Skeleton } from '@/components/ui/skeleton';
 import { addPurchaseItemsToPantry, createPurchase, fetchHealthStatus, fetchPurchases, type CreatePurchaseRequest, type HealthResponse, type Purchase, type PurchaseFilterOptions, type PurchaseFilters } from '@/lib/api';
 
 type ConnectionState =
@@ -24,6 +25,7 @@ type ConnectionState =
   | { kind: 'error'; message: string };
 
 const pageSize = 8;
+const Recipes = lazy(() => import('@/components/Recipes'));
 const emptyPurchaseFilterOptions: PurchaseFilterOptions = { store: '', from: '', to: '' };
 const quantityFormatter = new Intl.NumberFormat('en-PH', { maximumFractionDigits: 3 });
 
@@ -36,7 +38,7 @@ function samePurchaseFilters(left: PurchaseFilterOptions, right: PurchaseFilterO
 function getActiveHref(): string {
   const hash = window.location.hash;
   if (hash === '#purchase-history' || hash === '#new-purchase') return '#grocery-spending';
-  if (hash === '#grocery-spending' || hash === '#pantry' || hash === '#budget' || hash === '#grocery-catalog' || hash === '#stores') return hash;
+  if (hash === '#grocery-spending' || hash === '#pantry' || hash === '#budget' || hash === '#recipes' || hash === '#grocery-catalog' || hash === '#stores') return hash;
   return '#overview';
 }
 
@@ -175,6 +177,8 @@ export default function App() {
       ? 'Pantry stock'
       : activeHref === '#budget'
         ? 'Budget & spending'
+        : activeHref === '#recipes'
+          ? 'Recipes'
         : activeHref === '#stores'
           ? 'Stores & shops'
           : 'Overview';
@@ -237,6 +241,10 @@ export default function App() {
                   <PantryStock />
                 ) : activeHref === '#budget' ? (
                   <MonthlyBudget />
+                ) : activeHref === '#recipes' ? (
+                  <Suspense fallback={<div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" role="status" aria-label="Loading recipes">{Array.from({ length: 6 }, (_, index) => <Skeleton key={index} className="h-48" />)}</div>}>
+                    <Recipes />
+                  </Suspense>
                 ) : activeHref === '#stores' ? (
                   <StoresAndShops />
                 ) : (

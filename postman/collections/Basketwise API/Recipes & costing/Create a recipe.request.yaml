@@ -1,0 +1,29 @@
+$kind: http-request
+description: Saves a recipe and its ingredient lines atomically. Ingredient catalog items and units must already exist; estimated prices are resolved from matching purchase history.
+url: '{{baseUrl}}/api/recipes'
+method: POST
+headers:
+  Content-Type: application/json
+  Accept: application/json
+body:
+  type: json
+  content: |-
+    {
+      "name": "Chicken adobo",
+      "servings": 2,
+      "ingredients": [
+        {
+          "groceryItemId": "{{chickenGroceryItemId}}",
+          "unitId": "{{kilogramUnitId}}",
+          "quantity": 0.5
+        },
+        {
+          "groceryItemId": "{{soySauceGroceryItemId}}",
+          "unitId": "{{literUnitId}}",
+          "quantity": 0.04
+        }
+      ]
+    }
+settings: {}
+examples: './.resources/Create a recipe.resources/examples'
+order: 2000
