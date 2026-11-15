@@ -1,5 +1,5 @@
 import { useEffect, useId, useState, type FormEvent } from 'react';
-import { AlertCircle, ArrowLeft, ArrowRight, ChefHat, CirclePlus, Pencil, Plus, Search, Trash2, Utensils } from 'lucide-react';
+import { AlertCircle, ArrowLeft, ArrowRight, BookOpenText, ChefHat, CirclePlus, Pencil, Plus, Search, Trash2, Utensils } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -9,15 +9,19 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Textarea } from '@/components/ui/textarea';
 import {
   deleteRecipe,
   fetchGroceryItems,
   fetchRecipes,
   fetchUnits,
   saveRecipe,
+  recipeCategories,
+  recipeCategoryLabels,
   type GroceryItem,
   type MeasurementUnit,
   type Recipe,
+  type RecipeCategory,
 } from '@/lib/api';
 
 type RecipeListState =
@@ -32,6 +36,11 @@ type RecipeIngredientDraft = {
   unitId: string;
   unitName: string;
   quantity: string;
+};
+
+type RecipeStepDraft = {
+  key: string;
+  instruction: string;
 };
 
 type UnitOptionsState =
@@ -63,8 +72,8 @@ function formatUnitPrice(centavos: number): string {
   return unitPriceFormatter.format(centavos / 100);
 }
 
-function formatQuantity(quantity: number): string {
-  return new Intl.NumberFormat('en-PH', { maximumFractionDigits: 3 }).format(quantity);
+function formatScaledQuantity(quantity: number): string {
+  return new Intl.NumberFormat('en-PH', { maximumFractionDigits: 6 }).format(quantity);
 }
 
 function formatDateOnly(date: string): string {
@@ -81,6 +90,10 @@ function makeIngredientDraft(recipeIngredient?: Recipe['ingredients'][number]): 
     unitName: recipeIngredient?.unit ?? '',
     quantity: recipeIngredient ? String(recipeIngredient.quantity) : '',
   };
+}
+
+function makeRecipeStepDraft(instruction = ''): RecipeStepDraft {
+  return { key: crypto.randomUUID(), instruction };
 }
 
 function RecipeItemPicker({
@@ -196,6 +209,9 @@ function RecipeEditorDialog({
 }) {
   const [name, setName] = useState(recipe?.name ?? '');
   const [servings, setServings] = useState(recipe ? String(recipe.servings) : '2');
+  const [category, setCategory] = useState<RecipeCategory | 'uncategorized'>(recipe?.category ?? 'uncategorized');
+  const [instructions, setInstructions] = useState(recipe?.instructions ?? '');
+  const [steps, setSteps] = useState<RecipeStepDraft[]>(() => recipe?.steps.map((step) => makeRecipeStepDraft(step.instruction)) ?? []);
   const [ingredients, setIngredients] = useState<RecipeIngredientDraft[]>(() => (
     recipe?.ingredients.length ? recipe.ingredients.map((ingredient) => makeIngredientDraft(ingredient)) : [makeIngredientDraft()]
   ));
@@ -236,6 +252,11 @@ function RecipeEditorDialog({
       setError('Choose a saved grocery item, unit, and positive quantity for each ingredient.');
       return;
     }
+    const parsedSteps = steps.map((step) => step.instruction.trim());
+    if (parsedSteps.some((step) => !step)) {
+      setError('Complete or remove every cooking step before saving.');
+      return;
+    }
     const pairKeys = parsedIngredients.map(({ draft }) => `${draft.groceryItemId}:${draft.unitId}`);
     if (new Set(pairKeys).size !== pairKeys.length) {
       setError('Each grocery item and unit can only appear once. Update its quantity on the existing line.');
@@ -247,6 +268,9 @@ function RecipeEditorDialog({
       const saved = await saveRecipe(recipe?.id ?? null, {
         name: name.trim(),
         servings: parsedServings,
+        category: category === 'uncategorized' ? null : category,
+        instructions: instructions.trim() || null,
+        steps: parsedSteps.map((instruction) => ({ instruction })),
         ingredients: parsedIngredients.map(({ draft, quantity }) => ({
           groceryItemId: draft.groceryItemId,
           unitId: draft.unitId,
@@ -267,7 +291,7 @@ function RecipeEditorDialog({
       <DialogContent className="flex max-h-[94dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl">
         <DialogHeader className="shrink-0 border-b bg-background px-4 py-4 text-left sm:px-6">
           <DialogTitle>{recipe ? 'Edit recipe' : 'Create a recipe'}</DialogTitle>
-          <DialogDescription>Build a recipe from saved grocery items. Ingredient estimates use the latest recorded price in the same unit.</DialogDescription>
+          <DialogDescription>Build a recipe from saved grocery items. Estimates can use matching units or a saved conversion for that item.</DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
           <div className="flex-1 space-y-5 overflow-y-auto px-4 py-5 sm:px-6">
@@ -280,6 +304,77 @@ function RecipeEditorDialog({
                 Servings
                 <Input id="recipe-servings" className="h-10 w-full" type="number" min="1" max="1000" step="1" value={servings} onChange={(event) => setServings(event.target.value)} required disabled={isSaving} />
               </Label>
+            </div>
+
+            <Label htmlFor="recipe-category" className="grid min-w-0 gap-2 text-sm font-medium sm:max-w-xs">
+                Category
+                <Select value={category} onValueChange={(value) => setCategory(value as RecipeCategory | 'uncategorized')} disabled={isSaving}>
+                  <SelectTrigger id="recipe-category" className="h-10 w-full"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="uncategorized">No category</SelectItem>
+                    {recipeCategories.map((option) => <SelectItem key={option} value={option}>{recipeCategoryLabels[option]}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+            </Label>
+
+            <Label htmlFor="recipe-instructions" className="grid gap-2 text-sm font-medium">
+              Additional notes <span className="font-normal text-muted-foreground">· optional</span>
+              <Textarea
+                id="recipe-instructions"
+                value={instructions}
+                onChange={(event) => setInstructions(event.target.value)}
+                maxLength={5000}
+                rows={3}
+                placeholder="Add substitutions, serving ideas, or a note for next time."
+                disabled={isSaving}
+              />
+              <span className="text-xs font-normal text-muted-foreground">{instructions.length.toLocaleString()} / 5,000 characters</span>
+            </Label>
+
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-end justify-between gap-2">
+                <div>
+                  <h3 className="text-sm font-semibold">Cooking steps <span className="font-normal text-muted-foreground">· optional</span></h3>
+                  <p className="mt-0.5 text-xs text-muted-foreground">Add steps in the order you prepare them.</p>
+                </div>
+                <Button type="button" variant="outline" size="sm" onClick={() => setSteps((current) => [...current, makeRecipeStepDraft()])} disabled={isSaving || steps.length >= 100}>
+                  <Plus aria-hidden="true" /> Add step
+                </Button>
+              </div>
+
+              {steps.length > 0 && (
+                <ol className="space-y-2.5">
+                  {steps.map((step, index) => (
+                    <li key={step.key} className="grid min-w-0 grid-cols-[2rem_minmax(0,1fr)_auto] items-start gap-2 rounded-lg border bg-muted/10 p-3">
+                      <span className="mt-1 flex size-7 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold tabular-nums text-primary">{index + 1}</span>
+                      <Label htmlFor={`recipe-step-${step.key}`} className="grid min-w-0 gap-1.5 text-xs font-medium">
+                        Step {index + 1}
+                        <Textarea
+                          id={`recipe-step-${step.key}`}
+                          value={step.instruction}
+                          onChange={(event) => setSteps((current) => current.map((item) => item.key === step.key ? { ...item, instruction: event.target.value } : item))}
+                          maxLength={1000}
+                          rows={2}
+                          placeholder="Describe this step"
+                          disabled={isSaving}
+                          required
+                        />
+                      </Label>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`Remove step ${index + 1}`}
+                        title="Remove step"
+                        onClick={() => setSteps((current) => current.filter((item) => item.key !== step.key))}
+                        disabled={isSaving}
+                      >
+                        <Trash2 aria-hidden="true" />
+                      </Button>
+                    </li>
+                  ))}
+                </ol>
+              )}
             </div>
 
             <div className="space-y-3">
@@ -356,7 +451,7 @@ function RecipeEditorDialog({
                       <Trash2 aria-hidden="true" />
                     </Button>
                     {ingredient.itemName && ingredient.unitName && (
-                      <p className="text-[11px] leading-4 text-muted-foreground sm:col-span-4">Estimated price uses recorded observations for {ingredient.itemName} per {ingredient.unitName} only.</p>
+                      <p className="text-[11px] leading-4 text-muted-foreground sm:col-span-4">Uses a matching receipt unit, a standard metric conversion, or a saved conversion for {ingredient.itemName}.</p>
                     )}
                   </div>
                 ))}
@@ -365,7 +460,7 @@ function RecipeEditorDialog({
 
             <div className="flex items-start gap-2.5 rounded-lg border bg-muted/20 p-3 text-xs leading-5 text-muted-foreground">
               <ChefHat aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" />
-              <span>Costs update from each ingredient's latest receipt price in the exact same unit. No unit conversions are applied. Recipes do not change pantry stock.</span>
+              <span>Costs use each ingredient's latest compatible receipt price. Grams and kilograms, and milliliters and liters, convert automatically. Set package yields in Catalog &amp; price history. Recipes do not change pantry stock.</span>
             </div>
             {error && <Alert variant="destructive"><AlertCircle aria-hidden="true" /><AlertTitle>Could not save recipe</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>}
           </div>
@@ -390,7 +485,33 @@ function RecipeDetailsDialog({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const [targetServings, setTargetServings] = useState(String(recipe.servings));
+  useEffect(() => {
+    setTargetServings(String(recipe.servings));
+  }, [recipe.id, recipe.servings]);
+
+  const parsedTargetServings = Number(targetServings);
+  const isValidTargetServings = Number.isInteger(parsedTargetServings)
+    && parsedTargetServings >= 1
+    && parsedTargetServings <= 1000;
+  const scaleRatio = isValidTargetServings ? parsedTargetServings / recipe.servings : 1;
+  const scaledIngredients = recipe.ingredients.map((ingredient) => ({
+    ...ingredient,
+    scaledQuantity: ingredient.quantity * scaleRatio,
+    scaledLineCostCentavos: ingredient.lineCostCentavos === null
+      ? null
+      : Math.round((ingredient.unitPriceCentavos ?? ingredient.lineCostCentavos) * ingredient.quantity * scaleRatio),
+  }));
   const hasFullCost = recipe.totalCostCentavos !== null;
+  const scaledPartialCostCentavos = scaledIngredients.reduce(
+    (total, ingredient) => total + (ingredient.scaledLineCostCentavos ?? 0),
+    0,
+  );
+  const scaledTotalCostCentavos = hasFullCost ? scaledPartialCostCentavos : null;
+  const scaledCostPerServingCentavos = scaledTotalCostCentavos !== null && isValidTargetServings
+    ? Math.round(scaledTotalCostCentavos / parsedTargetServings)
+    : null;
+  const displayedServings = isValidTargetServings ? parsedTargetServings : recipe.servings;
 
   return (
     <Dialog open onOpenChange={onOpenChange}>
@@ -401,46 +522,100 @@ function RecipeDetailsDialog({
             <div className="min-w-0 space-y-1">
               <DialogTitle className="truncate">{recipe.name}</DialogTitle>
               <DialogDescription>{recipe.servings} {recipe.servings === 1 ? 'serving' : 'servings'} · {recipe.ingredients.length} {recipe.ingredients.length === 1 ? 'ingredient' : 'ingredients'}</DialogDescription>
+              {recipe.category && <Badge variant="outline" className="mt-1 w-fit">{recipeCategoryLabels[recipe.category]}</Badge>}
             </div>
           </div>
         </DialogHeader>
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-5 sm:px-6">
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="rounded-lg border bg-primary/[0.04] p-4">
-              <p className="text-xs text-muted-foreground">Estimated recipe cost</p>
-              {hasFullCost ? (
-                <p className="mt-1 text-2xl font-semibold tabular-nums">{formatCost(recipe.totalCostCentavos as number)}</p>
+              <p className="text-xs text-muted-foreground">
+                Estimated cost for {displayedServings} {displayedServings === 1 ? 'serving' : 'servings'}
+              </p>
+              {scaledTotalCostCentavos !== null ? (
+                <p className="mt-1 text-2xl font-semibold tabular-nums">{formatCost(scaledTotalCostCentavos)}</p>
               ) : (
                 <p className="mt-1 text-lg font-semibold">Incomplete price data</p>
               )}
               <p className="mt-1 text-xs text-muted-foreground">
                 {hasFullCost
                   ? `${recipe.pricedIngredientCount} of ${recipe.ingredients.length} ingredients priced from receipts`
-                  : `${recipe.unpricedIngredientCount} ${recipe.unpricedIngredientCount === 1 ? 'ingredient has' : 'ingredients have'} no matching unit price · partial ${formatCost(recipe.partialCostCentavos)}`}
+                  : `${recipe.unpricedIngredientCount} ${recipe.unpricedIngredientCount === 1 ? 'ingredient has' : 'ingredients have'} no matching unit price · partial ${formatCost(scaledPartialCostCentavos)}`}
               </p>
             </div>
             <div className="rounded-lg border bg-muted/20 p-4">
               <p className="text-xs text-muted-foreground">Cost per serving</p>
-              {recipe.costPerServingCentavos === null
+              {scaledCostPerServingCentavos === null
                 ? <p className="mt-1 text-lg font-semibold">Not available yet</p>
-                : <p className="mt-1 text-2xl font-semibold tabular-nums">{formatCost(recipe.costPerServingCentavos)}</p>}
-              <p className="mt-1 text-xs text-muted-foreground">Calculated from current ingredient price observations.</p>
+                : <p className="mt-1 text-2xl font-semibold tabular-nums">{formatCost(scaledCostPerServingCentavos)}</p>}
+              <p className="mt-1 text-xs text-muted-foreground">Based on current ingredient price observations.</p>
             </div>
           </div>
+
+          <div className="grid gap-3 rounded-lg border bg-muted/20 p-4 sm:grid-cols-[minmax(0,1fr)_9rem] sm:items-end">
+            <div>
+              <Label htmlFor="recipe-target-servings" className="text-sm font-medium">Scale ingredients for</Label>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                The saved recipe makes {recipe.servings} {recipe.servings === 1 ? 'serving' : 'servings'}. Scaling only changes this estimate.
+              </p>
+            </div>
+            <Input
+              id="recipe-target-servings"
+              type="number"
+              min="1"
+              max="1000"
+              step="1"
+              inputMode="numeric"
+              value={targetServings}
+              onChange={(event) => setTargetServings(event.target.value)}
+              aria-invalid={!isValidTargetServings}
+            />
+            {!isValidTargetServings && (
+              <p className="text-xs text-destructive sm:col-span-2">Enter a whole number from 1 to 1,000.</p>
+            )}
+          </div>
+
+          {recipe.steps.length > 0 && (
+            <section className="space-y-2 rounded-lg border bg-muted/20 p-4">
+              <h3 className="flex items-center gap-2 text-sm font-semibold"><BookOpenText aria-hidden="true" className="size-4 text-primary" /> Cooking steps</h3>
+              <ol className="space-y-2.5">
+                {recipe.steps.map((step, index) => (
+                  <li key={step.id} className="flex items-start gap-3">
+                    <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[11px] font-semibold tabular-nums text-primary">{index + 1}</span>
+                    <p className="whitespace-pre-wrap pt-0.5 text-sm leading-6 text-muted-foreground">{step.instruction}</p>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          )}
+          {recipe.instructions && (
+            <section className="space-y-2 rounded-lg border bg-muted/20 p-4">
+              <h3 className="text-sm font-semibold">Additional notes</h3>
+              <p className="whitespace-pre-wrap text-sm leading-6 text-muted-foreground">{recipe.instructions}</p>
+            </section>
+          )}
 
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-3">
               <h3 className="text-sm font-semibold">Ingredient cost breakdown</h3>
-              <Badge variant="secondary">Latest same-unit price</Badge>
+              <Badge variant="secondary">Latest compatible price</Badge>
             </div>
             <ul className="divide-y rounded-lg border">
-              {recipe.ingredients.map((ingredient) => (
+              {scaledIngredients.map((ingredient) => (
                 <li key={ingredient.id} className="grid min-w-0 gap-2 px-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-4">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">{ingredient.itemName}</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">{formatQuantity(ingredient.quantity)} {ingredient.unit}
-                      {ingredient.unitPriceCentavos === null ? ' · No matching price recorded' : ` · ${formatUnitPrice(ingredient.unitPriceCentavos)} / ${ingredient.unit}`}
+                    <p className="mt-0.5 text-xs text-muted-foreground">{formatScaledQuantity(ingredient.scaledQuantity)} {ingredient.unit}
+                      {ingredient.unitPriceCentavos === null ? ' · No compatible price recorded' : ` · ${formatUnitPrice(ingredient.unitPriceCentavos)} / ${ingredient.unit}`}
                     </p>
+                    {ingredient.unitPriceCentavos === null && (
+                      <p className="mt-0.5 text-[11px] text-muted-foreground">If bought in another unit, set its yield in Catalog &amp; price history.</p>
+                    )}
+                    {ingredient.priceSourceUnit && ingredient.priceConversionFactor !== null && ingredient.priceSourceUnit !== ingredient.unit && (
+                      <p className="mt-0.5 text-[11px] text-muted-foreground">
+                        Converted from receipt unit: 1 {ingredient.priceSourceUnit} = {formatScaledQuantity(ingredient.priceConversionFactor)} {ingredient.unit}
+                      </p>
+                    )}
                     {ingredient.pricePurchasedOn && (
                       <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
                         Latest price: {ingredient.priceStoreName || 'Grocery trip'} · {formatDateOnly(ingredient.pricePurchasedOn)}
@@ -448,7 +623,7 @@ function RecipeDetailsDialog({
                     )}
                   </div>
                   <p className="text-right text-sm font-semibold tabular-nums">
-                    {ingredient.lineCostCentavos === null ? '—' : formatCost(ingredient.lineCostCentavos)}
+                    {ingredient.scaledLineCostCentavos === null ? '—' : formatCost(ingredient.scaledLineCostCentavos)}
                   </p>
                 </li>
               ))}
@@ -498,7 +673,7 @@ function DeleteRecipeDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Delete {recipe.name}?</DialogTitle>
-          <DialogDescription>This removes the recipe and its ingredient list. Grocery receipts and price history stay unchanged.</DialogDescription>
+          <DialogDescription>This removes the recipe, its ingredient list, and any meal plan entries using it. Grocery receipts and price history stay unchanged.</DialogDescription>
         </DialogHeader>
         {error && <Alert variant="destructive"><AlertTitle>Could not delete recipe</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>}
         <DialogFooter>
@@ -516,6 +691,7 @@ export default function Recipes() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [searchText, setSearchText] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<RecipeCategory | 'uncategorized' | 'all'>('all');
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
   const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
@@ -532,7 +708,7 @@ export default function Recipes() {
   useEffect(() => {
     const controller = new AbortController();
     setState({ kind: 'loading' });
-    void fetchRecipes(pageNumber, pageSize, searchQuery, controller.signal)
+    void fetchRecipes(pageNumber, pageSize, searchQuery, categoryFilter === 'all' ? null : categoryFilter, controller.signal)
       .then((page) => {
         if (!controller.signal.aborted) setState({ kind: 'loaded', page });
       })
@@ -541,10 +717,11 @@ export default function Recipes() {
         setState({ kind: 'error', message: error instanceof Error ? error.message : 'Could not load recipes.' });
       });
     return () => controller.abort();
-  }, [pageNumber, refreshKey, searchQuery]);
+  }, [pageNumber, refreshKey, searchQuery, categoryFilter]);
 
   const page = state.kind === 'loaded' ? state.page : null;
   const totalPages = Math.max(1, Math.ceil((page?.total ?? 0) / pageSize));
+  const hasActiveFilters = Boolean(searchQuery) || categoryFilter !== 'all';
 
   function openEditor(recipe: Recipe | null) {
     setSelectedRecipe(null);
@@ -560,31 +737,41 @@ export default function Recipes() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="space-y-1.5">
           <Badge variant="secondary" className="w-fit gap-1.5"><ChefHat aria-hidden="true" className="size-4" /> Kitchen planning</Badge>
           <h2 className="text-2xl font-semibold tracking-tight">Recipes & ingredient costs</h2>
-          <p className="max-w-2xl text-sm leading-6 text-muted-foreground">Estimate each recipe from the latest grocery prices recorded for the same item and unit.</p>
+          <p className="max-w-2xl text-sm leading-6 text-muted-foreground">Estimate each recipe from the latest compatible grocery price, including saved item yields.</p>
         </div>
         <Button type="button" onClick={() => openEditor(null)}><CirclePlus aria-hidden="true" /> Create recipe</Button>
       </div>
 
       <Card className="shadow-none">
-        <CardHeader className="flex flex-col gap-3 space-y-0 p-4 sm:flex-row sm:items-end sm:justify-between sm:p-5">
+        <CardHeader className="flex flex-col gap-3 space-y-0 p-3 sm:flex-row sm:items-end sm:justify-between sm:p-4">
           <div className="space-y-1">
             <CardTitle className="flex items-center gap-2 text-base"><Utensils aria-hidden="true" className="size-4 text-primary" /> Your recipes</CardTitle>
             <CardDescription>Cost estimates change as you record new grocery prices.</CardDescription>
           </div>
-          <div className="relative w-full min-w-0 sm:max-w-sm">
-            <Search aria-hidden="true" className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input className="h-10 w-full min-w-0 pl-9" value={searchText} onChange={(event) => setSearchText(event.target.value)} placeholder="Search recipes" aria-label="Search recipes" />
+          <div className="flex w-full min-w-0 flex-col gap-2 sm:max-w-xl sm:flex-row">
+            <div className="relative min-w-0 flex-1">
+              <Search aria-hidden="true" className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input className="h-10 w-full min-w-0 pl-9" value={searchText} onChange={(event) => setSearchText(event.target.value)} placeholder="Search recipes" aria-label="Search recipes" />
+            </div>
+            <Select value={categoryFilter} onValueChange={(value) => { setCategoryFilter(value as RecipeCategory | 'uncategorized' | 'all'); setPageNumber(1); }}>
+              <SelectTrigger className="h-10 w-full sm:w-44" aria-label="Filter recipes by category"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All categories</SelectItem>
+                <SelectItem value="uncategorized">No category</SelectItem>
+                {recipeCategories.map((option) => <SelectItem key={option} value={option}>{recipeCategoryLabels[option]}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </div>
         </CardHeader>
-        <CardContent className="p-4 pt-0 sm:p-5 sm:pt-0">
+        <CardContent className="p-3 pt-0 sm:p-4 sm:pt-0">
           {state.kind === 'loading' && (
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" role="status" aria-label="Loading recipes">
-              {Array.from({ length: 6 }, (_, index) => <Skeleton key={index} className="h-48" />)}
+            <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4" role="status" aria-label="Loading recipes">
+              {Array.from({ length: pageSize }, (_, index) => <Skeleton key={index} className="h-32" />)}
             </div>
           )}
 
@@ -602,47 +789,53 @@ export default function Recipes() {
           {page && page.items.length === 0 && (
             <div className="flex min-h-56 flex-col items-center justify-center rounded-lg border border-dashed bg-muted/20 px-6 text-center">
               <span className="mb-3 flex size-10 items-center justify-center rounded-full bg-primary/10 text-primary"><ChefHat aria-hidden="true" className="size-5" /></span>
-              <p className="text-sm font-medium">{searchQuery ? 'No recipes match your search' : 'No recipes saved yet'}</p>
+              <p className="text-sm font-medium">{hasActiveFilters ? 'No recipes match these filters' : 'No recipes saved yet'}</p>
               <p className="mt-1 max-w-md text-sm leading-6 text-muted-foreground">
-                {searchQuery ? 'Try a different recipe name.' : 'Create a recipe from your saved grocery items. Record a purchase first if you need to add new ingredients to the catalog.'}
+                {hasActiveFilters ? 'Try another name or category.' : 'Create a recipe from your saved grocery items. Record a purchase first if you need to add new ingredients to the catalog.'}
               </p>
-              {!searchQuery && <Button type="button" variant="outline" className="mt-4" onClick={() => openEditor(null)}><Plus aria-hidden="true" /> Create your first recipe</Button>}
+              {!hasActiveFilters && <Button type="button" variant="outline" className="mt-4" onClick={() => openEditor(null)}><Plus aria-hidden="true" /> Create your first recipe</Button>}
             </div>
           )}
 
           {page && page.items.length > 0 && (
             <>
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                 {page.items.map((recipe) => (
                   <Card key={recipe.id} className="flex min-w-0 flex-col shadow-none">
-                    <CardContent className="flex flex-1 flex-col p-4">
-                      <div className="flex min-w-0 items-start justify-between gap-3">
-                        <div className="flex min-w-0 items-start gap-2.5">
-                          <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"><ChefHat aria-hidden="true" className="size-4" /></span>
+                    <CardContent className="flex flex-1 flex-col p-3">
+                      <div className="flex min-w-0 items-start justify-between gap-2">
+                        <div className="flex min-w-0 items-start gap-2">
+                          <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"><ChefHat aria-hidden="true" className="size-3.5" /></span>
                           <div className="min-w-0">
                             <h3 className="truncate text-sm font-semibold">{recipe.name}</h3>
                             <p className="mt-0.5 text-xs text-muted-foreground">{recipe.servings} {recipe.servings === 1 ? 'serving' : 'servings'} · {recipe.ingredients.length} {recipe.ingredients.length === 1 ? 'ingredient' : 'ingredients'}</p>
+                            {recipe.category && <Badge variant="outline" className="mt-1 px-1.5 py-0 text-[10px]">{recipeCategoryLabels[recipe.category]}</Badge>}
                           </div>
                         </div>
-                        <Badge variant={recipe.unpricedIngredientCount > 0 ? 'outline' : 'secondary'} className="shrink-0">
+                        <Badge variant={recipe.unpricedIngredientCount > 0 ? 'outline' : 'secondary'} className="h-5 shrink-0 px-1.5 text-[10px]">
                           {recipe.unpricedIngredientCount > 0 ? `${recipe.unpricedIngredientCount} unpriced` : 'Estimated'}
                         </Badge>
                       </div>
-                      <div className="mt-4 rounded-md bg-muted/30 p-3">
-                        <p className="text-xs text-muted-foreground">Recipe cost</p>
-                        {recipe.totalCostCentavos === null
-                          ? <p className="mt-1 text-lg font-semibold">Incomplete estimate</p>
-                          : <p className="mt-1 text-2xl font-semibold tabular-nums">{formatCost(recipe.totalCostCentavos)}</p>}
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          {recipe.costPerServingCentavos === null
-                            ? `Partial estimate ${formatCost(recipe.partialCostCentavos)}`
-                            : `${formatCost(recipe.costPerServingCentavos)} per serving`}
-                        </p>
+                      <div className="mt-3 grid grid-cols-2 gap-3 rounded-md bg-muted/30 px-3 py-2">
+                        <div className="min-w-0">
+                          <p className="text-[11px] text-muted-foreground">Recipe cost</p>
+                          <p className="mt-0.5 truncate text-lg font-semibold tabular-nums">
+                            {recipe.totalCostCentavos === null ? 'Incomplete' : formatCost(recipe.totalCostCentavos)}
+                          </p>
+                          {recipe.totalCostCentavos === null && <p className="text-[10px] text-muted-foreground">Partial {formatCost(recipe.partialCostCentavos)}</p>}
+                        </div>
+                        <div className="min-w-0 border-l pl-3">
+                          <p className="text-[11px] text-muted-foreground">Per serving</p>
+                          <p className="mt-0.5 truncate text-lg font-semibold tabular-nums">
+                            {recipe.costPerServingCentavos === null ? '—' : formatCost(recipe.costPerServingCentavos)}
+                          </p>
+                          {recipe.costPerServingCentavos === null && <p className="text-[10px] text-muted-foreground">Not ready</p>}
+                        </div>
                       </div>
-                      <p className="mt-3 line-clamp-2 min-h-8 text-xs leading-4 text-muted-foreground">
+                      <p className="mt-2 truncate text-xs leading-4 text-muted-foreground">
                         {recipe.ingredients.slice(0, 4).map((ingredient) => ingredient.itemName).join(' · ')}{recipe.ingredients.length > 4 ? ' · …' : ''}
                       </p>
-                      <div className="mt-auto flex justify-end gap-2 border-t pt-3">
+                      <div className="mt-auto flex justify-end gap-2 border-t pt-2">
                         <Button type="button" variant="outline" size="sm" onClick={() => setSelectedRecipe(recipe)}>View cost</Button>
                         <Button type="button" variant="ghost" size="icon" aria-label={`Edit ${recipe.name}`} title="Edit recipe" onClick={() => openEditor(recipe)}><Pencil aria-hidden="true" /></Button>
                       </div>

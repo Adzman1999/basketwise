@@ -1,5 +1,5 @@
 $kind: http-request
-description: Lists saved recipes with estimates from each ingredient's latest grocery purchase price in the same saved unit. Total and per-serving estimates remain null while any ingredient is unpriced.
+description: Lists saved recipes with optional meal categories and estimates from each ingredient's latest grocery purchase price in the same saved unit. Search and category filtering work independently. Total and per-serving estimates remain null while any ingredient is unpriced.
 url: '{{baseUrl}}/api/recipes?page=1&pageSize=20'
 method: GET
 headers:
@@ -9,6 +9,10 @@ queryParams:
     value: chicken
     disabled: true
     description: Literal, case-insensitive substring of a recipe name.
+  - key: category
+    value: dinner
+    disabled: true
+    description: Filter by meal category, or use uncategorized for recipes without a category.
   - key: page
     value: '1'
     disabled: false

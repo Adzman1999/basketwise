@@ -1,0 +1,21 @@
+$kind: http-request
+description: Replaces the recipe, date, meal slot, or serving count for a saved plan entry. A meal slot already occupied by another plan returns HTTP 409.
+url: '{{baseUrl}}/api/meal-plans/{{mealPlanId}}'
+method: PUT
+headers:
+  Content-Type: application/json
+  Accept: application/json
+pathVariables:
+  - key: mealPlanId
+    value: '{{mealPlanId}}'
+body:
+  type: json
+  content: |-
+    {
+      "recipeId": "{{recipeId}}",
+      "plannedOn": "2026-11-16",
+      "mealType": "lunch",
+      "servings": 2
+    }
+settings: {}
+order: 3000

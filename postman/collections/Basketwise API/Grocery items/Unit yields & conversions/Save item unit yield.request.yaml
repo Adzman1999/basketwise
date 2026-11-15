@@ -1,0 +1,34 @@
+$kind: http-request
+description: Saves or updates how many recipe units are contained in one receipt unit for this grocery item.
+url: '{{baseUrl}}/api/grocery-items/{{lastGroceryItemId}}/unit-conversions'
+method: PUT
+headers:
+  Content-Type: application/json
+  Accept: application/json
+body:
+  type: json
+  content: |-
+    {
+      "purchaseUnitId": "{{kilogramUnitId}}",
+      "recipeUnitId": "{{gramUnitId}}",
+      "recipeUnitsPerPurchaseUnit": 1000
+    }
+settings: {}
+examples: './.resources/Save item unit yield.resources/examples'
+order: 2000
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      pm.test('returns HTTP 200', function () {
+        pm.response.to.have.status(200);
+      });
+
+      pm.test('returns the saved item unit yield', function () {
+        const body = pm.response.json();
+        pm.expect(body.id).to.be.a('string');
+        pm.expect(body.purchaseUnitId).to.eql(pm.variables.get('kilogramUnitId'));
+        pm.expect(body.recipeUnitId).to.eql(pm.variables.get('gramUnitId'));
+        pm.expect(body.recipeUnitsPerPurchaseUnit).to.eql(1000);
+        pm.collectionVariables.set('lastUnitConversionId', body.id);
+      });

@@ -1,5 +1,5 @@
 $kind: http-request
-description: Saves a recipe and its ingredient lines atomically. Ingredient catalog items and units must already exist; estimated prices are resolved from matching purchase history.
+description: Saves an example recipe from the grocery item and units created by earlier requests. The recipe ID is saved for the detail, update, and meal-planning requests that follow.
 url: '{{baseUrl}}/api/recipes'
 method: POST
 headers:
@@ -9,21 +9,30 @@ body:
   type: json
   content: |-
     {
-      "name": "Chicken adobo",
+      "name": "Steamed rice",
       "servings": 2,
+      "category": "dinner",
+      "instructions": "Rinse the rice, then simmer it in water until tender.",
+      "steps": [
+        {"instruction": "Rinse the rice until the water runs mostly clear."},
+        {"instruction": "Add water and simmer until the rice is tender."}
+      ],
       "ingredients": [
         {
-          "groceryItemId": "{{chickenGroceryItemId}}",
+          "groceryItemId": "{{lastGroceryItemId}}",
           "unitId": "{{kilogramUnitId}}",
           "quantity": 0.5
-        },
-        {
-          "groceryItemId": "{{soySauceGroceryItemId}}",
-          "unitId": "{{literUnitId}}",
-          "quantity": 0.04
         }
       ]
     }
 settings: {}
 examples: './.resources/Create a recipe.resources/examples'
 order: 2000
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      if (pm.response.code === 201) {
+        const body = pm.response.json();
+        pm.collectionVariables.set('recipeId', body.id);
+      }

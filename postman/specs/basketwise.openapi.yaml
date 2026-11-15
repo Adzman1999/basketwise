@@ -478,13 +478,168 @@ paths:
           $ref: "#/components/responses/NotFound"
         "500":
           $ref: "#/components/responses/InternalServerError"
+  /api/meal-plans:
+    get:
+      operationId: listMealPlans
+      tags:
+        - Meal planning
+      summary: List planned meals for a date range
+      description: Returns saved recipe plans for an inclusive date range of up to 42 days, ordered by date and meal. Each date and meal slot can contain one recipe.
+      parameters:
+        - name: from
+          in: query
+          required: true
+          description: Inclusive start date in YYYY-MM-DD format.
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          required: true
+          description: Inclusive end date in YYYY-MM-DD format. The range cannot exceed 42 days.
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Meal plan entries in the requested range.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MealPlanPage"
+              example:
+                from: "2026-11-15"
+                to: "2026-11-21"
+                items:
+                  - id: "7409983c-2061-4bb4-a6e6-720a5644a1c9"
+                    recipeId: "b94ab4f4-cb08-48ce-83a9-ff99f6eb488c"
+                    plannedOn: "2026-11-16"
+                    mealType: "dinner"
+                    servings: 4
+                    createdAt: "2026-11-15T08:00:00.000Z"
+                    updatedAt: "2026-11-15T08:00:00.000Z"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    post:
+      operationId: createMealPlan
+      tags:
+        - Meal planning
+      summary: Add a recipe to a meal plan
+      description: Schedules a saved recipe for one date and meal slot with the planned serving count. Creating a second plan for the same date and meal returns 409. Planning does not change pantry stock.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SaveMealPlanRequest"
+            example:
+              recipeId: "b94ab4f4-cb08-48ce-83a9-ff99f6eb488c"
+              plannedOn: "2026-11-16"
+              mealType: "dinner"
+              servings: 4
+      responses:
+        "201":
+          description: The meal was added to the plan.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MealPlanEntry"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          description: The recipe does not exist.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              example:
+                error:
+                  code: RECIPE_NOT_FOUND
+                  message: Choose a saved recipe for this meal plan.
+        "409":
+          description: A recipe is already assigned to this date and meal slot.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              example:
+                error:
+                  code: MEAL_SLOT_ALREADY_PLANNED
+                  message: A meal is already planned for this date and meal. Edit or remove it first.
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/meal-plans/{mealPlanId}:
+    parameters:
+      - name: mealPlanId
+        in: path
+        required: true
+        description: Meal plan entry UUID.
+        schema:
+          type: string
+          format: uuid
+    put:
+      operationId: updateMealPlan
+      tags:
+        - Meal planning
+      summary: Update a planned meal
+      description: Replaces the recipe, date, meal slot, and planned serving count. A meal slot already occupied by another entry returns 409.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SaveMealPlanRequest"
+            example:
+              recipeId: "b94ab4f4-cb08-48ce-83a9-ff99f6eb488c"
+              plannedOn: "2026-11-16"
+              mealType: "lunch"
+              servings: 2
+      responses:
+        "200":
+          description: The updated meal plan entry.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MealPlanEntry"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          description: The meal plan entry or recipe does not exist.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: A meal is already assigned to this date and meal slot.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    delete:
+      operationId: deleteMealPlan
+      tags:
+        - Meal planning
+      summary: Remove a planned meal
+      responses:
+        "204":
+          description: The planned meal was removed.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
   /api/recipes:
     get:
       operationId: listRecipes
       tags:
         - Recipes
       summary: List recipes and ingredient cost estimates
-      description: Returns paginated recipes with ingredient lines and costs calculated from the latest grocery purchase observation for the same saved item and exact measurement unit. If any ingredient has no matching observation, totalCostCentavos and costPerServingCentavos are null while partialCostCentavos contains the priced lines. Prices can come from different receipt dates; no unit conversion is performed.
+      description: Returns paginated recipes with ingredient lines and costs calculated from the latest compatible purchase observation for each grocery item. Exact units, standard g/kg and ml/l conversions, and saved item-specific yields are supported. If any ingredient has no compatible observation, totalCostCentavos and costPerServingCentavos are null while partialCostCentavos contains the priced lines.
       parameters:
         - name: search
           in: query
@@ -494,6 +649,13 @@ paths:
             type: string
             minLength: 1
             maxLength: 120
+        - name: category
+          in: query
+          required: false
+          description: Filters independently from name search. Use uncategorized to return recipes without a category.
+          schema:
+            type: string
+            enum: [breakfast, lunch, dinner, snack, dessert, drinks, other, uncategorized]
         - name: page
           in: query
           required: false
@@ -514,7 +676,7 @@ paths:
             default: 20
       responses:
         "200":
-          description: Recipes with their latest same-unit ingredient prices.
+          description: Recipes with their latest compatible ingredient prices.
           content:
             application/json:
               schema:
@@ -524,17 +686,30 @@ paths:
                   - id: "7409983c-2061-4bb4-a6e6-720a5644a1c9"
                     name: "Chicken adobo"
                     servings: 2
+                    category: "dinner"
+                    instructions: "Brown the chicken, add the sauce, then simmer until tender."
                     createdAt: "2026-11-11T08:00:00.000Z"
                     updatedAt: "2026-11-11T08:00:00.000Z"
+                    steps:
+                      - id: "9e3aa707-3db1-48ae-91c8-86fc7f5e94db"
+                        recipeId: "7409983c-2061-4bb4-a6e6-720a5644a1c9"
+                        position: 0
+                        instruction: "Brown the chicken on all sides."
+                      - id: "aab3de3d-4212-4c52-85c5-15b01b052983"
+                        recipeId: "7409983c-2061-4bb4-a6e6-720a5644a1c9"
+                        position: 1
+                        instruction: "Add the sauce and simmer until tender."
                     ingredients:
                       - id: "794de16d-7e7c-4265-8a45-dfd4e38f6ecf"
                         recipeId: "7409983c-2061-4bb4-a6e6-720a5644a1c9"
                         groceryItemId: "b94ab4f4-cb08-48ce-83a9-ff99f6eb488c"
                         itemName: "Chicken"
                         unitId: "f56094ec-d967-4011-a490-5ae9ef49e310"
-                        unit: "kg"
-                        quantity: 0.5
-                        unitPriceCentavos: 24000
+                        unit: "g"
+                        quantity: 500
+                        unitPriceCentavos: 24
+                        priceSourceUnit: "kg"
+                        priceConversionFactor: 1000
                         lineCostCentavos: 12000
                         pricePurchasedOn: "2026-11-10"
                         priceStoreName: "Market Basket"
@@ -546,6 +721,8 @@ paths:
                         unit: "l"
                         quantity: 0.04
                         unitPriceCentavos: 12500
+                        priceSourceUnit: "l"
+                        priceConversionFactor: 1
                         lineCostCentavos: 500
                         pricePurchasedOn: "2026-11-09"
                         priceStoreName: "Market Basket"
@@ -566,7 +743,7 @@ paths:
       tags:
         - Recipes
       summary: Create a recipe and its ingredients
-      description: Saves the recipe and ingredient lines together. Ingredient items and units must already exist in the grocery catalog. Cost estimates are derived from the latest exact same-unit purchase prices and are not saved as fixed values.
+      description: Saves the recipe name, serving yield, optional category, notes, ordered cooking steps, and ingredient lines together. Ingredient items and units must already exist in the grocery catalog. Cost estimates use the latest compatible receipt prices and saved unit conversions; estimates are not saved as fixed values.
       requestBody:
         required: true
         content:
@@ -576,6 +753,11 @@ paths:
             example:
               name: "Chicken adobo"
               servings: 2
+              category: "dinner"
+              instructions: "Brown the chicken, add the sauce, then simmer until tender."
+              steps:
+                - instruction: "Brown the chicken on all sides."
+                - instruction: "Add the sauce and simmer until tender."
               ingredients:
                 - groceryItemId: "b94ab4f4-cb08-48ce-83a9-ff99f6eb488c"
                   unitId: "f56094ec-d967-4011-a490-5ae9ef49e310"
@@ -623,7 +805,7 @@ paths:
       tags:
         - Recipes
       summary: Get a recipe and its ingredient costs
-      description: Returns a recipe using the same latest same-unit price estimates as the recipe list.
+      description: Returns a recipe using the same latest compatible price estimates as the recipe list.
       responses:
         "200":
           description: The recipe with its ingredient costs.
@@ -642,13 +824,25 @@ paths:
       tags:
         - Recipes
       summary: Replace a recipe and its ingredients
-      description: Replaces the recipe name, serving count, and complete ingredient list atomically. The recipe ID is retained; receipt history is unchanged.
+      description: Replaces the recipe name, serving yield, optional category and notes, and complete ingredient list atomically. The recipe ID is retained; receipt history and saved item conversions are unchanged. Provide steps to replace the ordered steps, or omit steps to leave them unchanged; send an empty array to clear them.
       requestBody:
         required: true
         content:
           application/json:
             schema:
               $ref: "#/components/schemas/SaveRecipeRequest"
+            example:
+              name: "Chicken adobo"
+              servings: 4
+              category: "dinner"
+              instructions: "Brown the chicken, add the sauce, then simmer until tender."
+              steps:
+                - instruction: "Brown the chicken on all sides."
+                - instruction: "Add the sauce and simmer until tender."
+              ingredients:
+                - groceryItemId: "b94ab4f4-cb08-48ce-83a9-ff99f6eb488c"
+                  unitId: "f56094ec-d967-4011-a490-5ae9ef49e310"
+                  quantity: 1
       responses:
         "200":
           description: The updated recipe with recalculated ingredient prices.
@@ -671,7 +865,7 @@ paths:
       tags:
         - Recipes
       summary: Delete a recipe
-      description: Deletes the recipe and its ingredient list without changing grocery purchases or price history.
+      description: Deletes the recipe, its ingredient list, and meal plan entries that use it. Grocery purchases and price history remain unchanged.
       responses:
         "204":
           description: The recipe was deleted; no response body is returned.
@@ -1234,11 +1428,10 @@ paths:
       summary: List recorded prices for a grocery item
       description: |
         Returns price observations derived from saved purchase lines, newest
-        first. Unit labels are matched after trimming, lowercasing, and
-        collapsing whitespace. No conversions are made between units, so
-        observations with different units must not be compared directly.
-        unitPriceCentavos is amountPaidCentavos divided by quantity and rounded
-        to six decimal places.
+        first. unitPriceCentavos is amountPaidCentavos divided by quantity and
+        rounded to six decimal places. The units list contains units recorded
+        for this item and can be used to configure item-specific package yields.
+        Recipe costing supports standard g/kg and ml/l conversions separately.
       parameters:
         - name: groceryItemId
           in: path
@@ -1283,9 +1476,13 @@ paths:
                 groceryItem:
                   id: "b94ab4f4-cb08-48ce-83a9-ff99f6eb488c"
                   name: "Rice"
+                units:
+                  - id: "f56094ec-d967-4011-a490-5ae9ef49e310"
+                    name: "kg"
                 items:
                   - purchaseItemId: "f557ea81-8e28-4bc0-bf38-92b0a1c3331a"
                     purchaseId: "7ef38c55-13ec-4e49-9b50-7d97eb8f5001"
+                    unitId: "f56094ec-d967-4011-a490-5ae9ef49e310"
                     purchasedOn: "2026-10-29"
                     storeName: "Neighborhood Market"
                     itemName: "Rice"
@@ -1296,6 +1493,98 @@ paths:
                 page: 1
                 pageSize: 20
                 total: 1
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/grocery-items/{groceryItemId}/unit-conversions:
+    get:
+      operationId: listGroceryItemUnitConversions
+      tags:
+        - Grocery items
+      summary: List saved unit yields for a grocery item
+      description: Returns item-specific relationships between a receipt unit and a recipe unit, such as 1 can of tomatoes = 400 g. Standard g/kg and ml/l conversions are automatic and are not listed here.
+      parameters:
+        - name: groceryItemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Saved unit yields for this grocery item.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroceryItemUnitConversionPage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    put:
+      operationId: saveGroceryItemUnitConversion
+      tags:
+        - Grocery items
+      summary: Save a unit yield for a grocery item
+      description: Sets how many recipe units are contained in one receipt unit for this item. Saving the same unit pair again updates its yield; the relationship works in either direction when costing recipes.
+      parameters:
+        - name: groceryItemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SaveGroceryItemUnitConversionRequest"
+            example:
+              purchaseUnitId: "f56094ec-d967-4011-a490-5ae9ef49e310"
+              recipeUnitId: "ffdc2944-55a2-48ce-a879-e6a27f553090"
+              recipeUnitsPerPurchaseUnit: 400
+      responses:
+        "200":
+          description: The unit yield was saved or updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroceryItemUnitConversion"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/grocery-items/{groceryItemId}/unit-conversions/{conversionId}:
+    delete:
+      operationId: deleteGroceryItemUnitConversion
+      tags:
+        - Grocery items
+      summary: Remove a unit yield
+      description: Removes an item-specific unit yield. Recipe costs return to exact or standard metric unit matching if no other compatible price remains.
+      parameters:
+        - name: groceryItemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: conversionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: The unit yield was removed; no response body is returned.
         "400":
           $ref: "#/components/responses/BadRequest"
         "404":
@@ -1723,6 +2012,67 @@ components:
             - type: "null"
         autoRestock:
           type: boolean
+    MealType:
+      type: string
+      enum: [breakfast, lunch, dinner, snack]
+    MealPlanEntry:
+      type: object
+      additionalProperties: false
+      required: [id, recipeId, plannedOn, mealType, servings, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        recipeId:
+          type: string
+          format: uuid
+        plannedOn:
+          type: string
+          format: date
+        mealType:
+          $ref: "#/components/schemas/MealType"
+        servings:
+          type: integer
+          minimum: 1
+          maximum: 1000
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    MealPlanPage:
+      type: object
+      additionalProperties: false
+      required: [from, to, items]
+      properties:
+        from:
+          type: string
+          format: date
+        to:
+          type: string
+          format: date
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/MealPlanEntry"
+    SaveMealPlanRequest:
+      type: object
+      additionalProperties: false
+      required: [recipeId, plannedOn, mealType, servings]
+      properties:
+        recipeId:
+          type: string
+          format: uuid
+        plannedOn:
+          type: string
+          format: date
+        mealType:
+          $ref: "#/components/schemas/MealType"
+        servings:
+          type: integer
+          minimum: 1
+          maximum: 1000
     RecipeIngredient:
       type: object
       additionalProperties: false
@@ -1735,6 +2085,8 @@ components:
         - unit
         - quantity
         - unitPriceCentavos
+        - priceSourceUnit
+        - priceConversionFactor
         - lineCostCentavos
         - pricePurchasedOn
         - priceStoreName
@@ -1765,13 +2117,24 @@ components:
             - type: number
               minimum: 0
             - type: "null"
-          description: Latest recorded price per this exact unit, in PHP centavos.
+          description: Latest compatible price normalized to this recipe unit, in PHP centavos.
+        priceSourceUnit:
+          oneOf:
+            - type: string
+            - type: "null"
+          description: Receipt unit used for the latest compatible price observation.
+        priceConversionFactor:
+          oneOf:
+            - type: number
+              exclusiveMinimum: 0
+            - type: "null"
+          description: Recipe units contained in one receipt unit, or 1 for an exact unit match.
         lineCostCentavos:
           oneOf:
             - type: integer
               minimum: 0
             - type: "null"
-          description: Ingredient quantity multiplied by the latest same-unit price, rounded to the nearest centavo.
+          description: Ingredient quantity multiplied by the compatible unit price, rounded to the nearest centavo.
         pricePurchasedOn:
           oneOf:
             - type: string
@@ -1781,6 +2144,25 @@ components:
           oneOf:
             - type: string
             - type: "null"
+    RecipeStep:
+      type: object
+      additionalProperties: false
+      required: [id, recipeId, position, instruction]
+      properties:
+        id:
+          type: string
+          format: uuid
+        recipeId:
+          type: string
+          format: uuid
+        position:
+          type: integer
+          minimum: 0
+          maximum: 99
+        instruction:
+          type: string
+          minLength: 1
+          maxLength: 1000
     Recipe:
       type: object
       additionalProperties: false
@@ -1788,9 +2170,12 @@ components:
         - id
         - name
         - servings
+        - category
+        - instructions
         - createdAt
         - updatedAt
         - ingredients
+        - steps
         - pricedIngredientCount
         - unpricedIngredientCount
         - partialCostCentavos
@@ -1806,6 +2191,16 @@ components:
           type: integer
           minimum: 1
           maximum: 1000
+        category:
+          oneOf:
+            - type: string
+              enum: [breakfast, lunch, dinner, snack, dessert, drinks, other]
+            - type: "null"
+        instructions:
+          oneOf:
+            - type: string
+              maxLength: 5000
+            - type: "null"
         createdAt:
           type: string
           format: date-time
@@ -1816,6 +2211,10 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/RecipeIngredient"
+        steps:
+          type: array
+          items:
+            $ref: "#/components/schemas/RecipeStep"
         pricedIngredientCount:
           type: integer
           minimum: 0
@@ -1831,7 +2230,7 @@ components:
             - type: integer
               minimum: 0
             - type: "null"
-          description: Complete recipe estimate; null until all ingredients have a matching same-unit purchase price.
+          description: Complete recipe estimate; null until all ingredients have a compatible purchase price.
         costPerServingCentavos:
           oneOf:
             - type: integer
@@ -1870,6 +2269,31 @@ components:
           type: integer
           minimum: 1
           maximum: 1000
+        category:
+          oneOf:
+            - type: string
+              enum: [breakfast, lunch, dinner, snack, dessert, drinks, other]
+            - type: "null"
+          description: Optional meal category. Omit or set null for no category.
+        instructions:
+          oneOf:
+            - type: string
+              maxLength: 5000
+            - type: "null"
+          description: Optional notes, up to 5,000 characters. Omit or set null for no notes.
+        steps:
+          type: array
+          maxItems: 100
+          description: Optional ordered cooking steps. Omit on update to preserve the saved steps, or send an empty array to clear them.
+          items:
+            type: object
+            additionalProperties: false
+            required: [instruction]
+            properties:
+              instruction:
+                type: string
+                minLength: 1
+                maxLength: 1000
         ingredients:
           type: array
           minItems: 1
@@ -2289,12 +2713,70 @@ components:
           type: integer
         total:
           type: integer
+    GroceryItemUnitConversion:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - purchaseUnitId
+        - purchaseUnit
+        - recipeUnitId
+        - recipeUnit
+        - recipeUnitsPerPurchaseUnit
+      properties:
+        id:
+          type: string
+          format: uuid
+        purchaseUnitId:
+          type: string
+          format: uuid
+        purchaseUnit:
+          type: string
+        recipeUnitId:
+          type: string
+          format: uuid
+        recipeUnit:
+          type: string
+        recipeUnitsPerPurchaseUnit:
+          type: number
+          exclusiveMinimum: 0
+          multipleOf: 0.000000001
+          description: Number of recipe units contained in one purchase unit.
+    GroceryItemUnitConversionPage:
+      type: object
+      additionalProperties: false
+      required: [groceryItem, items]
+      properties:
+        groceryItem:
+          $ref: "#/components/schemas/GroceryItem"
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/GroceryItemUnitConversion"
+    SaveGroceryItemUnitConversionRequest:
+      type: object
+      additionalProperties: false
+      required: [purchaseUnitId, recipeUnitId, recipeUnitsPerPurchaseUnit]
+      properties:
+        purchaseUnitId:
+          type: string
+          format: uuid
+        recipeUnitId:
+          type: string
+          format: uuid
+        recipeUnitsPerPurchaseUnit:
+          type: number
+          exclusiveMinimum: 0
+          maximum: 999999999.999999999
+          multipleOf: 0.000000001
+          description: Number of recipe units contained in one purchase unit.
     PriceObservation:
       type: object
       additionalProperties: false
       required:
         - purchaseItemId
         - purchaseId
+        - unitId
         - purchasedOn
         - itemName
         - quantity
@@ -2306,6 +2788,9 @@ components:
           type: string
           format: uuid
         purchaseId:
+          type: string
+          format: uuid
+        unitId:
           type: string
           format: uuid
         purchasedOn:
@@ -2332,6 +2817,7 @@ components:
       additionalProperties: false
       required:
         - groceryItem
+        - units
         - items
         - page
         - pageSize
@@ -2339,6 +2825,19 @@ components:
       properties:
         groceryItem:
           $ref: "#/components/schemas/GroceryItem"
+        units:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [id, name]
+            properties:
+              id:
+                type: string
+                format: uuid
+              name:
+                type: string
+          description: Distinct units recorded on this item's purchase lines.
         items:
           type: array
           items:

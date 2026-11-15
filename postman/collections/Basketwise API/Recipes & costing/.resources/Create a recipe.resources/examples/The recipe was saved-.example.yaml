@@ -12,6 +12,12 @@ request:
       {
         "name": "Chicken adobo",
         "servings": 2,
+        "category": "dinner",
+        "instructions": "Brown the chicken, add the sauce, then simmer until tender.",
+        "steps": [
+          {"instruction": "Brown the chicken on all sides."},
+          {"instruction": "Add the sauce and simmer until tender."}
+        ],
         "ingredients": [
           {
             "groceryItemId": "b94ab4f4-cb08-48ce-83a9-ff99f6eb488c",
@@ -37,8 +43,14 @@ response:
         "id": "7409983c-2061-4bb4-a6e6-720a5644a1c9",
         "name": "Chicken adobo",
         "servings": 2,
+        "category": "dinner",
+        "instructions": "Brown the chicken, add the sauce, then simmer until tender.",
         "createdAt": "2026-11-11T08:00:00.000Z",
         "updatedAt": "2026-11-11T08:00:00.000Z",
+        "steps": [
+          {"id": "9e3aa707-3db1-48ae-91c8-86fc7f5e94db", "recipeId": "7409983c-2061-4bb4-a6e6-720a5644a1c9", "position": 0, "instruction": "Brown the chicken on all sides."},
+          {"id": "aab3de3d-4212-4c52-85c5-15b01b052983", "recipeId": "7409983c-2061-4bb4-a6e6-720a5644a1c9", "position": 1, "instruction": "Add the sauce and simmer until tender."}
+        ],
         "ingredients": [
           {
             "id": "794de16d-7e7c-4265-8a45-dfd4e38f6ecf",
@@ -49,6 +61,8 @@ response:
             "unit": "kg",
             "quantity": 0.5,
             "unitPriceCentavos": 24000,
+            "priceSourceUnit": "kg",
+            "priceConversionFactor": 1,
             "lineCostCentavos": 12000,
             "pricePurchasedOn": "2026-11-10",
             "priceStoreName": "Market Basket"
@@ -62,6 +76,8 @@ response:
             "unit": "l",
             "quantity": 0.04,
             "unitPriceCentavos": 12500,
+            "priceSourceUnit": "l",
+            "priceConversionFactor": 1,
             "lineCostCentavos": 500,
             "pricePurchasedOn": "2026-11-09",
             "priceStoreName": "Market Basket"

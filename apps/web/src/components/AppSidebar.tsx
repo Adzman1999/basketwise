@@ -1,4 +1,4 @@
-import { ChefHat, LayoutDashboard, PackageCheck, PiggyBank, ReceiptText, ShoppingBasket, Store, Tags } from 'lucide-react';
+import { CalendarDays, ChefHat, LayoutDashboard, PackageCheck, PiggyBank, ReceiptText, ShoppingBasket, Store, Tags } from 'lucide-react';
 import {
   Sidebar,
   SidebarContent,
@@ -19,6 +19,7 @@ const navigationItems = [
   { href: '#pantry', label: 'Pantry stock', icon: PackageCheck },
   { href: '#budget', label: 'Budget & spending', icon: PiggyBank },
   { href: '#recipes', label: 'Recipes', icon: ChefHat },
+  { href: '#meal-plan', label: 'Meal planning', icon: CalendarDays },
   { href: '#grocery-catalog', label: 'Items & prices', icon: Tags },
   { href: '#stores', label: 'Stores & shops', icon: Store },
 ];
@@ -79,7 +80,7 @@ export default function AppSidebar({ activeHref }: { activeHref: string }) {
 
       <SidebarFooter className="border-t border-sidebar-border p-4">
         <p className="text-xs font-medium text-sidebar-foreground group-data-[collapsible=icon]:hidden">Your grocery notebook</p>
-        <p className="mt-1 text-xs leading-5 text-sidebar-foreground/70 group-data-[collapsible=icon]:hidden">Budgets, receipts, recipes, pantry, items, prices, and stores.</p>
+        <p className="mt-1 text-xs leading-5 text-sidebar-foreground/70 group-data-[collapsible=icon]:hidden">Budgets, receipts, recipes, meal plans, pantry, items, prices, and stores.</p>
       </SidebarFooter>
     </Sidebar>
   );

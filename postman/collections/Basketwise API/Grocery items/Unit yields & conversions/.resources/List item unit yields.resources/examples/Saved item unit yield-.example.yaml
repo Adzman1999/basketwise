@@ -1,0 +1,36 @@
+$kind: http-example
+name: A saved package yield.
+request:
+  url: '{{baseUrl}}/api/grocery-items/b94ab4f4-cb08-48ce-83a9-ff99f6eb488c/unit-conversions'
+  method: GET
+  headers:
+    Accept: application/json
+  body:
+    type: text
+    content: ''
+response:
+  statusCode: 200
+  statusText: OK
+  headers:
+    - key: Content-Type
+      value: application/json
+  body:
+    type: json
+    content: |-
+      {
+        "groceryItem": {
+          "id": "b94ab4f4-cb08-48ce-83a9-ff99f6eb488c",
+          "name": "Coconut milk"
+        },
+        "items": [
+          {
+            "id": "24cc6f35-ae64-4c94-adb0-0da79d66a8e1",
+            "purchaseUnitId": "f56094ec-d967-4011-a490-5ae9ef49e310",
+            "purchaseUnit": "can",
+            "recipeUnitId": "ffdc2944-55a2-48ce-a879-e6a27f553090",
+            "recipeUnit": "ml",
+            "recipeUnitsPerPurchaseUnit": 400
+          }
+        ]
+      }
+order: 1000

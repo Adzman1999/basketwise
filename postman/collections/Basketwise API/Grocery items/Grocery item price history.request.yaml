@@ -1,7 +1,7 @@
 $kind: http-request
 description: |
-  Lists price observations newest first. Only matching normalized unit labels
-  are comparable; no conversion between units is performed.
+  Lists price observations newest first, with the distinct units recorded for
+  this item so item-specific package yields can be configured.
 url: '{{baseUrl}}/api/grocery-items/{{lastGroceryItemId}}/price-history?page=1&pageSize=20'
 method: GET
 headers:

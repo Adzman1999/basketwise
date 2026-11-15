@@ -21,6 +21,9 @@ function presentRecipe(record: RecipeRecord) {
     const unitPriceCentavos = ingredient.unitPriceCentavos === null
       ? null
       : Number(ingredient.unitPriceCentavos);
+    const priceConversionFactor = ingredient.priceConversionFactor === null
+      ? null
+      : Number(ingredient.priceConversionFactor);
     const lineCostCentavos = unitPriceCentavos === null
       ? null
       : Math.round(quantity * unitPriceCentavos);
@@ -28,6 +31,7 @@ function presentRecipe(record: RecipeRecord) {
       ...ingredient,
       quantity,
       unitPriceCentavos,
+      priceConversionFactor,
       lineCostCentavos,
     };
   });

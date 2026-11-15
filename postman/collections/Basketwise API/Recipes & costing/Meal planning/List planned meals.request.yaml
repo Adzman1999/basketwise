@@ -1,0 +1,17 @@
+$kind: http-request
+description: Lists the saved recipe plan entries in an inclusive date range of up to 42 days. Each date and meal slot can contain one recipe.
+url: '{{baseUrl}}/api/meal-plans?from=2026-11-15&to=2026-11-21'
+method: GET
+headers:
+  Accept: application/json
+queryParams:
+  - key: from
+    value: '2026-11-15'
+    disabled: false
+    description: Inclusive start date in YYYY-MM-DD format.
+  - key: to
+    value: '2026-11-21'
+    disabled: false
+    description: Inclusive end date in YYYY-MM-DD format; at most 42 days from the start.
+settings: {}
+order: 1000

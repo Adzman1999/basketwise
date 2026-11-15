@@ -232,21 +232,55 @@ export type RecipeIngredientInput = {
   quantity: number;
 };
 
+export const recipeCategories = [
+  'breakfast',
+  'lunch',
+  'dinner',
+  'snack',
+  'dessert',
+  'drinks',
+  'other',
+] as const;
+
+export type RecipeCategory = (typeof recipeCategories)[number];
+
+export const recipeCategoryLabels: Record<RecipeCategory, string> = {
+  breakfast: 'Breakfast',
+  lunch: 'Lunch',
+  dinner: 'Dinner',
+  snack: 'Snack',
+  dessert: 'Dessert',
+  drinks: 'Drinks',
+  other: 'Other',
+};
+
 export type RecipeIngredient = RecipeIngredientInput & {
   id: string;
   recipeId: string;
   itemName: string;
   unit: string;
   unitPriceCentavos: number | null;
+  priceSourceUnit: string | null;
+  priceConversionFactor: number | null;
   lineCostCentavos: number | null;
   pricePurchasedOn: string | null;
   priceStoreName: string | null;
+};
+
+export type RecipeStep = {
+  id: string;
+  recipeId: string;
+  position: number;
+  instruction: string;
 };
 
 export type Recipe = {
   id: string;
   name: string;
   servings: number;
+  category: RecipeCategory | null;
+  instructions: string | null;
+  steps: RecipeStep[];
   createdAt: string;
   updatedAt: string;
   ingredients: RecipeIngredient[];
@@ -264,9 +298,28 @@ export type RecipePage = {
   total: number;
 };
 
+export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
+
+export type MealPlanEntry = {
+  id: string;
+  recipeId: string;
+  plannedOn: string;
+  mealType: MealType;
+  servings: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type MealPlanPage = {
+  from: string;
+  to: string;
+  items: MealPlanEntry[];
+};
+
 export type PriceObservation = {
   purchaseItemId: string;
   purchaseId: string;
+  unitId: string;
   purchasedOn: string;
   storeName?: string;
   itemName: string;
@@ -278,10 +331,25 @@ export type PriceObservation = {
 
 export type PriceHistoryPage = {
   groceryItem: GroceryItem;
+  units: Array<{ id: string; name: string }>;
   items: PriceObservation[];
   page: number;
   pageSize: number;
   total: number;
+};
+
+export type GroceryItemUnitConversion = {
+  id: string;
+  purchaseUnitId: string;
+  purchaseUnit: string;
+  recipeUnitId: string;
+  recipeUnit: string;
+  recipeUnitsPerPurchaseUnit: number;
+};
+
+export type GroceryItemUnitConversionPage = {
+  groceryItem: GroceryItem;
+  items: GroceryItemUnitConversion[];
 };
 
 type ApiErrorResponse = {
@@ -413,10 +481,12 @@ export async function fetchRecipes(
   page: number,
   pageSize: number,
   search: string,
+  category: RecipeCategory | 'uncategorized' | null,
   signal: AbortSignal
 ): Promise<RecipePage> {
   const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
   if (search.trim()) params.set('search', search.trim());
+  if (category) params.set('category', category);
   return sendRequest<RecipePage>(`/api/recipes?${params.toString()}`, {
     headers: { Accept: 'application/json' },
     signal,
@@ -425,7 +495,14 @@ export async function fetchRecipes(
 
 export async function saveRecipe(
   recipeId: string | null,
-  input: { name: string; servings: number; ingredients: RecipeIngredientInput[] }
+  input: {
+    name: string;
+    servings: number;
+    category: RecipeCategory | null;
+    instructions: string | null;
+    steps: { instruction: string }[];
+    ingredients: RecipeIngredientInput[];
+  }
 ): Promise<Recipe> {
   const isUpdate = recipeId !== null;
   return sendRequest<Recipe>(isUpdate ? `/api/recipes/${encodeURIComponent(recipeId)}` : '/api/recipes', {
@@ -440,6 +517,36 @@ export async function saveRecipe(
 
 export async function deleteRecipe(recipeId: string): Promise<void> {
   await sendRequest<void>(`/api/recipes/${encodeURIComponent(recipeId)}`, {
+    method: 'DELETE',
+    headers: { Accept: 'application/json' },
+  });
+}
+
+export async function fetchMealPlans(from: string, to: string, signal: AbortSignal): Promise<MealPlanPage> {
+  const params = new URLSearchParams({ from, to });
+  return sendRequest<MealPlanPage>(`/api/meal-plans?${params.toString()}`, {
+    headers: { Accept: 'application/json' },
+    signal,
+  });
+}
+
+export async function saveMealPlan(
+  mealPlanId: string | null,
+  input: { recipeId: string; plannedOn: string; mealType: MealType; servings: number }
+): Promise<MealPlanEntry> {
+  const isUpdate = mealPlanId !== null;
+  return sendRequest<MealPlanEntry>(isUpdate ? `/api/meal-plans/${encodeURIComponent(mealPlanId)}` : '/api/meal-plans', {
+    method: isUpdate ? 'PUT' : 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(input),
+  });
+}
+
+export async function deleteMealPlan(mealPlanId: string): Promise<void> {
+  await sendRequest<void>(`/api/meal-plans/${encodeURIComponent(mealPlanId)}`, {
     method: 'DELETE',
     headers: { Accept: 'application/json' },
   });
@@ -606,6 +713,46 @@ export async function fetchGroceryItemPriceHistory(
     `/api/grocery-items/${encodeURIComponent(groceryItemId)}/price-history?${params.toString()}`,
     { headers: { Accept: 'application/json' }, signal }
   );
+}
+
+export async function fetchGroceryItemUnitConversions(
+  groceryItemId: string,
+  signal: AbortSignal
+): Promise<GroceryItemUnitConversionPage> {
+  return sendRequest<GroceryItemUnitConversionPage>(
+    `/api/grocery-items/${encodeURIComponent(groceryItemId)}/unit-conversions`,
+    { headers: { Accept: 'application/json' }, signal }
+  );
+}
+
+export async function saveGroceryItemUnitConversion(
+  groceryItemId: string,
+  input: { purchaseUnitId: string; recipeUnitId: string; recipeUnitsPerPurchaseUnit: number }
+): Promise<GroceryItemUnitConversion> {
+  return sendRequest<GroceryItemUnitConversion>(
+    `/api/grocery-items/${encodeURIComponent(groceryItemId)}/unit-conversions`,
+    {
+      method: 'PUT',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    }
+  );
+}
+
+export async function deleteGroceryItemUnitConversion(
+  groceryItemId: string,
+  conversionId: string
+): Promise<void> {
+  let response: Response;
+  try {
+    response = await fetch(
+      `/api/grocery-items/${encodeURIComponent(groceryItemId)}/unit-conversions/${encodeURIComponent(conversionId)}`,
+      { method: 'DELETE', headers: { Accept: 'application/json' } }
+    );
+  } catch {
+    throw new Error('Could not reach the API. Check that the backend is running.');
+  }
+  if (!response.ok) throw new Error(await readErrorMessage(response));
 }
 
 export async function createPurchase(input: CreatePurchaseRequest): Promise<Purchase> {

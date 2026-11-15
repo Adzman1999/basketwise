@@ -11,20 +11,32 @@ export type RecipeIngredientRecord = {
   unit: string;
   quantity: string | number;
   unitPriceCentavos: string | number | null;
+  priceSourceUnit: string | null;
+  priceConversionFactor: string | number | null;
   pricePurchasedOn: string | null;
   priceStoreName: string | null;
+};
+
+export type RecipeStepRecord = {
+  id: string;
+  recipeId: string;
+  position: number;
+  instruction: string;
 };
 
 export type RecipeRow = {
   id: string;
   name: string;
   servings: number;
+  category: SaveRecipeInput['category'];
+  instructions: SaveRecipeInput['instructions'];
   createdAt: Date;
   updatedAt: Date;
 };
 
 export type RecipeRecord = RecipeRow & {
   ingredients: RecipeIngredientRecord[];
+  steps: RecipeStepRecord[];
 };
 
 async function listIngredientRecords(recipeIds: string[]): Promise<RecipeIngredientRecord[]> {
@@ -36,22 +48,55 @@ async function listIngredientRecords(recipeIds: string[]): Promise<RecipeIngredi
             ri.grocery_item_id AS "groceryItemId",
             gi.name AS "itemName",
             ri.unit_id AS "unitId",
-            mu.name AS unit,
+            recipe_unit.name AS unit,
             ri.quantity,
             latest_price."unitPriceCentavos",
+            latest_price."priceSourceUnit",
+            latest_price."priceConversionFactor",
             latest_price."pricePurchasedOn",
             latest_price."priceStoreName"
      FROM recipe_ingredients ri
      JOIN grocery_items gi ON gi.id = ri.grocery_item_id
-     JOIN measurement_units mu ON mu.id = ri.unit_id
+     JOIN measurement_units recipe_unit ON recipe_unit.id = ri.unit_id
      LEFT JOIN LATERAL (
-       SELECT round(pi.amount_paid_centavos::numeric / pi.quantity, 6)::float8 AS "unitPriceCentavos",
+       SELECT round(
+                (pi.amount_paid_centavos::numeric / pi.quantity) / unit_conversion.factor,
+                6
+              )::float8 AS "unitPriceCentavos",
+              purchase_unit.name AS "priceSourceUnit",
+              unit_conversion.factor::float8 AS "priceConversionFactor",
               p.purchased_on::text AS "pricePurchasedOn",
               p.store_name AS "priceStoreName"
        FROM purchase_items pi
        JOIN purchases p ON p.id = pi.purchase_id
+       JOIN measurement_units purchase_unit ON purchase_unit.id = pi.unit_id
+       CROSS JOIN LATERAL (
+         SELECT COALESCE(
+           CASE WHEN pi.unit_id = ri.unit_id THEN 1::numeric END,
+           (
+             SELECT conversion.recipe_units_per_purchase_unit
+             FROM grocery_item_unit_conversions conversion
+             WHERE conversion.grocery_item_id = ri.grocery_item_id
+               AND conversion.purchase_unit_id = pi.unit_id
+               AND conversion.recipe_unit_id = ri.unit_id
+           ),
+           (
+             SELECT 1::numeric / conversion.recipe_units_per_purchase_unit
+             FROM grocery_item_unit_conversions conversion
+             WHERE conversion.grocery_item_id = ri.grocery_item_id
+               AND conversion.purchase_unit_id = ri.unit_id
+               AND conversion.recipe_unit_id = pi.unit_id
+           ),
+           CASE
+             WHEN purchase_unit.normalized_name = 'kg' AND recipe_unit.normalized_name = 'g' THEN 1000::numeric
+             WHEN purchase_unit.normalized_name = 'g' AND recipe_unit.normalized_name = 'kg' THEN 0.001::numeric
+             WHEN purchase_unit.normalized_name = 'l' AND recipe_unit.normalized_name = 'ml' THEN 1000::numeric
+             WHEN purchase_unit.normalized_name = 'ml' AND recipe_unit.normalized_name = 'l' THEN 0.001::numeric
+           END
+         ) AS factor
+       ) unit_conversion
        WHERE pi.grocery_item_id = ri.grocery_item_id
-         AND pi.unit_id = ri.unit_id
+         AND unit_conversion.factor IS NOT NULL
        ORDER BY p.purchased_on DESC, p.created_at DESC, pi.id DESC
        LIMIT 1
      ) latest_price ON TRUE
@@ -62,16 +107,40 @@ async function listIngredientRecords(recipeIds: string[]): Promise<RecipeIngredi
   return result.rows;
 }
 
-function combineRecipeRows(rows: RecipeRow[], ingredientRows: RecipeIngredientRecord[]): RecipeRecord[] {
+async function listRecipeStepRecords(recipeIds: string[]): Promise<RecipeStepRecord[]> {
+  if (recipeIds.length === 0) return [];
+
+  const result = await query<RecipeStepRecord>(
+    `SELECT id, recipe_id AS "recipeId", position, instruction
+     FROM recipe_steps
+     WHERE recipe_id = ANY($1::uuid[])
+     ORDER BY recipe_id, position, id`,
+    [recipeIds]
+  );
+  return result.rows;
+}
+
+function combineRecipeRows(
+  rows: RecipeRow[],
+  ingredientRows: RecipeIngredientRecord[],
+  stepRows: RecipeStepRecord[]
+): RecipeRecord[] {
   const ingredientsByRecipe = new Map<string, RecipeIngredientRecord[]>();
   for (const ingredient of ingredientRows) {
     const ingredients = ingredientsByRecipe.get(ingredient.recipeId) ?? [];
     ingredients.push(ingredient);
     ingredientsByRecipe.set(ingredient.recipeId, ingredients);
   }
+  const stepsByRecipe = new Map<string, RecipeStepRecord[]>();
+  for (const step of stepRows) {
+    const steps = stepsByRecipe.get(step.recipeId) ?? [];
+    steps.push(step);
+    stepsByRecipe.set(step.recipeId, steps);
+  }
   return rows.map((recipe) => ({
     ...recipe,
     ingredients: ingredientsByRecipe.get(recipe.id) ?? [],
+    steps: stepsByRecipe.get(recipe.id) ?? [],
   }));
 }
 
@@ -85,37 +154,48 @@ export async function listRecipeRecords(input: RecipeListQuery): Promise<{
     query<{ total: number }>(
       `SELECT COUNT(*)::int AS total
        FROM recipes
-       WHERE $1::text IS NULL OR position($1 in normalized_name) > 0`,
-      [search]
+       WHERE ($1::text IS NULL OR position($1 in normalized_name) > 0)
+         AND ($2::text IS NULL OR CASE WHEN $2 = 'uncategorized' THEN category IS NULL ELSE category = $2 END)`,
+      [search, input.category ?? null]
     ),
     query<RecipeRow>(
-      `SELECT id, name, servings, created_at AS "createdAt", updated_at AS "updatedAt"
+      `SELECT id, name, servings, category, instructions,
+              created_at AS "createdAt", updated_at AS "updatedAt"
        FROM recipes
-       WHERE $1::text IS NULL OR position($1 in normalized_name) > 0
+       WHERE ($1::text IS NULL OR position($1 in normalized_name) > 0)
+         AND ($2::text IS NULL OR CASE WHEN $2 = 'uncategorized' THEN category IS NULL ELSE category = $2 END)
        ORDER BY normalized_name, created_at DESC, id
-       LIMIT $2 OFFSET $3`,
-      [search, input.pageSize, offset]
+       LIMIT $3 OFFSET $4`,
+      [search, input.category ?? null, input.pageSize, offset]
     ),
   ]);
   const rows = recipeResult.rows;
-  const ingredients = await listIngredientRecords(rows.map((recipe) => recipe.id));
+  const recipeIds = rows.map((recipe) => recipe.id);
+  const [ingredients, steps] = await Promise.all([
+    listIngredientRecords(recipeIds),
+    listRecipeStepRecords(recipeIds),
+  ]);
   return {
-    items: combineRecipeRows(rows, ingredients),
+    items: combineRecipeRows(rows, ingredients, steps),
     total: countResult.rows[0]?.total ?? 0,
   };
 }
 
 export async function getRecipeRecord(id: string): Promise<RecipeRecord | null> {
   const result = await query<RecipeRow>(
-    `SELECT id, name, servings, created_at AS "createdAt", updated_at AS "updatedAt"
+    `SELECT id, name, servings, category, instructions,
+            created_at AS "createdAt", updated_at AS "updatedAt"
      FROM recipes
      WHERE id = $1`,
     [id]
   );
   const recipe = result.rows[0];
   if (!recipe) return null;
-  const ingredients = await listIngredientRecords([id]);
-  return combineRecipeRows([recipe], ingredients)[0] ?? null;
+  const [ingredients, steps] = await Promise.all([
+    listIngredientRecords([id]),
+    listRecipeStepRecords([id]),
+  ]);
+  return combineRecipeRows([recipe], ingredients, steps)[0] ?? null;
 }
 
 export async function recipeReferencesExist(input: SaveRecipeInput): Promise<boolean> {
@@ -145,13 +225,15 @@ export async function saveRecipeRecord(id: string | null, input: SaveRecipeInput
     if (recipeId) {
       const updated = await client.query<{ id: string }>(
         `UPDATE recipes
-         SET name = $2,
-             normalized_name = btrim(regexp_replace(lower(btrim($2)), '[[:space:]]+', ' ', 'g')),
+         SET name = $2::text,
+             normalized_name = btrim(regexp_replace(lower(btrim($2::text)), '[[:space:]]+', ' ', 'g')),
              servings = $3,
+             category = $4,
+             instructions = $5,
              updated_at = NOW()
          WHERE id = $1
          RETURNING id`,
-        [recipeId, input.name, input.servings]
+        [recipeId, input.name, input.servings, input.category, input.instructions]
       );
       if (updated.rowCount !== 1) {
         await client.query('ROLLBACK');
@@ -159,16 +241,21 @@ export async function saveRecipeRecord(id: string | null, input: SaveRecipeInput
         return null;
       }
       await client.query('DELETE FROM recipe_ingredients WHERE recipe_id = $1', [recipeId]);
+      if (input.steps !== undefined) {
+        await client.query('DELETE FROM recipe_steps WHERE recipe_id = $1', [recipeId]);
+      }
     } else {
       const inserted = await client.query<{ id: string }>(
-        `INSERT INTO recipes (name, normalized_name, servings)
+        `INSERT INTO recipes (name, normalized_name, servings, category, instructions)
          VALUES (
-           $1,
-           btrim(regexp_replace(lower(btrim($1)), '[[:space:]]+', ' ', 'g')),
-           $2
+           $1::text,
+           btrim(regexp_replace(lower(btrim($1::text)), '[[:space:]]+', ' ', 'g')),
+           $2,
+           $3,
+           $4
          )
          RETURNING id`,
-        [input.name, input.servings]
+        [input.name, input.servings, input.category, input.instructions]
       );
       recipeId = inserted.rows[0]?.id ?? null;
       if (!recipeId) throw new Error('The recipe ID was not returned after insertion.');
@@ -180,6 +267,16 @@ export async function saveRecipeRecord(id: string | null, input: SaveRecipeInput
          VALUES ($1, $2, $3, $4, $5)`,
         [recipeId, ingredient.groceryItemId, ingredient.unitId, ingredient.quantity, position]
       );
+    }
+
+    if (!id || input.steps !== undefined) {
+      for (const [position, step] of (input.steps ?? []).entries()) {
+        await client.query(
+          `INSERT INTO recipe_steps (recipe_id, position, instruction)
+           VALUES ($1, $2, $3)`,
+          [recipeId, position, step.instruction]
+        );
+      }
     }
 
     await client.query('COMMIT');
