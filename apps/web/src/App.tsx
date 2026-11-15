@@ -25,6 +25,7 @@ type ConnectionState =
 
 const pageSize = 8;
 const Recipes = lazy(() => import('@/components/Recipes'));
+const MealPlanner = lazy(() => import('@/components/MealPlanner'));
 const GroceryCatalog = lazy(() => import('@/components/GroceryCatalog'));
 const emptyPurchaseFilterOptions: PurchaseFilterOptions = { store: '', from: '', to: '' };
 const quantityFormatter = new Intl.NumberFormat('en-PH', { maximumFractionDigits: 3 });
@@ -38,7 +39,7 @@ function samePurchaseFilters(left: PurchaseFilterOptions, right: PurchaseFilterO
 function getActiveHref(): string {
   const hash = window.location.hash;
   if (hash === '#purchase-history' || hash === '#new-purchase') return '#grocery-spending';
-  if (hash === '#grocery-spending' || hash === '#pantry' || hash === '#budget' || hash === '#recipes' || hash === '#grocery-catalog' || hash === '#stores') return hash;
+  if (hash === '#grocery-spending' || hash === '#pantry' || hash === '#budget' || hash === '#recipes' || hash === '#meal-plan' || hash === '#grocery-catalog' || hash === '#stores') return hash;
   return '#overview';
 }
 
@@ -179,6 +180,8 @@ export default function App() {
         ? 'Budget & spending'
         : activeHref === '#recipes'
           ? 'Recipes'
+        : activeHref === '#meal-plan'
+          ? 'Meal planning'
         : activeHref === '#stores'
           ? 'Stores & shops'
           : 'Overview';
@@ -246,6 +249,10 @@ export default function App() {
                 ) : activeHref === '#recipes' ? (
                   <Suspense fallback={<div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" role="status" aria-label="Loading recipes">{Array.from({ length: 6 }, (_, index) => <Skeleton key={index} className="h-48" />)}</div>}>
                     <Recipes />
+                  </Suspense>
+                ) : activeHref === '#meal-plan' ? (
+                  <Suspense fallback={<div className="space-y-3" role="status" aria-label="Loading meal plan">{Array.from({ length: 4 }, (_, index) => <Skeleton key={index} className="h-36" />)}</div>}>
+                    <MealPlanner />
                   </Suspense>
                 ) : activeHref === '#stores' ? (
                   <StoresAndShops />

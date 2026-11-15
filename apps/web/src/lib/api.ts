@@ -298,6 +298,24 @@ export type RecipePage = {
   total: number;
 };
 
+export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
+
+export type MealPlanEntry = {
+  id: string;
+  recipeId: string;
+  plannedOn: string;
+  mealType: MealType;
+  servings: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type MealPlanPage = {
+  from: string;
+  to: string;
+  items: MealPlanEntry[];
+};
+
 export type PriceObservation = {
   purchaseItemId: string;
   purchaseId: string;
@@ -499,6 +517,36 @@ export async function saveRecipe(
 
 export async function deleteRecipe(recipeId: string): Promise<void> {
   await sendRequest<void>(`/api/recipes/${encodeURIComponent(recipeId)}`, {
+    method: 'DELETE',
+    headers: { Accept: 'application/json' },
+  });
+}
+
+export async function fetchMealPlans(from: string, to: string, signal: AbortSignal): Promise<MealPlanPage> {
+  const params = new URLSearchParams({ from, to });
+  return sendRequest<MealPlanPage>(`/api/meal-plans?${params.toString()}`, {
+    headers: { Accept: 'application/json' },
+    signal,
+  });
+}
+
+export async function saveMealPlan(
+  mealPlanId: string | null,
+  input: { recipeId: string; plannedOn: string; mealType: MealType; servings: number }
+): Promise<MealPlanEntry> {
+  const isUpdate = mealPlanId !== null;
+  return sendRequest<MealPlanEntry>(isUpdate ? `/api/meal-plans/${encodeURIComponent(mealPlanId)}` : '/api/meal-plans', {
+    method: isUpdate ? 'PUT' : 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(input),
+  });
+}
+
+export async function deleteMealPlan(mealPlanId: string): Promise<void> {
+  await sendRequest<void>(`/api/meal-plans/${encodeURIComponent(mealPlanId)}`, {
     method: 'DELETE',
     headers: { Accept: 'application/json' },
   });

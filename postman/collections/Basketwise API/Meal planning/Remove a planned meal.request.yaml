@@ -1,0 +1,11 @@
+$kind: http-request
+description: Removes a meal plan entry. The saved recipe, ingredients, and grocery history remain unchanged.
+url: '{{baseUrl}}/api/meal-plans/{{mealPlanId}}'
+method: DELETE
+headers:
+  Accept: application/json
+pathVariables:
+  - key: mealPlanId
+    value: '{{mealPlanId}}'
+settings: {}
+order: 4000

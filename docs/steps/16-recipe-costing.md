@@ -14,6 +14,7 @@ Save household recipes with ingredient quantities and estimate recipe and per-se
 - Recipe details show the receipt unit and conversion used for each estimate.
 - Recipe details can scale ingredient quantities and cost estimates for 1–1,000 servings without changing the saved recipe.
 - Recipes can save ordered cooking steps, optional notes, and a meal category (breakfast, lunch, dinner, snack, dessert, drinks, or other). Category filtering works independently of recipe-name search.
+- Recipes can be scheduled by date and meal slot in the weekly meal planner. Planned serving counts use the current per-serving estimate; meal planning does not change pantry quantities.
 - Each price source shows its receipt date and store. A recipe estimate can combine prices from different receipt dates and changes when new grocery purchases are recorded.
 - Recipes do not change pantry quantities or grocery receipts.
 

@@ -1,5 +1,5 @@
 $kind: http-request
-description: Deletes a recipe and its ingredient list. Grocery purchases and price history remain unchanged.
+description: Deletes a recipe, its ingredient list, and meal plan entries that use it. Grocery purchases and price history remain unchanged.
 url: '{{baseUrl}}/api/recipes/{{recipeId}}'
 method: DELETE
 headers:

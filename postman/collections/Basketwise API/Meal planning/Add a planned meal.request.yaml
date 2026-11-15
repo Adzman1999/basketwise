@@ -1,0 +1,26 @@
+$kind: http-request
+description: Schedules a saved recipe for one date and meal slot. A second recipe cannot be assigned to a slot until the existing plan is edited or removed. This does not change pantry stock.
+url: '{{baseUrl}}/api/meal-plans'
+method: POST
+headers:
+  Content-Type: application/json
+  Accept: application/json
+body:
+  type: json
+  content: |-
+    {
+      "recipeId": "{{recipeId}}",
+      "plannedOn": "2026-11-16",
+      "mealType": "dinner",
+      "servings": 4
+    }
+settings: {}
+order: 2000
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      if (pm.response.code === 201) {
+        const body = pm.response.json();
+        pm.collectionVariables.set('mealPlanId', body.id);
+      }

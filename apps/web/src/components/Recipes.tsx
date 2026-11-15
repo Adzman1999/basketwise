@@ -673,7 +673,7 @@ function DeleteRecipeDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Delete {recipe.name}?</DialogTitle>
-          <DialogDescription>This removes the recipe and its ingredient list. Grocery receipts and price history stay unchanged.</DialogDescription>
+          <DialogDescription>This removes the recipe, its ingredient list, and any meal plan entries using it. Grocery receipts and price history stay unchanged.</DialogDescription>
         </DialogHeader>
         {error && <Alert variant="destructive"><AlertTitle>Could not delete recipe</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>}
         <DialogFooter>

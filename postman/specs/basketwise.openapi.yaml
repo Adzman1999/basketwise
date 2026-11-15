@@ -478,6 +478,161 @@ paths:
           $ref: "#/components/responses/NotFound"
         "500":
           $ref: "#/components/responses/InternalServerError"
+  /api/meal-plans:
+    get:
+      operationId: listMealPlans
+      tags:
+        - Meal planning
+      summary: List planned meals for a date range
+      description: Returns saved recipe plans for an inclusive date range of up to 42 days, ordered by date and meal. Each date and meal slot can contain one recipe.
+      parameters:
+        - name: from
+          in: query
+          required: true
+          description: Inclusive start date in YYYY-MM-DD format.
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          required: true
+          description: Inclusive end date in YYYY-MM-DD format. The range cannot exceed 42 days.
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Meal plan entries in the requested range.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MealPlanPage"
+              example:
+                from: "2026-11-15"
+                to: "2026-11-21"
+                items:
+                  - id: "7409983c-2061-4bb4-a6e6-720a5644a1c9"
+                    recipeId: "b94ab4f4-cb08-48ce-83a9-ff99f6eb488c"
+                    plannedOn: "2026-11-16"
+                    mealType: "dinner"
+                    servings: 4
+                    createdAt: "2026-11-15T08:00:00.000Z"
+                    updatedAt: "2026-11-15T08:00:00.000Z"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    post:
+      operationId: createMealPlan
+      tags:
+        - Meal planning
+      summary: Add a recipe to a meal plan
+      description: Schedules a saved recipe for one date and meal slot with the planned serving count. Creating a second plan for the same date and meal returns 409. Planning does not change pantry stock.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SaveMealPlanRequest"
+            example:
+              recipeId: "b94ab4f4-cb08-48ce-83a9-ff99f6eb488c"
+              plannedOn: "2026-11-16"
+              mealType: "dinner"
+              servings: 4
+      responses:
+        "201":
+          description: The meal was added to the plan.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MealPlanEntry"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          description: The recipe does not exist.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              example:
+                error:
+                  code: RECIPE_NOT_FOUND
+                  message: Choose a saved recipe for this meal plan.
+        "409":
+          description: A recipe is already assigned to this date and meal slot.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              example:
+                error:
+                  code: MEAL_SLOT_ALREADY_PLANNED
+                  message: A meal is already planned for this date and meal. Edit or remove it first.
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /api/meal-plans/{mealPlanId}:
+    parameters:
+      - name: mealPlanId
+        in: path
+        required: true
+        description: Meal plan entry UUID.
+        schema:
+          type: string
+          format: uuid
+    put:
+      operationId: updateMealPlan
+      tags:
+        - Meal planning
+      summary: Update a planned meal
+      description: Replaces the recipe, date, meal slot, and planned serving count. A meal slot already occupied by another entry returns 409.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SaveMealPlanRequest"
+            example:
+              recipeId: "b94ab4f4-cb08-48ce-83a9-ff99f6eb488c"
+              plannedOn: "2026-11-16"
+              mealType: "lunch"
+              servings: 2
+      responses:
+        "200":
+          description: The updated meal plan entry.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MealPlanEntry"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          description: The meal plan entry or recipe does not exist.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: A meal is already assigned to this date and meal slot.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    delete:
+      operationId: deleteMealPlan
+      tags:
+        - Meal planning
+      summary: Remove a planned meal
+      responses:
+        "204":
+          description: The planned meal was removed.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
   /api/recipes:
     get:
       operationId: listRecipes
@@ -710,7 +865,7 @@ paths:
       tags:
         - Recipes
       summary: Delete a recipe
-      description: Deletes the recipe and its ingredient list without changing grocery purchases or price history.
+      description: Deletes the recipe, its ingredient list, and meal plan entries that use it. Grocery purchases and price history remain unchanged.
       responses:
         "204":
           description: The recipe was deleted; no response body is returned.
@@ -1857,6 +2012,67 @@ components:
             - type: "null"
         autoRestock:
           type: boolean
+    MealType:
+      type: string
+      enum: [breakfast, lunch, dinner, snack]
+    MealPlanEntry:
+      type: object
+      additionalProperties: false
+      required: [id, recipeId, plannedOn, mealType, servings, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        recipeId:
+          type: string
+          format: uuid
+        plannedOn:
+          type: string
+          format: date
+        mealType:
+          $ref: "#/components/schemas/MealType"
+        servings:
+          type: integer
+          minimum: 1
+          maximum: 1000
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    MealPlanPage:
+      type: object
+      additionalProperties: false
+      required: [from, to, items]
+      properties:
+        from:
+          type: string
+          format: date
+        to:
+          type: string
+          format: date
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/MealPlanEntry"
+    SaveMealPlanRequest:
+      type: object
+      additionalProperties: false
+      required: [recipeId, plannedOn, mealType, servings]
+      properties:
+        recipeId:
+          type: string
+          format: uuid
+        plannedOn:
+          type: string
+          format: date
+        mealType:
+          $ref: "#/components/schemas/MealType"
+        servings:
+          type: integer
+          minimum: 1
+          maximum: 1000
     RecipeIngredient:
       type: object
       additionalProperties: false
