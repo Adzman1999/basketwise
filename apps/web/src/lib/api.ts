@@ -267,12 +267,20 @@ export type RecipeIngredient = RecipeIngredientInput & {
   priceStoreName: string | null;
 };
 
+export type RecipeStep = {
+  id: string;
+  recipeId: string;
+  position: number;
+  instruction: string;
+};
+
 export type Recipe = {
   id: string;
   name: string;
   servings: number;
   category: RecipeCategory | null;
   instructions: string | null;
+  steps: RecipeStep[];
   createdAt: string;
   updatedAt: string;
   ingredients: RecipeIngredient[];
@@ -474,6 +482,7 @@ export async function saveRecipe(
     servings: number;
     category: RecipeCategory | null;
     instructions: string | null;
+    steps: { instruction: string }[];
     ingredients: RecipeIngredientInput[];
   }
 ): Promise<Recipe> {

@@ -1,5 +1,5 @@
 $kind: http-request
-description: Replaces the recipe name, serving yield, optional category and instructions, and complete ingredient list atomically.
+description: Replaces the recipe name, serving yield, optional category and notes, and complete ingredient list atomically. Omit steps to keep saved steps unchanged, or send an empty array to clear them.
 url: '{{baseUrl}}/api/recipes/{{recipeId}}'
 method: PUT
 headers:
@@ -16,6 +16,10 @@ body:
       "servings": 4,
       "category": "dinner",
       "instructions": "Brown the chicken, add the sauce, then simmer until tender.",
+      "steps": [
+        {"instruction": "Brown the chicken on all sides."},
+        {"instruction": "Add the sauce and simmer until tender."}
+      ],
       "ingredients": [
         {
           "groceryItemId": "{{chickenGroceryItemId}}",

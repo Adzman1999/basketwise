@@ -17,6 +17,13 @@ export type RecipeIngredientRecord = {
   priceStoreName: string | null;
 };
 
+export type RecipeStepRecord = {
+  id: string;
+  recipeId: string;
+  position: number;
+  instruction: string;
+};
+
 export type RecipeRow = {
   id: string;
   name: string;
@@ -29,6 +36,7 @@ export type RecipeRow = {
 
 export type RecipeRecord = RecipeRow & {
   ingredients: RecipeIngredientRecord[];
+  steps: RecipeStepRecord[];
 };
 
 async function listIngredientRecords(recipeIds: string[]): Promise<RecipeIngredientRecord[]> {
@@ -99,16 +107,40 @@ async function listIngredientRecords(recipeIds: string[]): Promise<RecipeIngredi
   return result.rows;
 }
 
-function combineRecipeRows(rows: RecipeRow[], ingredientRows: RecipeIngredientRecord[]): RecipeRecord[] {
+async function listRecipeStepRecords(recipeIds: string[]): Promise<RecipeStepRecord[]> {
+  if (recipeIds.length === 0) return [];
+
+  const result = await query<RecipeStepRecord>(
+    `SELECT id, recipe_id AS "recipeId", position, instruction
+     FROM recipe_steps
+     WHERE recipe_id = ANY($1::uuid[])
+     ORDER BY recipe_id, position, id`,
+    [recipeIds]
+  );
+  return result.rows;
+}
+
+function combineRecipeRows(
+  rows: RecipeRow[],
+  ingredientRows: RecipeIngredientRecord[],
+  stepRows: RecipeStepRecord[]
+): RecipeRecord[] {
   const ingredientsByRecipe = new Map<string, RecipeIngredientRecord[]>();
   for (const ingredient of ingredientRows) {
     const ingredients = ingredientsByRecipe.get(ingredient.recipeId) ?? [];
     ingredients.push(ingredient);
     ingredientsByRecipe.set(ingredient.recipeId, ingredients);
   }
+  const stepsByRecipe = new Map<string, RecipeStepRecord[]>();
+  for (const step of stepRows) {
+    const steps = stepsByRecipe.get(step.recipeId) ?? [];
+    steps.push(step);
+    stepsByRecipe.set(step.recipeId, steps);
+  }
   return rows.map((recipe) => ({
     ...recipe,
     ingredients: ingredientsByRecipe.get(recipe.id) ?? [],
+    steps: stepsByRecipe.get(recipe.id) ?? [],
   }));
 }
 
@@ -138,9 +170,13 @@ export async function listRecipeRecords(input: RecipeListQuery): Promise<{
     ),
   ]);
   const rows = recipeResult.rows;
-  const ingredients = await listIngredientRecords(rows.map((recipe) => recipe.id));
+  const recipeIds = rows.map((recipe) => recipe.id);
+  const [ingredients, steps] = await Promise.all([
+    listIngredientRecords(recipeIds),
+    listRecipeStepRecords(recipeIds),
+  ]);
   return {
-    items: combineRecipeRows(rows, ingredients),
+    items: combineRecipeRows(rows, ingredients, steps),
     total: countResult.rows[0]?.total ?? 0,
   };
 }
@@ -155,8 +191,11 @@ export async function getRecipeRecord(id: string): Promise<RecipeRecord | null> 
   );
   const recipe = result.rows[0];
   if (!recipe) return null;
-  const ingredients = await listIngredientRecords([id]);
-  return combineRecipeRows([recipe], ingredients)[0] ?? null;
+  const [ingredients, steps] = await Promise.all([
+    listIngredientRecords([id]),
+    listRecipeStepRecords([id]),
+  ]);
+  return combineRecipeRows([recipe], ingredients, steps)[0] ?? null;
 }
 
 export async function recipeReferencesExist(input: SaveRecipeInput): Promise<boolean> {
@@ -202,6 +241,9 @@ export async function saveRecipeRecord(id: string | null, input: SaveRecipeInput
         return null;
       }
       await client.query('DELETE FROM recipe_ingredients WHERE recipe_id = $1', [recipeId]);
+      if (input.steps !== undefined) {
+        await client.query('DELETE FROM recipe_steps WHERE recipe_id = $1', [recipeId]);
+      }
     } else {
       const inserted = await client.query<{ id: string }>(
         `INSERT INTO recipes (name, normalized_name, servings, category, instructions)
@@ -225,6 +267,16 @@ export async function saveRecipeRecord(id: string | null, input: SaveRecipeInput
          VALUES ($1, $2, $3, $4, $5)`,
         [recipeId, ingredient.groceryItemId, ingredient.unitId, ingredient.quantity, position]
       );
+    }
+
+    if (!id || input.steps !== undefined) {
+      for (const [position, step] of (input.steps ?? []).entries()) {
+        await client.query(
+          `INSERT INTO recipe_steps (recipe_id, position, instruction)
+           VALUES ($1, $2, $3)`,
+          [recipeId, position, step.instruction]
+        );
+      }
     }
 
     await client.query('COMMIT');

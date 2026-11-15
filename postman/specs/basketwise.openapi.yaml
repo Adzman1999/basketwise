@@ -535,6 +535,15 @@ paths:
                     instructions: "Brown the chicken, add the sauce, then simmer until tender."
                     createdAt: "2026-11-11T08:00:00.000Z"
                     updatedAt: "2026-11-11T08:00:00.000Z"
+                    steps:
+                      - id: "9e3aa707-3db1-48ae-91c8-86fc7f5e94db"
+                        recipeId: "7409983c-2061-4bb4-a6e6-720a5644a1c9"
+                        position: 0
+                        instruction: "Brown the chicken on all sides."
+                      - id: "aab3de3d-4212-4c52-85c5-15b01b052983"
+                        recipeId: "7409983c-2061-4bb4-a6e6-720a5644a1c9"
+                        position: 1
+                        instruction: "Add the sauce and simmer until tender."
                     ingredients:
                       - id: "794de16d-7e7c-4265-8a45-dfd4e38f6ecf"
                         recipeId: "7409983c-2061-4bb4-a6e6-720a5644a1c9"
@@ -579,7 +588,7 @@ paths:
       tags:
         - Recipes
       summary: Create a recipe and its ingredients
-      description: Saves the recipe name, serving yield, optional category and cooking instructions, and ingredient lines together. Ingredient items and units must already exist in the grocery catalog. Cost estimates use the latest compatible receipt prices and saved unit conversions; estimates are not saved as fixed values.
+      description: Saves the recipe name, serving yield, optional category, notes, ordered cooking steps, and ingredient lines together. Ingredient items and units must already exist in the grocery catalog. Cost estimates use the latest compatible receipt prices and saved unit conversions; estimates are not saved as fixed values.
       requestBody:
         required: true
         content:
@@ -591,6 +600,9 @@ paths:
               servings: 2
               category: "dinner"
               instructions: "Brown the chicken, add the sauce, then simmer until tender."
+              steps:
+                - instruction: "Brown the chicken on all sides."
+                - instruction: "Add the sauce and simmer until tender."
               ingredients:
                 - groceryItemId: "b94ab4f4-cb08-48ce-83a9-ff99f6eb488c"
                   unitId: "f56094ec-d967-4011-a490-5ae9ef49e310"
@@ -657,7 +669,7 @@ paths:
       tags:
         - Recipes
       summary: Replace a recipe and its ingredients
-      description: Replaces the recipe name, serving yield, optional category and instructions, and complete ingredient list atomically. The recipe ID is retained; receipt history and saved item conversions are unchanged.
+      description: Replaces the recipe name, serving yield, optional category and notes, and complete ingredient list atomically. The recipe ID is retained; receipt history and saved item conversions are unchanged. Provide steps to replace the ordered steps, or omit steps to leave them unchanged; send an empty array to clear them.
       requestBody:
         required: true
         content:
@@ -669,6 +681,9 @@ paths:
               servings: 4
               category: "dinner"
               instructions: "Brown the chicken, add the sauce, then simmer until tender."
+              steps:
+                - instruction: "Brown the chicken on all sides."
+                - instruction: "Add the sauce and simmer until tender."
               ingredients:
                 - groceryItemId: "b94ab4f4-cb08-48ce-83a9-ff99f6eb488c"
                   unitId: "f56094ec-d967-4011-a490-5ae9ef49e310"
@@ -1913,6 +1928,25 @@ components:
           oneOf:
             - type: string
             - type: "null"
+    RecipeStep:
+      type: object
+      additionalProperties: false
+      required: [id, recipeId, position, instruction]
+      properties:
+        id:
+          type: string
+          format: uuid
+        recipeId:
+          type: string
+          format: uuid
+        position:
+          type: integer
+          minimum: 0
+          maximum: 99
+        instruction:
+          type: string
+          minLength: 1
+          maxLength: 1000
     Recipe:
       type: object
       additionalProperties: false
@@ -1925,6 +1959,7 @@ components:
         - createdAt
         - updatedAt
         - ingredients
+        - steps
         - pricedIngredientCount
         - unpricedIngredientCount
         - partialCostCentavos
@@ -1960,6 +1995,10 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/RecipeIngredient"
+        steps:
+          type: array
+          items:
+            $ref: "#/components/schemas/RecipeStep"
         pricedIngredientCount:
           type: integer
           minimum: 0
@@ -2025,7 +2064,20 @@ components:
             - type: string
               maxLength: 5000
             - type: "null"
-          description: Optional cooking steps or notes, up to 5,000 characters. Omit or set null for no instructions.
+          description: Optional notes, up to 5,000 characters. Omit or set null for no notes.
+        steps:
+          type: array
+          maxItems: 100
+          description: Optional ordered cooking steps. Omit on update to preserve the saved steps, or send an empty array to clear them.
+          items:
+            type: object
+            additionalProperties: false
+            required: [instruction]
+            properties:
+              instruction:
+                type: string
+                minLength: 1
+                maxLength: 1000
         ingredients:
           type: array
           minItems: 1

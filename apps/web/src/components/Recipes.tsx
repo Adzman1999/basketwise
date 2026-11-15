@@ -38,6 +38,11 @@ type RecipeIngredientDraft = {
   quantity: string;
 };
 
+type RecipeStepDraft = {
+  key: string;
+  instruction: string;
+};
+
 type UnitOptionsState =
   | { kind: 'loading' }
   | { kind: 'loaded'; items: MeasurementUnit[] }
@@ -85,6 +90,10 @@ function makeIngredientDraft(recipeIngredient?: Recipe['ingredients'][number]): 
     unitName: recipeIngredient?.unit ?? '',
     quantity: recipeIngredient ? String(recipeIngredient.quantity) : '',
   };
+}
+
+function makeRecipeStepDraft(instruction = ''): RecipeStepDraft {
+  return { key: crypto.randomUUID(), instruction };
 }
 
 function RecipeItemPicker({
@@ -202,6 +211,7 @@ function RecipeEditorDialog({
   const [servings, setServings] = useState(recipe ? String(recipe.servings) : '2');
   const [category, setCategory] = useState<RecipeCategory | 'uncategorized'>(recipe?.category ?? 'uncategorized');
   const [instructions, setInstructions] = useState(recipe?.instructions ?? '');
+  const [steps, setSteps] = useState<RecipeStepDraft[]>(() => recipe?.steps.map((step) => makeRecipeStepDraft(step.instruction)) ?? []);
   const [ingredients, setIngredients] = useState<RecipeIngredientDraft[]>(() => (
     recipe?.ingredients.length ? recipe.ingredients.map((ingredient) => makeIngredientDraft(ingredient)) : [makeIngredientDraft()]
   ));
@@ -242,6 +252,11 @@ function RecipeEditorDialog({
       setError('Choose a saved grocery item, unit, and positive quantity for each ingredient.');
       return;
     }
+    const parsedSteps = steps.map((step) => step.instruction.trim());
+    if (parsedSteps.some((step) => !step)) {
+      setError('Complete or remove every cooking step before saving.');
+      return;
+    }
     const pairKeys = parsedIngredients.map(({ draft }) => `${draft.groceryItemId}:${draft.unitId}`);
     if (new Set(pairKeys).size !== pairKeys.length) {
       setError('Each grocery item and unit can only appear once. Update its quantity on the existing line.');
@@ -255,6 +270,7 @@ function RecipeEditorDialog({
         servings: parsedServings,
         category: category === 'uncategorized' ? null : category,
         instructions: instructions.trim() || null,
+        steps: parsedSteps.map((instruction) => ({ instruction })),
         ingredients: parsedIngredients.map(({ draft, quantity }) => ({
           groceryItemId: draft.groceryItemId,
           unitId: draft.unitId,
@@ -302,18 +318,64 @@ function RecipeEditorDialog({
             </Label>
 
             <Label htmlFor="recipe-instructions" className="grid gap-2 text-sm font-medium">
-              Cooking instructions <span className="font-normal text-muted-foreground">· optional</span>
+              Additional notes <span className="font-normal text-muted-foreground">· optional</span>
               <Textarea
                 id="recipe-instructions"
                 value={instructions}
                 onChange={(event) => setInstructions(event.target.value)}
                 maxLength={5000}
-                rows={5}
-                placeholder="Add preparation steps, cooking times, or notes for next time."
+                rows={3}
+                placeholder="Add substitutions, serving ideas, or a note for next time."
                 disabled={isSaving}
               />
               <span className="text-xs font-normal text-muted-foreground">{instructions.length.toLocaleString()} / 5,000 characters</span>
             </Label>
+
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-end justify-between gap-2">
+                <div>
+                  <h3 className="text-sm font-semibold">Cooking steps <span className="font-normal text-muted-foreground">· optional</span></h3>
+                  <p className="mt-0.5 text-xs text-muted-foreground">Add steps in the order you prepare them.</p>
+                </div>
+                <Button type="button" variant="outline" size="sm" onClick={() => setSteps((current) => [...current, makeRecipeStepDraft()])} disabled={isSaving || steps.length >= 100}>
+                  <Plus aria-hidden="true" /> Add step
+                </Button>
+              </div>
+
+              {steps.length > 0 && (
+                <ol className="space-y-2.5">
+                  {steps.map((step, index) => (
+                    <li key={step.key} className="grid min-w-0 grid-cols-[2rem_minmax(0,1fr)_auto] items-start gap-2 rounded-lg border bg-muted/10 p-3">
+                      <span className="mt-1 flex size-7 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold tabular-nums text-primary">{index + 1}</span>
+                      <Label htmlFor={`recipe-step-${step.key}`} className="grid min-w-0 gap-1.5 text-xs font-medium">
+                        Step {index + 1}
+                        <Textarea
+                          id={`recipe-step-${step.key}`}
+                          value={step.instruction}
+                          onChange={(event) => setSteps((current) => current.map((item) => item.key === step.key ? { ...item, instruction: event.target.value } : item))}
+                          maxLength={1000}
+                          rows={2}
+                          placeholder="Describe this step"
+                          disabled={isSaving}
+                          required
+                        />
+                      </Label>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`Remove step ${index + 1}`}
+                        title="Remove step"
+                        onClick={() => setSteps((current) => current.filter((item) => item.key !== step.key))}
+                        disabled={isSaving}
+                      >
+                        <Trash2 aria-hidden="true" />
+                      </Button>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </div>
 
             <div className="space-y-3">
               <div className="flex flex-wrap items-end justify-between gap-2">
@@ -513,9 +575,22 @@ function RecipeDetailsDialog({
             )}
           </div>
 
+          {recipe.steps.length > 0 && (
+            <section className="space-y-2 rounded-lg border bg-muted/20 p-4">
+              <h3 className="flex items-center gap-2 text-sm font-semibold"><BookOpenText aria-hidden="true" className="size-4 text-primary" /> Cooking steps</h3>
+              <ol className="space-y-2.5">
+                {recipe.steps.map((step, index) => (
+                  <li key={step.id} className="flex items-start gap-3">
+                    <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[11px] font-semibold tabular-nums text-primary">{index + 1}</span>
+                    <p className="whitespace-pre-wrap pt-0.5 text-sm leading-6 text-muted-foreground">{step.instruction}</p>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          )}
           {recipe.instructions && (
             <section className="space-y-2 rounded-lg border bg-muted/20 p-4">
-              <h3 className="flex items-center gap-2 text-sm font-semibold"><BookOpenText aria-hidden="true" className="size-4 text-primary" /> Cooking instructions</h3>
+              <h3 className="text-sm font-semibold">Additional notes</h3>
               <p className="whitespace-pre-wrap text-sm leading-6 text-muted-foreground">{recipe.instructions}</p>
             </section>
           )}

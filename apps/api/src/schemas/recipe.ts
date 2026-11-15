@@ -17,6 +17,10 @@ const recipeIngredientSchema = z.object({
   quantity: ingredientQuantity,
 }).strict();
 
+const recipeStepSchema = z.object({
+  instruction: z.string().trim().min(1).max(1000),
+}).strict();
+
 export const recipeIdSchema = z.string().uuid();
 
 export const recipeCategories = [
@@ -42,6 +46,7 @@ export const saveRecipeSchema = z.object({
   servings: z.number().int().min(1).max(1000),
   category: recipeCategorySchema.nullable().optional().transform((value) => value ?? null),
   instructions: z.string().trim().max(5000).nullable().optional().transform((value) => value || null),
+  steps: z.array(recipeStepSchema).max(100).optional(),
   ingredients: z.array(recipeIngredientSchema).min(1).max(100),
 }).strict().superRefine((recipe, context) => {
   const seen = new Set<string>();
