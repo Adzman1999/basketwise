@@ -737,7 +737,7 @@ export default function Recipes() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="space-y-1.5">
           <Badge variant="secondary" className="w-fit gap-1.5"><ChefHat aria-hidden="true" className="size-4" /> Kitchen planning</Badge>
@@ -748,7 +748,7 @@ export default function Recipes() {
       </div>
 
       <Card className="shadow-none">
-        <CardHeader className="flex flex-col gap-3 space-y-0 p-4 sm:flex-row sm:items-end sm:justify-between sm:p-5">
+        <CardHeader className="flex flex-col gap-3 space-y-0 p-3 sm:flex-row sm:items-end sm:justify-between sm:p-4">
           <div className="space-y-1">
             <CardTitle className="flex items-center gap-2 text-base"><Utensils aria-hidden="true" className="size-4 text-primary" /> Your recipes</CardTitle>
             <CardDescription>Cost estimates change as you record new grocery prices.</CardDescription>
@@ -768,10 +768,10 @@ export default function Recipes() {
             </Select>
           </div>
         </CardHeader>
-        <CardContent className="p-4 pt-0 sm:p-5 sm:pt-0">
+        <CardContent className="p-3 pt-0 sm:p-4 sm:pt-0">
           {state.kind === 'loading' && (
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" role="status" aria-label="Loading recipes">
-              {Array.from({ length: 6 }, (_, index) => <Skeleton key={index} className="h-48" />)}
+            <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4" role="status" aria-label="Loading recipes">
+              {Array.from({ length: pageSize }, (_, index) => <Skeleton key={index} className="h-32" />)}
             </div>
           )}
 
@@ -799,38 +799,43 @@ export default function Recipes() {
 
           {page && page.items.length > 0 && (
             <>
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                 {page.items.map((recipe) => (
                   <Card key={recipe.id} className="flex min-w-0 flex-col shadow-none">
-                    <CardContent className="flex flex-1 flex-col p-4">
-                      <div className="flex min-w-0 items-start justify-between gap-3">
-                        <div className="flex min-w-0 items-start gap-2.5">
-                          <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"><ChefHat aria-hidden="true" className="size-4" /></span>
+                    <CardContent className="flex flex-1 flex-col p-3">
+                      <div className="flex min-w-0 items-start justify-between gap-2">
+                        <div className="flex min-w-0 items-start gap-2">
+                          <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"><ChefHat aria-hidden="true" className="size-3.5" /></span>
                           <div className="min-w-0">
                             <h3 className="truncate text-sm font-semibold">{recipe.name}</h3>
                             <p className="mt-0.5 text-xs text-muted-foreground">{recipe.servings} {recipe.servings === 1 ? 'serving' : 'servings'} · {recipe.ingredients.length} {recipe.ingredients.length === 1 ? 'ingredient' : 'ingredients'}</p>
                             {recipe.category && <Badge variant="outline" className="mt-1 px-1.5 py-0 text-[10px]">{recipeCategoryLabels[recipe.category]}</Badge>}
                           </div>
                         </div>
-                        <Badge variant={recipe.unpricedIngredientCount > 0 ? 'outline' : 'secondary'} className="shrink-0">
+                        <Badge variant={recipe.unpricedIngredientCount > 0 ? 'outline' : 'secondary'} className="h-5 shrink-0 px-1.5 text-[10px]">
                           {recipe.unpricedIngredientCount > 0 ? `${recipe.unpricedIngredientCount} unpriced` : 'Estimated'}
                         </Badge>
                       </div>
-                      <div className="mt-4 rounded-md bg-muted/30 p-3">
-                        <p className="text-xs text-muted-foreground">Recipe cost</p>
-                        {recipe.totalCostCentavos === null
-                          ? <p className="mt-1 text-lg font-semibold">Incomplete estimate</p>
-                          : <p className="mt-1 text-2xl font-semibold tabular-nums">{formatCost(recipe.totalCostCentavos)}</p>}
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          {recipe.costPerServingCentavos === null
-                            ? `Partial estimate ${formatCost(recipe.partialCostCentavos)}`
-                            : `${formatCost(recipe.costPerServingCentavos)} per serving`}
-                        </p>
+                      <div className="mt-3 grid grid-cols-2 gap-3 rounded-md bg-muted/30 px-3 py-2">
+                        <div className="min-w-0">
+                          <p className="text-[11px] text-muted-foreground">Recipe cost</p>
+                          <p className="mt-0.5 truncate text-lg font-semibold tabular-nums">
+                            {recipe.totalCostCentavos === null ? 'Incomplete' : formatCost(recipe.totalCostCentavos)}
+                          </p>
+                          {recipe.totalCostCentavos === null && <p className="text-[10px] text-muted-foreground">Partial {formatCost(recipe.partialCostCentavos)}</p>}
+                        </div>
+                        <div className="min-w-0 border-l pl-3">
+                          <p className="text-[11px] text-muted-foreground">Per serving</p>
+                          <p className="mt-0.5 truncate text-lg font-semibold tabular-nums">
+                            {recipe.costPerServingCentavos === null ? '—' : formatCost(recipe.costPerServingCentavos)}
+                          </p>
+                          {recipe.costPerServingCentavos === null && <p className="text-[10px] text-muted-foreground">Not ready</p>}
+                        </div>
                       </div>
-                      <p className="mt-3 line-clamp-2 min-h-8 text-xs leading-4 text-muted-foreground">
+                      <p className="mt-2 truncate text-xs leading-4 text-muted-foreground">
                         {recipe.ingredients.slice(0, 4).map((ingredient) => ingredient.itemName).join(' · ')}{recipe.ingredients.length > 4 ? ' · …' : ''}
                       </p>
-                      <div className="mt-auto flex justify-end gap-2 border-t pt-3">
+                      <div className="mt-auto flex justify-end gap-2 border-t pt-2">
                         <Button type="button" variant="outline" size="sm" onClick={() => setSelectedRecipe(recipe)}>View cost</Button>
                         <Button type="button" variant="ghost" size="icon" aria-label={`Edit ${recipe.name}`} title="Edit recipe" onClick={() => openEditor(recipe)}><Pencil aria-hidden="true" /></Button>
                       </div>
