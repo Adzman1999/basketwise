@@ -225,8 +225,8 @@ export async function saveRecipeRecord(id: string | null, input: SaveRecipeInput
     if (recipeId) {
       const updated = await client.query<{ id: string }>(
         `UPDATE recipes
-         SET name = $2,
-             normalized_name = btrim(regexp_replace(lower(btrim($2)), '[[:space:]]+', ' ', 'g')),
+         SET name = $2::text,
+             normalized_name = btrim(regexp_replace(lower(btrim($2::text)), '[[:space:]]+', ' ', 'g')),
              servings = $3,
              category = $4,
              instructions = $5,
@@ -248,8 +248,8 @@ export async function saveRecipeRecord(id: string | null, input: SaveRecipeInput
       const inserted = await client.query<{ id: string }>(
         `INSERT INTO recipes (name, normalized_name, servings, category, instructions)
          VALUES (
-           $1,
-           btrim(regexp_replace(lower(btrim($1)), '[[:space:]]+', ' ', 'g')),
+           $1::text,
+           btrim(regexp_replace(lower(btrim($1::text)), '[[:space:]]+', ' ', 'g')),
            $2,
            $3,
            $4
