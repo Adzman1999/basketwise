@@ -19,4 +19,13 @@ scripts:
         const body = pm.response.json();
         pm.expect(body.items).to.be.an('array');
         pm.expect(body.total).to.eql(body.items.length);
+
+        const unitIdsByName = new Map(body.items.map(function (unit) {
+          return [unit.name.trim().toLowerCase(), unit.id];
+        }));
+        [['gramUnitId', 'g'], ['kilogramUnitId', 'kg'], ['milliliterUnitId', 'ml'], ['literUnitId', 'l']]
+          .forEach(function (entry) {
+            const unitId = unitIdsByName.get(entry[1]);
+            if (unitId) pm.collectionVariables.set(entry[0], unitId);
+          });
       });

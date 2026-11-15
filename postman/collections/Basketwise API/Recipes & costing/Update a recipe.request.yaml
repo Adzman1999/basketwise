@@ -12,17 +12,17 @@ body:
   type: json
   content: |-
     {
-      "name": "Chicken adobo",
+      "name": "Steamed rice",
       "servings": 4,
       "category": "dinner",
-      "instructions": "Brown the chicken, add the sauce, then simmer until tender.",
+      "instructions": "Rinse the rice, then simmer it in water until tender.",
       "steps": [
-        {"instruction": "Brown the chicken on all sides."},
-        {"instruction": "Add the sauce and simmer until tender."}
+        {"instruction": "Rinse the rice until the water runs mostly clear."},
+        {"instruction": "Add water and simmer until the rice is tender."}
       ],
       "ingredients": [
         {
-          "groceryItemId": "{{chickenGroceryItemId}}",
+          "groceryItemId": "{{lastGroceryItemId}}",
           "unitId": "{{kilogramUnitId}}",
           "quantity": 1
         }
