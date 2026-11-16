@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { AlertCircle, ArrowLeft, ArrowRight, CalendarDays, ChefHat, Clock3, Pencil, Plus, Trash2, Utensils } from 'lucide-react';
+import { AlertCircle, ArrowLeft, ArrowRight, CalendarDays, ChefHat, Circle, CircleCheck, Clock3, ListChecks, Pencil, Plus, RotateCcw, ShoppingBasket, Trash2, Utensils } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   deleteMealPlan,
   fetchMealPlans,
@@ -32,6 +33,21 @@ const mealLabels: Record<MealType, string> = {
   snack: 'Snack',
 };
 const currencyFormatter = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' });
+const quantityFormatter = new Intl.NumberFormat('en-PH', { maximumFractionDigits: 3 });
+
+type ShoppingListItem = {
+  groceryItemId: string;
+  itemName: string;
+  unitId: string;
+  unit: string;
+  quantity: number;
+  plannedMealCount: number;
+};
+
+type ShoppingCheckState = {
+  weekFrom: string;
+  checkedKeys: string[];
+};
 
 function dateToIso(date: Date): string {
   const year = date.getFullYear();
@@ -71,6 +87,56 @@ async function fetchAllRecipes(signal: AbortSignal): Promise<Recipe[]> {
     page += 1;
   } while (recipes.length < total);
   return recipes;
+}
+
+function buildShoppingList(entries: MealPlanEntry[], recipesById: Map<string, Recipe>): ShoppingListItem[] {
+  const items = new Map<string, ShoppingListItem>();
+  for (const entry of entries) {
+    const recipe = recipesById.get(entry.recipeId);
+    if (!recipe) continue;
+    const scale = entry.servings / recipe.servings;
+    for (const ingredient of recipe.ingredients) {
+      const key = `${ingredient.groceryItemId}:${ingredient.unitId}`;
+      const item = items.get(key) ?? {
+        groceryItemId: ingredient.groceryItemId,
+        itemName: ingredient.itemName,
+        unitId: ingredient.unitId,
+        unit: ingredient.unit,
+        quantity: 0,
+        plannedMealCount: 0,
+      };
+      item.quantity += ingredient.quantity * scale;
+      item.plannedMealCount += 1;
+      items.set(key, item);
+    }
+  }
+
+  return Array.from(items.values()).sort((left, right) => (
+    left.itemName.localeCompare(right.itemName) || left.unit.localeCompare(right.unit)
+  ));
+}
+
+function shoppingCheckStorageKey(weekFrom: string): string {
+  return `basketwise:shopping-checks:${weekFrom}`;
+}
+
+function loadShoppingChecks(weekFrom: string): string[] {
+  try {
+    const raw = window.localStorage.getItem(shoppingCheckStorageKey(weekFrom));
+    if (!raw) return [];
+    const values: unknown = JSON.parse(raw);
+    return Array.isArray(values) ? values.filter((value): value is string => typeof value === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveShoppingChecks(weekFrom: string, checkedKeys: string[]): void {
+  try {
+    window.localStorage.setItem(shoppingCheckStorageKey(weekFrom), JSON.stringify(checkedKeys));
+  } catch {
+    // Keep checklist interaction usable if browser storage is unavailable.
+  }
 }
 
 function MealPlanEditor({
@@ -225,11 +291,16 @@ export default function MealPlanner() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [editingEntry, setEditingEntry] = useState<MealPlanEntry | null>(null);
   const [newSlot, setNewSlot] = useState<{ date: string; mealType: MealType } | null>(null);
+  const [shoppingCheckState, setShoppingCheckState] = useState<ShoppingCheckState>({ weekFrom: '', checkedKeys: [] });
 
   const weekDates = useMemo(() => Array.from({ length: 7 }, (_, index) => shiftDate(weekStart, index)), [weekStart]);
   const weekFrom = dateToIso(weekDates[0]);
   const weekTo = dateToIso(weekDates[6]);
   const today = dateToIso(new Date());
+
+  useEffect(() => {
+    setShoppingCheckState({ weekFrom, checkedKeys: loadShoppingChecks(weekFrom) });
+  }, [weekFrom]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -261,6 +332,22 @@ export default function MealPlanner() {
   ), [state]);
 
   const plannedEntries = state.kind === 'loaded' ? state.entries : [];
+  const shoppingItems = useMemo(() => buildShoppingList(plannedEntries, recipesById), [plannedEntries, recipesById]);
+  const checkedShoppingKeys = new Set(
+    shoppingCheckState.weekFrom === weekFrom ? shoppingCheckState.checkedKeys : [],
+  );
+  const checkedShoppingCount = shoppingItems.filter((item) => checkedShoppingKeys.has(`${item.groceryItemId}:${item.unitId}`)).length;
+
+  useEffect(() => {
+    if (state.kind !== 'loaded' || shoppingCheckState.weekFrom !== weekFrom) return;
+    const validKeys = new Set(shoppingItems.map((item) => `${item.groceryItemId}:${item.unitId}`));
+    const checkedKeys = shoppingCheckState.checkedKeys.filter((key) => validKeys.has(key));
+    if (checkedKeys.length !== shoppingCheckState.checkedKeys.length) {
+      setShoppingCheckState({ weekFrom, checkedKeys });
+      return;
+    }
+    saveShoppingChecks(weekFrom, checkedKeys);
+  }, [state.kind, weekFrom, shoppingItems, shoppingCheckState]);
   const estimatedCostCentavos = plannedEntries.reduce((total, entry) => {
     const recipe = recipesById.get(entry.recipeId);
     return total + (recipe?.costPerServingCentavos === null || recipe?.costPerServingCentavos === undefined
@@ -283,13 +370,26 @@ export default function MealPlanner() {
     setRefreshKey((current) => current + 1);
   }
 
+  function toggleShoppingItem(key: string) {
+    setShoppingCheckState((current) => {
+      const checkedKeys = new Set(current.weekFrom === weekFrom ? current.checkedKeys : []);
+      if (checkedKeys.has(key)) checkedKeys.delete(key);
+      else checkedKeys.add(key);
+      return { weekFrom, checkedKeys: Array.from(checkedKeys) };
+    });
+  }
+
+  function clearShoppingChecks() {
+    setShoppingCheckState({ weekFrom, checkedKeys: [] });
+  }
+
   return (
     <div className="space-y-5">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="space-y-1.5">
           <Badge variant="secondary" className="w-fit gap-1.5"><CalendarDays aria-hidden="true" className="size-4" /> Meal planning</Badge>
           <h2 className="text-2xl font-semibold tracking-tight">Plan your meals</h2>
-          <p className="max-w-2xl text-sm leading-6 text-muted-foreground">Schedule saved recipes by day, set servings, and review estimated meal costs.</p>
+          <p className="max-w-2xl text-sm leading-6 text-muted-foreground">Schedule saved recipes, review estimated costs, and build a shopping list for the week.</p>
         </div>
         <div className="flex items-center gap-2">
           <Button type="button" variant="outline" size="icon" aria-label="Previous week" title="Previous week" onClick={() => setWeekStart((current) => shiftDate(current, -7))}><ArrowLeft aria-hidden="true" /></Button>
@@ -302,7 +402,7 @@ export default function MealPlanner() {
         <CardHeader className="flex flex-col gap-3 space-y-0 border-b p-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-1">
             <CardTitle className="flex items-center gap-2 text-base"><CalendarDays aria-hidden="true" className="size-4 text-primary" /> Week of {weekLabel}</CardTitle>
-            <CardDescription>One recipe can be planned for each meal slot. Select a planned meal to change its recipe or servings.</CardDescription>
+            <CardDescription>Plan recipes and servings for the week, then review the combined ingredients.</CardDescription>
           </div>
           <div className="flex shrink-0 gap-2">
             <Badge variant="outline" className="gap-1.5"><Utensils aria-hidden="true" className="size-3.5" /> {plannedEntries.length} planned</Badge>
@@ -334,62 +434,120 @@ export default function MealPlanner() {
             </div>
           )}
           {state.kind === 'loaded' && state.recipes.length > 0 && (
-            <div className="space-y-3">
-              {weekDates.map((date) => {
-                const dateKey = dateToIso(date);
-                const isToday = dateKey === today;
-                return (
-                  <section key={dateKey} className={`rounded-lg border p-3 sm:p-4 ${isToday ? 'border-primary/40 bg-primary/[0.025]' : 'bg-card'}`} aria-label={`${formatDay(date)}, ${formatDate(date)}`}>
-                    <div className="mb-3 flex items-center gap-2">
-                      <div className="min-w-0">
-                        <h3 className="truncate text-sm font-semibold">{formatDay(date)}</h3>
-                        <p className="text-xs text-muted-foreground">{formatDate(date)}</p>
+            <Tabs defaultValue="week" className="space-y-3">
+              <TabsList className="grid h-auto w-full grid-cols-2 sm:w-fit">
+                <TabsTrigger value="week" className="gap-2"><CalendarDays aria-hidden="true" className="size-4" /> Week plan</TabsTrigger>
+                <TabsTrigger value="shopping" className="gap-2"><ShoppingBasket aria-hidden="true" className="size-4" /> Shopping list{shoppingItems.length > 0 && <span className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-md bg-secondary px-1.5 text-[10px] font-semibold text-secondary-foreground">{shoppingItems.length}</span>}</TabsTrigger>
+              </TabsList>
+              <TabsContent value="week" className="mt-0 space-y-3">
+                {weekDates.map((date) => {
+                  const dateKey = dateToIso(date);
+                  const isToday = dateKey === today;
+                  return (
+                    <section key={dateKey} className={`rounded-lg border p-3 sm:p-4 ${isToday ? 'border-primary/40 bg-primary/[0.025]' : 'bg-card'}`} aria-label={`${formatDay(date)}, ${formatDate(date)}`}>
+                      <div className="mb-3 flex items-center gap-2">
+                        <div className="min-w-0">
+                          <h3 className="truncate text-sm font-semibold">{formatDay(date)}</h3>
+                          <p className="text-xs text-muted-foreground">{formatDate(date)}</p>
+                        </div>
+                        {isToday && <Badge variant="secondary" className="ml-auto">Today</Badge>}
                       </div>
-                      {isToday && <Badge variant="secondary" className="ml-auto">Today</Badge>}
-                    </div>
-                    <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                      {mealTypes.map((mealType) => {
-                        const entry = entriesBySlot.get(`${dateKey}:${mealType}`);
-                        const recipe = entry ? recipesById.get(entry.recipeId) : undefined;
-                        return (
-                          <div key={mealType} className="min-w-0 rounded-md border bg-background p-2.5">
-                            <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground"><Clock3 aria-hidden="true" className="size-3.5" />{mealLabels[mealType]}</div>
-                            {entry && recipe ? (
-                              <button
-                                type="button"
-                                className="group flex min-h-[4.35rem] w-full min-w-0 items-start justify-between gap-2 rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                onClick={() => setEditingEntry(entry)}
-                                aria-label={`Edit ${mealLabels[mealType]}: ${recipe.name}`}
-                              >
-                                <span className="min-w-0">
-                                  <span className="block truncate text-sm font-medium group-hover:text-primary">{recipe.name}</span>
-                                  <span className="mt-1 block text-xs text-muted-foreground">{entry.servings} {entry.servings === 1 ? 'serving' : 'servings'}</span>
-                                  <span className="mt-1 block truncate text-xs font-medium tabular-nums text-foreground/80">
-                                    {recipe.costPerServingCentavos === null
-                                      ? 'Cost unavailable'
-                                      : currencyFormatter.format(recipe.costPerServingCentavos * entry.servings / 100)}
+                      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                        {mealTypes.map((mealType) => {
+                          const entry = entriesBySlot.get(`${dateKey}:${mealType}`);
+                          const recipe = entry ? recipesById.get(entry.recipeId) : undefined;
+                          return (
+                            <div key={mealType} className="min-w-0 rounded-md border bg-background p-2.5">
+                              <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground"><Clock3 aria-hidden="true" className="size-3.5" />{mealLabels[mealType]}</div>
+                              {entry && recipe ? (
+                                <button
+                                  type="button"
+                                  className="group flex min-h-[4.35rem] w-full min-w-0 items-start justify-between gap-2 rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                  onClick={() => setEditingEntry(entry)}
+                                  aria-label={`Edit ${mealLabels[mealType]}: ${recipe.name}`}
+                                >
+                                  <span className="min-w-0">
+                                    <span className="block truncate text-sm font-medium group-hover:text-primary">{recipe.name}</span>
+                                    <span className="mt-1 block text-xs text-muted-foreground">{entry.servings} {entry.servings === 1 ? 'serving' : 'servings'}</span>
+                                    <span className="mt-1 block truncate text-xs font-medium tabular-nums text-foreground/80">
+                                      {recipe.costPerServingCentavos === null
+                                        ? 'Cost unavailable'
+                                        : currencyFormatter.format(recipe.costPerServingCentavos * entry.servings / 100)}
+                                    </span>
                                   </span>
-                                </span>
-                                <Pencil aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-muted-foreground group-hover:text-primary" />
-                              </button>
-                            ) : (
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                className="h-[4.35rem] w-full justify-start px-2 text-xs text-muted-foreground"
-                                onClick={() => setNewSlot({ date: dateKey, mealType })}
-                              >
-                                <Plus aria-hidden="true" className="size-4" /> Add recipe
-                              </Button>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </section>
-                );
-              })}
-            </div>
+                                  <Pencil aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-muted-foreground group-hover:text-primary" />
+                                </button>
+                              ) : (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  className="h-[4.35rem] w-full justify-start px-2 text-xs text-muted-foreground"
+                                  onClick={() => setNewSlot({ date: dateKey, mealType })}
+                                >
+                                  <Plus aria-hidden="true" className="size-4" /> Add recipe
+                                </Button>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </section>
+                  );
+                })}
+              </TabsContent>
+              <TabsContent value="shopping" className="mt-0">
+                {shoppingItems.length === 0 ? (
+                  <div className="flex min-h-48 flex-col items-center justify-center rounded-lg border border-dashed bg-muted/20 px-6 text-center">
+                    <span className="mb-3 flex size-10 items-center justify-center rounded-full bg-primary/10 text-primary"><ShoppingBasket aria-hidden="true" className="size-5" /></span>
+                    <p className="text-sm font-medium">Plan meals to build your shopping list</p>
+                    <p className="mt-1 max-w-md text-sm leading-6 text-muted-foreground">Ingredients from the recipes planned for this week will appear here.</p>
+                  </div>
+                ) : (
+                  <Card className="shadow-none">
+                    <CardHeader className="flex flex-col gap-2 space-y-0 p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4">
+                      <div className="space-y-1">
+                        <CardTitle className="flex items-center gap-2 text-base"><ListChecks aria-hidden="true" className="size-4 text-primary" /> Ingredients for this week</CardTitle>
+                        <CardDescription>Quantities are scaled to planned servings. Checked items are saved for this week in this browser; pantry stock is not deducted.</CardDescription>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant="secondary" className="w-fit tabular-nums">{checkedShoppingCount} of {shoppingItems.length} picked up</Badge>
+                        {checkedShoppingCount > 0 && (
+                          <Button type="button" variant="ghost" size="sm" className="h-8" onClick={clearShoppingChecks}>
+                            <RotateCcw aria-hidden="true" /> Clear checked
+                          </Button>
+                        )}
+                      </div>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                      <ul className="divide-y border-t">
+                        {shoppingItems.map((item) => (
+                          <li key={`${item.groceryItemId}:${item.unitId}`} className="flex min-w-0 items-center gap-3 px-3 py-3 sm:px-4">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="size-8 shrink-0"
+                              aria-label={`Mark ${item.itemName} as ${checkedShoppingKeys.has(`${item.groceryItemId}:${item.unitId}`) ? 'not picked up' : 'picked up'}`}
+                              aria-pressed={checkedShoppingKeys.has(`${item.groceryItemId}:${item.unitId}`)}
+                              onClick={() => toggleShoppingItem(`${item.groceryItemId}:${item.unitId}`)}
+                            >
+                              {checkedShoppingKeys.has(`${item.groceryItemId}:${item.unitId}`)
+                                ? <CircleCheck aria-hidden="true" className="size-5 text-primary" />
+                                : <Circle aria-hidden="true" className="size-5 text-muted-foreground" />}
+                            </Button>
+                            <div className="min-w-0 flex-1">
+                              <p className={`truncate text-sm font-medium ${checkedShoppingKeys.has(`${item.groceryItemId}:${item.unitId}`) ? 'text-muted-foreground line-through' : ''}`}>{item.itemName}</p>
+                              <p className="mt-0.5 text-xs text-muted-foreground">{item.plannedMealCount === 1 ? 'Used in 1 planned meal' : `Used in ${item.plannedMealCount} planned meals`}</p>
+                            </div>
+                            <p className="shrink-0 text-right text-sm font-semibold tabular-nums">{quantityFormatter.format(item.quantity)} <span className="font-normal text-muted-foreground">{item.unit}</span></p>
+                          </li>
+                        ))}
+                      </ul>
+                    </CardContent>
+                  </Card>
+                )}
+              </TabsContent>
+            </Tabs>
           )}
         </CardContent>
       </Card>
