@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { AlertCircle, ArrowLeft, ArrowRight, CalendarDays, ChefHat, Clock3, ListChecks, Pencil, Plus, ShoppingBasket, Trash2, Utensils } from 'lucide-react';
+import { AlertCircle, ArrowLeft, ArrowRight, CalendarDays, ChefHat, Circle, CircleCheck, Clock3, ListChecks, Pencil, Plus, RotateCcw, ShoppingBasket, Trash2, Utensils } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -42,6 +42,11 @@ type ShoppingListItem = {
   unit: string;
   quantity: number;
   plannedMealCount: number;
+};
+
+type ShoppingCheckState = {
+  weekFrom: string;
+  checkedKeys: string[];
 };
 
 function dateToIso(date: Date): string {
@@ -109,6 +114,29 @@ function buildShoppingList(entries: MealPlanEntry[], recipesById: Map<string, Re
   return Array.from(items.values()).sort((left, right) => (
     left.itemName.localeCompare(right.itemName) || left.unit.localeCompare(right.unit)
   ));
+}
+
+function shoppingCheckStorageKey(weekFrom: string): string {
+  return `basketwise:shopping-checks:${weekFrom}`;
+}
+
+function loadShoppingChecks(weekFrom: string): string[] {
+  try {
+    const raw = window.localStorage.getItem(shoppingCheckStorageKey(weekFrom));
+    if (!raw) return [];
+    const values: unknown = JSON.parse(raw);
+    return Array.isArray(values) ? values.filter((value): value is string => typeof value === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveShoppingChecks(weekFrom: string, checkedKeys: string[]): void {
+  try {
+    window.localStorage.setItem(shoppingCheckStorageKey(weekFrom), JSON.stringify(checkedKeys));
+  } catch {
+    // Keep checklist interaction usable if browser storage is unavailable.
+  }
 }
 
 function MealPlanEditor({
@@ -263,11 +291,16 @@ export default function MealPlanner() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [editingEntry, setEditingEntry] = useState<MealPlanEntry | null>(null);
   const [newSlot, setNewSlot] = useState<{ date: string; mealType: MealType } | null>(null);
+  const [shoppingCheckState, setShoppingCheckState] = useState<ShoppingCheckState>({ weekFrom: '', checkedKeys: [] });
 
   const weekDates = useMemo(() => Array.from({ length: 7 }, (_, index) => shiftDate(weekStart, index)), [weekStart]);
   const weekFrom = dateToIso(weekDates[0]);
   const weekTo = dateToIso(weekDates[6]);
   const today = dateToIso(new Date());
+
+  useEffect(() => {
+    setShoppingCheckState({ weekFrom, checkedKeys: loadShoppingChecks(weekFrom) });
+  }, [weekFrom]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -300,6 +333,21 @@ export default function MealPlanner() {
 
   const plannedEntries = state.kind === 'loaded' ? state.entries : [];
   const shoppingItems = useMemo(() => buildShoppingList(plannedEntries, recipesById), [plannedEntries, recipesById]);
+  const checkedShoppingKeys = new Set(
+    shoppingCheckState.weekFrom === weekFrom ? shoppingCheckState.checkedKeys : [],
+  );
+  const checkedShoppingCount = shoppingItems.filter((item) => checkedShoppingKeys.has(`${item.groceryItemId}:${item.unitId}`)).length;
+
+  useEffect(() => {
+    if (state.kind !== 'loaded' || shoppingCheckState.weekFrom !== weekFrom) return;
+    const validKeys = new Set(shoppingItems.map((item) => `${item.groceryItemId}:${item.unitId}`));
+    const checkedKeys = shoppingCheckState.checkedKeys.filter((key) => validKeys.has(key));
+    if (checkedKeys.length !== shoppingCheckState.checkedKeys.length) {
+      setShoppingCheckState({ weekFrom, checkedKeys });
+      return;
+    }
+    saveShoppingChecks(weekFrom, checkedKeys);
+  }, [state.kind, weekFrom, shoppingItems, shoppingCheckState]);
   const estimatedCostCentavos = plannedEntries.reduce((total, entry) => {
     const recipe = recipesById.get(entry.recipeId);
     return total + (recipe?.costPerServingCentavos === null || recipe?.costPerServingCentavos === undefined
@@ -320,6 +368,19 @@ export default function MealPlanner() {
   function refreshPlan() {
     closeEditor();
     setRefreshKey((current) => current + 1);
+  }
+
+  function toggleShoppingItem(key: string) {
+    setShoppingCheckState((current) => {
+      const checkedKeys = new Set(current.weekFrom === weekFrom ? current.checkedKeys : []);
+      if (checkedKeys.has(key)) checkedKeys.delete(key);
+      else checkedKeys.add(key);
+      return { weekFrom, checkedKeys: Array.from(checkedKeys) };
+    });
+  }
+
+  function clearShoppingChecks() {
+    setShoppingCheckState({ weekFrom, checkedKeys: [] });
   }
 
   return (
@@ -446,16 +507,36 @@ export default function MealPlanner() {
                     <CardHeader className="flex flex-col gap-2 space-y-0 p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4">
                       <div className="space-y-1">
                         <CardTitle className="flex items-center gap-2 text-base"><ListChecks aria-hidden="true" className="size-4 text-primary" /> Ingredients for this week</CardTitle>
-                        <CardDescription>Quantities are scaled to planned servings. Pantry stock is not deducted; different units stay separate.</CardDescription>
+                        <CardDescription>Quantities are scaled to planned servings. Checked items are saved for this week in this browser; pantry stock is not deducted.</CardDescription>
                       </div>
-                      <Badge variant="secondary" className="w-fit">{shoppingItems.length} {shoppingItems.length === 1 ? 'item' : 'items'}</Badge>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant="secondary" className="w-fit tabular-nums">{checkedShoppingCount} of {shoppingItems.length} picked up</Badge>
+                        {checkedShoppingCount > 0 && (
+                          <Button type="button" variant="ghost" size="sm" className="h-8" onClick={clearShoppingChecks}>
+                            <RotateCcw aria-hidden="true" /> Clear checked
+                          </Button>
+                        )}
+                      </div>
                     </CardHeader>
                     <CardContent className="p-0">
                       <ul className="divide-y border-t">
                         {shoppingItems.map((item) => (
-                          <li key={`${item.groceryItemId}:${item.unitId}`} className="flex min-w-0 items-center justify-between gap-4 px-3 py-3 sm:px-4">
-                            <div className="min-w-0">
-                              <p className="truncate text-sm font-medium">{item.itemName}</p>
+                          <li key={`${item.groceryItemId}:${item.unitId}`} className="flex min-w-0 items-center gap-3 px-3 py-3 sm:px-4">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="size-8 shrink-0"
+                              aria-label={`Mark ${item.itemName} as ${checkedShoppingKeys.has(`${item.groceryItemId}:${item.unitId}`) ? 'not picked up' : 'picked up'}`}
+                              aria-pressed={checkedShoppingKeys.has(`${item.groceryItemId}:${item.unitId}`)}
+                              onClick={() => toggleShoppingItem(`${item.groceryItemId}:${item.unitId}`)}
+                            >
+                              {checkedShoppingKeys.has(`${item.groceryItemId}:${item.unitId}`)
+                                ? <CircleCheck aria-hidden="true" className="size-5 text-primary" />
+                                : <Circle aria-hidden="true" className="size-5 text-muted-foreground" />}
+                            </Button>
+                            <div className="min-w-0 flex-1">
+                              <p className={`truncate text-sm font-medium ${checkedShoppingKeys.has(`${item.groceryItemId}:${item.unitId}`) ? 'text-muted-foreground line-through' : ''}`}>{item.itemName}</p>
                               <p className="mt-0.5 text-xs text-muted-foreground">{item.plannedMealCount === 1 ? 'Used in 1 planned meal' : `Used in ${item.plannedMealCount} planned meals`}</p>
                             </div>
                             <p className="shrink-0 text-right text-sm font-semibold tabular-nums">{quantityFormatter.format(item.quantity)} <span className="font-normal text-muted-foreground">{item.unit}</span></p>
