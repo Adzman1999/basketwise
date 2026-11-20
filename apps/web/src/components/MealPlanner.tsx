@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { AlertCircle, ArrowLeft, ArrowRight, CalendarDays, ChefHat, Circle, CircleCheck, Clock3, ListChecks, Pencil, Plus, RotateCcw, ShoppingBasket, Trash2, Utensils } from 'lucide-react';
+import { AlertCircle, ArrowLeft, ArrowRight, CalendarDays, ChefHat, Circle, CircleCheck, Clock3, Filter, ListChecks, Pencil, Plus, RotateCcw, ShoppingBasket, Trash2, Utensils } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -353,6 +353,7 @@ export default function MealPlanner() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [pantryRefreshKey, setPantryRefreshKey] = useState(0);
   const [pantryComparisonState, setPantryComparisonState] = useState<PantryComparisonState>({ kind: 'idle' });
+  const [showOnlyItemsToBuy, setShowOnlyItemsToBuy] = useState(false);
   const [editingEntry, setEditingEntry] = useState<MealPlanEntry | null>(null);
   const [newSlot, setNewSlot] = useState<{ date: string; mealType: MealType } | null>(null);
   const [shoppingCheckState, setShoppingCheckState] = useState<ShoppingCheckState>({ weekFrom: '', checkedKeys: [] });
@@ -425,6 +426,19 @@ export default function MealPlanner() {
     shoppingCheckState.weekFrom === weekFrom ? shoppingCheckState.checkedKeys : [],
   );
   const checkedShoppingCount = shoppingItems.filter((item) => checkedShoppingKeys.has(`${item.groceryItemId}:${item.unitId}`)).length;
+  const pantryCoverageByKey = useMemo(() => {
+    if (pantryComparisonState.kind !== 'loaded') return new Map<string, ReturnType<typeof getPantryCoverage>>();
+    return new Map(shoppingItems.map((item) => [
+      `${item.groceryItemId}:${item.unitId}`,
+      getPantryCoverage(item, pantryComparisonState, today),
+    ]));
+  }, [pantryComparisonState, shoppingItems, today]);
+  const shoppingItemsToBuy = pantryComparisonState.kind === 'loaded'
+    ? shoppingItems.filter((item) => (pantryCoverageByKey.get(`${item.groceryItemId}:${item.unitId}`)?.amountToBuy ?? 0) > 0)
+    : shoppingItems;
+  const visibleShoppingItems = showOnlyItemsToBuy && pantryComparisonState.kind === 'loaded'
+    ? shoppingItemsToBuy
+    : shoppingItems;
 
   useEffect(() => {
     if (state.kind !== 'loaded' || shoppingCheckState.weekFrom !== weekFrom) return;
@@ -602,6 +616,22 @@ export default function MealPlanner() {
                         <CardDescription>Quantities scale to planned servings. Unexpired pantry stock with a matching or saved unit conversion is subtracted; checklist progress is saved per week in this browser.</CardDescription>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          type="button"
+                          variant={showOnlyItemsToBuy ? 'secondary' : 'outline'}
+                          size="sm"
+                          className="h-8"
+                          aria-label="Show only items still needed"
+                          aria-pressed={showOnlyItemsToBuy}
+                          disabled={pantryComparisonState.kind !== 'loaded'}
+                          onClick={() => setShowOnlyItemsToBuy((current) => !current)}
+                        >
+                          <Filter aria-hidden="true" />
+                          Need to buy
+                          {pantryComparisonState.kind === 'loaded' && (
+                            <span className="ml-1 tabular-nums">{shoppingItemsToBuy.length}</span>
+                          )}
+                        </Button>
                         <Badge variant="secondary" className="w-fit tabular-nums">{checkedShoppingCount} of {shoppingItems.length} picked up</Badge>
                         {checkedShoppingCount > 0 && (
                           <Button type="button" variant="ghost" size="sm" className="h-8" onClick={clearShoppingChecks}>
@@ -621,12 +651,19 @@ export default function MealPlanner() {
                           </AlertDescription>
                         </Alert>
                       )}
-                      <ul className="divide-y border-t">
-                        {shoppingItems.map((item) => {
+                      {showOnlyItemsToBuy && pantryComparisonState.kind === 'loaded' && visibleShoppingItems.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center gap-2 border-t px-5 py-10 text-center">
+                          <p className="text-sm font-medium">Your pantry covers this week’s list</p>
+                          <p className="text-sm text-muted-foreground">No additional quantities are needed for the planned meals.</p>
+                          <Button type="button" variant="ghost" size="sm" onClick={() => setShowOnlyItemsToBuy(false)}>Show all ingredients</Button>
+                        </div>
+                      ) : (
+                        <ul className="divide-y border-t">
+                        {visibleShoppingItems.map((item) => {
                           const itemKey = `${item.groceryItemId}:${item.unitId}`;
                           const isChecked = checkedShoppingKeys.has(itemKey);
                           const coverage = pantryComparisonState.kind === 'loaded'
-                            ? getPantryCoverage(item, pantryComparisonState, today)
+                            ? pantryCoverageByKey.get(itemKey) ?? null
                             : null;
                           return (
                             <li key={itemKey} className="flex min-w-0 items-center gap-3 px-3 py-3 sm:px-4">
@@ -669,7 +706,8 @@ export default function MealPlanner() {
                             </li>
                           );
                         })}
-                      </ul>
+                        </ul>
+                      )}
                     </CardContent>
                   </Card>
                 )}
