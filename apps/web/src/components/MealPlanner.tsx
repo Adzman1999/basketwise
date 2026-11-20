@@ -12,13 +12,21 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   deleteMealPlan,
+  fetchGroceryItemUnitConversions,
   fetchMealPlans,
+  fetchPantryStock,
+  fetchPantryStockLots,
   fetchRecipes,
   saveMealPlan,
+  type GroceryItemUnitConversion,
   type MealPlanEntry,
   type MealType,
+  type PantryStockItem,
+  type PantryStockLot,
   type Recipe,
 } from '@/lib/api';
+import { philippineDateString } from '@/lib/dates';
+import { getPantryCoverage, type ShoppingListItem } from '@/lib/pantryCoverage';
 
 type PlanState =
   | { kind: 'loading' }
@@ -35,19 +43,20 @@ const mealLabels: Record<MealType, string> = {
 const currencyFormatter = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' });
 const quantityFormatter = new Intl.NumberFormat('en-PH', { maximumFractionDigits: 3 });
 
-type ShoppingListItem = {
-  groceryItemId: string;
-  itemName: string;
-  unitId: string;
-  unit: string;
-  quantity: number;
-  plannedMealCount: number;
-};
-
 type ShoppingCheckState = {
   weekFrom: string;
   checkedKeys: string[];
 };
+
+type PantryComparisonState =
+  | { kind: 'idle' | 'loading' }
+  | {
+      kind: 'loaded';
+      stocks: PantryStockItem[];
+      lots: PantryStockLot[];
+      conversionsByGroceryItemId: Map<string, GroceryItemUnitConversion[]>;
+    }
+  | { kind: 'error'; message: string };
 
 function dateToIso(date: Date): string {
   const year = date.getFullYear();
@@ -87,6 +96,59 @@ async function fetchAllRecipes(signal: AbortSignal): Promise<Recipe[]> {
     page += 1;
   } while (recipes.length < total);
   return recipes;
+}
+
+async function fetchAllPantryStock(signal: AbortSignal): Promise<PantryStockItem[]> {
+  const items: PantryStockItem[] = [];
+  let page = 1;
+  let total = 0;
+  do {
+    const result = await fetchPantryStock(page, 100, '', '', signal);
+    items.push(...result.items);
+    total = result.total;
+    page += 1;
+  } while (items.length < total);
+  return items;
+}
+
+async function fetchAllPantryLots(search: string, signal: AbortSignal): Promise<PantryStockLot[]> {
+  const items: PantryStockLot[] = [];
+  let page = 1;
+  let total = 0;
+  do {
+    const result = await fetchPantryStockLots(page, 100, search, signal);
+    items.push(...result.items);
+    total = result.total;
+    page += 1;
+  } while (items.length < total);
+  return items;
+}
+
+async function fetchPantryComparisonData(
+  shoppingItems: ShoppingListItem[],
+  signal: AbortSignal,
+): Promise<Extract<PantryComparisonState, { kind: 'loaded' }>> {
+  const stocks = await fetchAllPantryStock(signal);
+  const groceryItemIds = new Set(shoppingItems.map((item) => item.groceryItemId));
+  const matchingStocks = stocks.filter((stock) => groceryItemIds.has(stock.groceryItemId));
+  const searches = Array.from(new Set(matchingStocks.map((stock) => stock.itemName)));
+  const conversionItemIds = Array.from(new Set(matchingStocks.map((stock) => stock.groceryItemId)));
+  const [lotPages, conversionPages] = await Promise.all([
+    Promise.all(searches.map((search) => fetchAllPantryLots(search, signal))),
+    Promise.all(conversionItemIds.map(async (groceryItemId) => {
+      const result = await fetchGroceryItemUnitConversions(groceryItemId, signal);
+      return [groceryItemId, result.items] as const;
+    })),
+  ]);
+  const matchingStockIds = new Set(matchingStocks.map((stock) => stock.id));
+  const lots = lotPages.flat().filter((lot) => matchingStockIds.has(lot.pantryStockId));
+
+  return {
+    kind: 'loaded',
+    stocks: matchingStocks,
+    lots,
+    conversionsByGroceryItemId: new Map(conversionPages),
+  };
 }
 
 function buildShoppingList(entries: MealPlanEntry[], recipesById: Map<string, Recipe>): ShoppingListItem[] {
@@ -289,6 +351,8 @@ export default function MealPlanner() {
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
   const [state, setState] = useState<PlanState>({ kind: 'loading' });
   const [refreshKey, setRefreshKey] = useState(0);
+  const [pantryRefreshKey, setPantryRefreshKey] = useState(0);
+  const [pantryComparisonState, setPantryComparisonState] = useState<PantryComparisonState>({ kind: 'idle' });
   const [editingEntry, setEditingEntry] = useState<MealPlanEntry | null>(null);
   const [newSlot, setNewSlot] = useState<{ date: string; mealType: MealType } | null>(null);
   const [shoppingCheckState, setShoppingCheckState] = useState<ShoppingCheckState>({ weekFrom: '', checkedKeys: [] });
@@ -296,7 +360,7 @@ export default function MealPlanner() {
   const weekDates = useMemo(() => Array.from({ length: 7 }, (_, index) => shiftDate(weekStart, index)), [weekStart]);
   const weekFrom = dateToIso(weekDates[0]);
   const weekTo = dateToIso(weekDates[6]);
-  const today = dateToIso(new Date());
+  const today = philippineDateString();
 
   useEffect(() => {
     setShoppingCheckState({ weekFrom, checkedKeys: loadShoppingChecks(weekFrom) });
@@ -333,6 +397,30 @@ export default function MealPlanner() {
 
   const plannedEntries = state.kind === 'loaded' ? state.entries : [];
   const shoppingItems = useMemo(() => buildShoppingList(plannedEntries, recipesById), [plannedEntries, recipesById]);
+
+  useEffect(() => {
+    if (state.kind !== 'loaded') return;
+    if (shoppingItems.length === 0) {
+      setPantryComparisonState({ kind: 'loaded', stocks: [], lots: [], conversionsByGroceryItemId: new Map() });
+      return;
+    }
+
+    const controller = new AbortController();
+    setPantryComparisonState({ kind: 'loading' });
+    void fetchPantryComparisonData(shoppingItems, controller.signal)
+      .then((data) => {
+        if (!controller.signal.aborted) setPantryComparisonState(data);
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) return;
+        setPantryComparisonState({
+          kind: 'error',
+          message: error instanceof Error ? error.message : 'Could not compare pantry stock.',
+        });
+      });
+    return () => controller.abort();
+  }, [state.kind, shoppingItems, pantryRefreshKey]);
+
   const checkedShoppingKeys = new Set(
     shoppingCheckState.weekFrom === weekFrom ? shoppingCheckState.checkedKeys : [],
   );
@@ -381,6 +469,10 @@ export default function MealPlanner() {
 
   function clearShoppingChecks() {
     setShoppingCheckState({ weekFrom, checkedKeys: [] });
+  }
+
+  function retryPantryComparison() {
+    setPantryRefreshKey((current) => current + 1);
   }
 
   return (
@@ -507,7 +599,7 @@ export default function MealPlanner() {
                     <CardHeader className="flex flex-col gap-2 space-y-0 p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4">
                       <div className="space-y-1">
                         <CardTitle className="flex items-center gap-2 text-base"><ListChecks aria-hidden="true" className="size-4 text-primary" /> Ingredients for this week</CardTitle>
-                        <CardDescription>Quantities are scaled to planned servings. Checked items are saved for this week in this browser; pantry stock is not deducted.</CardDescription>
+                        <CardDescription>Quantities scale to planned servings. Unexpired pantry stock with a matching or saved unit conversion is subtracted; checklist progress is saved per week in this browser.</CardDescription>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
                         <Badge variant="secondary" className="w-fit tabular-nums">{checkedShoppingCount} of {shoppingItems.length} picked up</Badge>
@@ -519,29 +611,64 @@ export default function MealPlanner() {
                       </div>
                     </CardHeader>
                     <CardContent className="p-0">
+                      {pantryComparisonState.kind === 'error' && (
+                        <Alert variant="destructive" className="m-3 sm:m-4">
+                          <AlertCircle aria-hidden="true" />
+                          <AlertTitle>Pantry quantities could not load</AlertTitle>
+                          <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
+                            <span>{pantryComparisonState.message}</span>
+                            <Button type="button" size="sm" variant="outline" onClick={retryPantryComparison}>Try again</Button>
+                          </AlertDescription>
+                        </Alert>
+                      )}
                       <ul className="divide-y border-t">
-                        {shoppingItems.map((item) => (
-                          <li key={`${item.groceryItemId}:${item.unitId}`} className="flex min-w-0 items-center gap-3 px-3 py-3 sm:px-4">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="size-8 shrink-0"
-                              aria-label={`Mark ${item.itemName} as ${checkedShoppingKeys.has(`${item.groceryItemId}:${item.unitId}`) ? 'not picked up' : 'picked up'}`}
-                              aria-pressed={checkedShoppingKeys.has(`${item.groceryItemId}:${item.unitId}`)}
-                              onClick={() => toggleShoppingItem(`${item.groceryItemId}:${item.unitId}`)}
-                            >
-                              {checkedShoppingKeys.has(`${item.groceryItemId}:${item.unitId}`)
-                                ? <CircleCheck aria-hidden="true" className="size-5 text-primary" />
-                                : <Circle aria-hidden="true" className="size-5 text-muted-foreground" />}
-                            </Button>
-                            <div className="min-w-0 flex-1">
-                              <p className={`truncate text-sm font-medium ${checkedShoppingKeys.has(`${item.groceryItemId}:${item.unitId}`) ? 'text-muted-foreground line-through' : ''}`}>{item.itemName}</p>
-                              <p className="mt-0.5 text-xs text-muted-foreground">{item.plannedMealCount === 1 ? 'Used in 1 planned meal' : `Used in ${item.plannedMealCount} planned meals`}</p>
-                            </div>
-                            <p className="shrink-0 text-right text-sm font-semibold tabular-nums">{quantityFormatter.format(item.quantity)} <span className="font-normal text-muted-foreground">{item.unit}</span></p>
-                          </li>
-                        ))}
+                        {shoppingItems.map((item) => {
+                          const itemKey = `${item.groceryItemId}:${item.unitId}`;
+                          const isChecked = checkedShoppingKeys.has(itemKey);
+                          const coverage = pantryComparisonState.kind === 'loaded'
+                            ? getPantryCoverage(item, pantryComparisonState, today)
+                            : null;
+                          return (
+                            <li key={itemKey} className="flex min-w-0 items-center gap-3 px-3 py-3 sm:px-4">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="size-8 shrink-0"
+                                aria-label={`Mark ${item.itemName} as ${isChecked ? 'not picked up' : 'picked up'}`}
+                                aria-pressed={isChecked}
+                                onClick={() => toggleShoppingItem(itemKey)}
+                              >
+                                {isChecked
+                                  ? <CircleCheck aria-hidden="true" className="size-5 text-primary" />
+                                  : <Circle aria-hidden="true" className="size-5 text-muted-foreground" />}
+                              </Button>
+                              <div className="min-w-0 flex-1">
+                                <p className={`truncate text-sm font-medium ${isChecked ? 'text-muted-foreground line-through' : ''}`}>{item.itemName}</p>
+                                <p className="mt-0.5 text-xs text-muted-foreground">{item.plannedMealCount === 1 ? 'Used in 1 planned meal' : `Used in ${item.plannedMealCount} planned meals`}</p>
+                                {coverage ? (
+                                  <>
+                                    <p className="mt-1 text-xs font-medium text-foreground/80">
+                                      {coverage.unconvertedStockFound && coverage.amountToBuy > 0
+                                        ? `At least ${quantityFormatter.format(coverage.amountToBuy)} ${item.unit} still needed`
+                                        : coverage.amountToBuy > 0
+                                          ? `Buy ${quantityFormatter.format(coverage.amountToBuy)} ${item.unit}`
+                                          : 'Covered by pantry'}
+                                    </p>
+                                    {coverage.comparableOnHand > 0 && (
+                                      <p className="text-xs text-muted-foreground">{quantityFormatter.format(coverage.comparableOnHand)} {item.unit} unexpired on hand</p>
+                                    )}
+                                    {coverage.unconvertedStockFound && <p className="text-xs text-muted-foreground">Some pantry stock uses another unit; add a conversion to compare it.</p>}
+                                    {coverage.expiredStockFound && <p className="text-xs text-muted-foreground">Expired stock is excluded from this estimate.</p>}
+                                  </>
+                                ) : pantryComparisonState.kind === 'loading' || pantryComparisonState.kind === 'idle' ? (
+                                  <p className="mt-1 text-xs text-muted-foreground">Checking pantry stock…</p>
+                                ) : null}
+                              </div>
+                              <p className="shrink-0 self-start pt-1 text-right text-sm font-semibold tabular-nums">{quantityFormatter.format(item.quantity)} <span className="font-normal text-muted-foreground">{item.unit}</span></p>
+                            </li>
+                          );
+                        })}
                       </ul>
                     </CardContent>
                   </Card>
