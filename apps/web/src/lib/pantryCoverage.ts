@@ -54,6 +54,7 @@ export function getPantryCoverage(
   let comparableOnHand = 0;
   let expiredStockFound = false;
   let unconvertedStockFound = false;
+  const unconvertedStockUnits = new Map<string, { unitId: string; unit: string; quantity: number }>();
 
   for (const stock of pantry.stocks.filter((candidate) => candidate.groceryItemId === item.groceryItemId)) {
     const stockLots = pantry.lots.filter((lot) => lot.pantryStockId === stock.id);
@@ -73,6 +74,12 @@ export function getPantryCoverage(
     if (expiredQuantity > 0) expiredStockFound = true;
     if (usableQuantity > 0 && factor === null) {
       unconvertedStockFound = true;
+      const existingUnit = unconvertedStockUnits.get(stock.unitId);
+      unconvertedStockUnits.set(stock.unitId, {
+        unitId: stock.unitId,
+        unit: existingUnit?.unit ?? stock.unit,
+        quantity: (existingUnit?.quantity ?? 0) + usableQuantity,
+      });
       continue;
     }
     if (factor !== null) comparableOnHand += usableQuantity * factor;
@@ -84,5 +91,7 @@ export function getPantryCoverage(
     amountToBuy: Math.max(0, Math.round((item.quantity - comparableOnHand) * 1000) / 1000),
     expiredStockFound,
     unconvertedStockFound,
+    unconvertedStockUnits: Array.from(unconvertedStockUnits.values())
+      .sort((left, right) => left.unit.localeCompare(right.unit)),
   };
 }

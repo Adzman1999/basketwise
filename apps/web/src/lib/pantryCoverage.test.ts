@@ -84,6 +84,7 @@ describe('getPantryCoverage', () => {
       amountToBuy: 500,
       expiredStockFound: true,
       unconvertedStockFound: false,
+      unconvertedStockUnits: [],
     });
   });
 

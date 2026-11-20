@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { AlertCircle, ArrowLeft, ArrowRight, CalendarDays, ChefHat, Circle, CircleCheck, Clock3, Filter, ListChecks, Pencil, Plus, ReceiptText, RotateCcw, ShoppingBasket, Trash2, Utensils } from 'lucide-react';
+import { AlertCircle, ArrowLeft, ArrowLeftRight, ArrowRight, CalendarDays, ChefHat, Circle, CircleCheck, Clock3, Filter, ListChecks, Pencil, Plus, ReceiptText, RotateCcw, ShoppingBasket, Trash2, Utensils } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -17,6 +17,7 @@ import {
   fetchPantryStock,
   fetchPantryStockLots,
   fetchRecipes,
+  saveGroceryItemUnitConversion,
   saveMealPlan,
   type GroceryItemUnitConversion,
   type MealPlanEntry,
@@ -364,6 +365,17 @@ export default function MealPlanner({
   const [editingEntry, setEditingEntry] = useState<MealPlanEntry | null>(null);
   const [newSlot, setNewSlot] = useState<{ date: string; mealType: MealType } | null>(null);
   const [shoppingCheckState, setShoppingCheckState] = useState<ShoppingCheckState>({ weekFrom: '', checkedKeys: [] });
+  const [unitConversionTarget, setUnitConversionTarget] = useState<{
+    groceryItemId: string;
+    itemName: string;
+    purchaseUnitId: string;
+    purchaseUnit: string;
+    recipeUnitId: string;
+    recipeUnit: string;
+  } | null>(null);
+  const [unitConversionRatio, setUnitConversionRatio] = useState('');
+  const [unitConversionError, setUnitConversionError] = useState('');
+  const [isSavingUnitConversion, setIsSavingUnitConversion] = useState(false);
 
   const weekDates = useMemo(() => Array.from({ length: 7 }, (_, index) => shiftDate(weekStart, index)), [weekStart]);
   const weekFrom = dateToIso(weekDates[0]);
@@ -497,6 +509,55 @@ export default function MealPlanner({
 
   function retryPantryComparison() {
     setPantryRefreshKey((current) => current + 1);
+  }
+
+  function openUnitConversion(item: ShoppingListItem, stockUnit: { unitId: string; unit: string }) {
+    setUnitConversionTarget({
+      groceryItemId: item.groceryItemId,
+      itemName: item.itemName,
+      purchaseUnitId: stockUnit.unitId,
+      purchaseUnit: stockUnit.unit,
+      recipeUnitId: item.unitId,
+      recipeUnit: item.unit,
+    });
+    setUnitConversionRatio('');
+    setUnitConversionError('');
+  }
+
+  function closeUnitConversion() {
+    if (isSavingUnitConversion) return;
+    setUnitConversionTarget(null);
+    setUnitConversionRatio('');
+    setUnitConversionError('');
+  }
+
+  async function saveUnitConversion(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!unitConversionTarget) return;
+
+    const ratio = Number(unitConversionRatio);
+    if (!unitConversionRatio.trim() || !Number.isFinite(ratio) || ratio <= 0 || ratio > 999_999_999.999999999
+      || Math.abs(ratio * 1_000_000_000 - Math.round(ratio * 1_000_000_000)) >= 0.0001) {
+      setUnitConversionError('Enter a positive amount with up to 9 decimal places.');
+      return;
+    }
+
+    setIsSavingUnitConversion(true);
+    setUnitConversionError('');
+    try {
+      await saveGroceryItemUnitConversion(unitConversionTarget.groceryItemId, {
+        purchaseUnitId: unitConversionTarget.purchaseUnitId,
+        recipeUnitId: unitConversionTarget.recipeUnitId,
+        recipeUnitsPerPurchaseUnit: ratio,
+      });
+      setUnitConversionTarget(null);
+      setUnitConversionRatio('');
+      setPantryRefreshKey((current) => current + 1);
+    } catch (caughtError) {
+      setUnitConversionError(caughtError instanceof Error ? caughtError.message : 'Could not save this conversion.');
+    } finally {
+      setIsSavingUnitConversion(false);
+    }
   }
 
   function startPurchaseDraft() {
@@ -743,7 +804,24 @@ export default function MealPlanner({
                                     {coverage.comparableOnHand > 0 && (
                                       <p className="text-xs text-muted-foreground">{quantityFormatter.format(coverage.comparableOnHand)} {item.unit} unexpired on hand</p>
                                     )}
-                                    {coverage.unconvertedStockFound && <p className="text-xs text-muted-foreground">Some pantry stock uses another unit; add a conversion to compare it.</p>}
+                                    {coverage.unconvertedStockFound && (
+                                      <div className="mt-1 space-y-1">
+                                        <p className="text-xs text-muted-foreground">Some pantry stock uses another unit and is not included in this estimate.</p>
+                                        {coverage.unconvertedStockUnits.map((stockUnit) => (
+                                          <Button
+                                            key={stockUnit.unitId}
+                                            type="button"
+                                            variant="link"
+                                            size="sm"
+                                            className="h-auto gap-1 px-0 py-0 text-xs"
+                                            onClick={() => openUnitConversion(item, stockUnit)}
+                                          >
+                                            <ArrowLeftRight aria-hidden="true" className="size-3.5" />
+                                            Convert {quantityFormatter.format(stockUnit.quantity)} {stockUnit.unit} to {item.unit}
+                                          </Button>
+                                        ))}
+                                      </div>
+                                    )}
                                     {coverage.expiredStockFound && <p className="text-xs text-muted-foreground">Expired stock is excluded from this estimate.</p>}
                                   </>
                                 ) : pantryComparisonState.kind === 'loading' || pantryComparisonState.kind === 'idle' ? (
@@ -781,6 +859,47 @@ export default function MealPlanner({
           onDeleted={refreshPlan}
         />
       )}
+
+      <Dialog
+        open={unitConversionTarget !== null}
+        onOpenChange={(open) => { if (!open) closeUnitConversion(); }}
+      >
+        <DialogContent>
+          <form onSubmit={(event) => void saveUnitConversion(event)} className="space-y-5">
+            <DialogHeader>
+              <DialogTitle>Convert pantry units</DialogTitle>
+              <DialogDescription>
+                For {unitConversionTarget?.itemName}, set how much of the shopping-list unit is in one pantry unit. This saved conversion will be reused for this item.
+              </DialogDescription>
+            </DialogHeader>
+            {unitConversionTarget && (
+              <div className="space-y-2">
+                <Label htmlFor="pantry-unit-conversion-ratio">Conversion</Label>
+                <div className="grid grid-cols-[auto_minmax(5rem,1fr)_auto] items-center gap-2">
+                  <span className="text-sm text-muted-foreground">1 {unitConversionTarget.purchaseUnit} =</span>
+                  <Input
+                    id="pantry-unit-conversion-ratio"
+                    type="number"
+                    min="0"
+                    step="any"
+                    inputMode="decimal"
+                    value={unitConversionRatio}
+                    onChange={(event) => setUnitConversionRatio(event.target.value)}
+                    aria-describedby={unitConversionError ? 'pantry-unit-conversion-error' : undefined}
+                    autoFocus
+                  />
+                  <span className="text-sm text-muted-foreground">{unitConversionTarget.recipeUnit}</span>
+                </div>
+                {unitConversionError && <p id="pantry-unit-conversion-error" role="alert" className="text-sm text-destructive">{unitConversionError}</p>}
+              </div>
+            )}
+            <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
+              <Button type="button" variant="outline" onClick={closeUnitConversion} disabled={isSavingUnitConversion}>Cancel</Button>
+              <Button type="submit" disabled={isSavingUnitConversion || !unitConversionTarget}>{isSavingUnitConversion ? 'Saving…' : 'Save conversion'}</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
