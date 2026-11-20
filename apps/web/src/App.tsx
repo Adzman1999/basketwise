@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { Activity, CheckCircle2, ReceiptText, RefreshCw } from 'lucide-react';
 import AppSidebar from '@/components/AppSidebar';
 import MonthlyBudget from '@/components/MonthlyBudget';
@@ -59,6 +59,7 @@ export default function App() {
   const [activeHref, setActiveHref] = useState(getActiveHref);
   const [purchaseDialogOpen, setPurchaseDialogOpen] = useState(false);
   const [purchaseDraftItems, setPurchaseDraftItems] = useState<PurchaseDraftLine[] | null>(null);
+  const purchaseDraftSavedCallback = useRef<((shoppingItemKeys: string[]) => void) | null>(null);
   const [purchaseFormInstance, setPurchaseFormInstance] = useState(0);
   const [purchaseRestockNotice, setPurchaseRestockNotice] = useState<Purchase['pantryRestockedItems'] | null>(null);
 
@@ -126,15 +127,21 @@ export default function App() {
     return () => window.removeEventListener('hashchange', updateActiveSection);
   }, []);
 
-  function openPurchaseDialog(draftItems?: PurchaseDraftLine[]) {
+  function openPurchaseDialog(
+    draftItems?: PurchaseDraftLine[],
+    onPurchaseSaved?: (shoppingItemKeys: string[]) => void,
+  ) {
     setPurchaseDraftItems(draftItems?.length ? draftItems : null);
+    purchaseDraftSavedCallback.current = onPurchaseSaved ?? null;
     setPurchaseFormInstance((current) => current + 1);
     setPurchaseRestockNotice(null);
     setPurchaseDialogOpen(true);
   }
 
-  async function savePurchase(input: CreatePurchaseRequest) {
+  async function savePurchase(input: CreatePurchaseRequest, shoppingItemKeys: string[] = []) {
     const purchase = await createPurchase(input);
+    if (shoppingItemKeys.length > 0) purchaseDraftSavedCallback.current?.(shoppingItemKeys);
+    purchaseDraftSavedCallback.current = null;
     setPurchaseRestockNotice(purchase.pantryRestockedItems?.length ? purchase.pantryRestockedItems : null);
     if (purchase.pantryRestockedItems?.length) setPantryRevision((current) => current + 1);
     setPurchaseDraftItems(null);
@@ -324,7 +331,10 @@ export default function App() {
         </SidebarInset>
         <Dialog open={purchaseDialogOpen} onOpenChange={(open) => {
           setPurchaseDialogOpen(open);
-          if (!open) setPurchaseDraftItems(null);
+          if (!open) {
+            setPurchaseDraftItems(null);
+            purchaseDraftSavedCallback.current = null;
+          }
         }}>
           <DialogContent className="flex h-[100dvh] max-h-[100dvh] w-screen max-w-none flex-col gap-0 overflow-hidden rounded-none p-0 sm:h-[min(90dvh,900px)] sm:max-h-[90dvh] sm:w-[calc(100vw-2rem)] sm:max-w-3xl sm:rounded-lg">
             <DialogHeader className="sticky top-0 z-20 shrink-0 border-b border-primary/10 bg-gradient-to-r from-primary/[0.045] via-background to-background px-4 py-4 sm:px-6 sm:py-5">
@@ -348,6 +358,7 @@ export default function App() {
               onSubmit={savePurchase}
               onCancel={() => {
                 setPurchaseDraftItems(null);
+                purchaseDraftSavedCallback.current = null;
                 setPurchaseDialogOpen(false);
               }}
             />

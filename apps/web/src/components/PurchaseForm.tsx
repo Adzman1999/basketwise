@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { philippineDateString } from '@/lib/dates';
 import UnitInput from '@/components/UnitInput';
-import type { PurchaseDraftLine } from '@/lib/purchaseDraft';
+import { getPurchasedShoppingItemKeys, type PurchaseDraftCompletionLine, type PurchaseDraftLine } from '@/lib/purchaseDraft';
 import {
   createUnit,
   createStore,
@@ -37,12 +37,16 @@ type DraftItem = {
   unitPrice: string;
   expiresOn: string;
   needsUnitReview: boolean;
+  sourceShoppingKey: string | null;
+  sourceItemName: string;
+  sourceQuantity: number | null;
+  sourceUnit: string;
 };
 
 type PendingPurchase = Omit<CreatePurchaseRequest, 'addToPantry'>;
 
 type PurchaseFormProps = {
-  onSubmit: (purchase: CreatePurchaseRequest) => Promise<void>;
+  onSubmit: (purchase: CreatePurchaseRequest, shoppingItemKeys: string[]) => Promise<void>;
   onCancel: () => void;
   initialItems?: PurchaseDraftLine[];
 };
@@ -95,7 +99,19 @@ function formatPesoAmount(centavos: bigint): string {
 }
 
 function emptyItem(id: number): DraftItem {
-  return { id, itemName: '', quantity: '1', unit: 'item', unitPrice: '', expiresOn: '', needsUnitReview: false };
+  return {
+    id,
+    itemName: '',
+    quantity: '1',
+    unit: 'item',
+    unitPrice: '',
+    expiresOn: '',
+    needsUnitReview: false,
+    sourceShoppingKey: null,
+    sourceItemName: '',
+    sourceQuantity: null,
+    sourceUnit: '',
+  };
 }
 
 function initialDraftItems(initialItems?: PurchaseDraftLine[]): DraftItem[] {
@@ -108,6 +124,10 @@ function initialDraftItems(initialItems?: PurchaseDraftLine[]): DraftItem[] {
     unitPrice: '',
     expiresOn: '',
     needsUnitReview: item.needsUnitReview,
+    sourceShoppingKey: item.shoppingItemKey,
+    sourceItemName: item.itemName,
+    sourceQuantity: item.quantity,
+    sourceUnit: item.unit,
   }));
 }
 
@@ -377,6 +397,7 @@ export default function PurchaseForm({ onSubmit, onCancel, initialItems: purchas
   const [isSaving, setIsSaving] = useState(false);
   const [pantryPromptOpen, setPantryPromptOpen] = useState(false);
   const [pendingPurchase, setPendingPurchase] = useState<PendingPurchase | null>(null);
+  const [pendingShoppingItemKeys, setPendingShoppingItemKeys] = useState<string[]>([]);
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
@@ -475,6 +496,7 @@ export default function PurchaseForm({ onSubmit, onCancel, initialItems: purchas
     setSuccessMessage('');
     setPantryPromptOpen(false);
     setPendingPurchase(null);
+    setPendingShoppingItemKeys([]);
     setItems([emptyItem(nextItemId.current++)]);
   }
 
@@ -558,6 +580,7 @@ export default function PurchaseForm({ onSubmit, onCancel, initialItems: purchas
     }
 
     const purchaseItems: CreatePurchaseItem[] = [];
+    const draftCompletionLines: PurchaseDraftCompletionLine[] = [];
     for (const [index, item] of items.entries()) {
       const itemName = item.itemName.trim();
       const unit = item.unit.trim();
@@ -588,6 +611,15 @@ export default function PurchaseForm({ onSubmit, onCancel, initialItems: purchas
         amountPaidCentavos: Number(amountPaidCentavos),
         expiresOn: item.expiresOn || null,
       });
+      draftCompletionLines.push({
+        sourceShoppingKey: item.sourceShoppingKey,
+        sourceItemName: item.sourceItemName,
+        sourceQuantity: item.sourceQuantity,
+        sourceUnit: item.sourceUnit,
+        itemName,
+        quantity,
+        unit,
+      });
     }
 
     const totalPaidCentavos = purchaseItems.reduce((total, item) => total + BigInt(item.amountPaidCentavos), 0n);
@@ -601,6 +633,7 @@ export default function PurchaseForm({ onSubmit, onCancel, initialItems: purchas
       storeName: selectedStore?.name ?? 'Other',
       items: purchaseItems,
     });
+    setPendingShoppingItemKeys(getPurchasedShoppingItemKeys(draftCompletionLines));
     setPantryPromptOpen(true);
   }
 
@@ -609,12 +642,13 @@ export default function PurchaseForm({ onSubmit, onCancel, initialItems: purchas
 
     setIsSaving(true);
     try {
-      await onSubmit({ ...pendingPurchase, addToPantry });
+      await onSubmit({ ...pendingPurchase, addToPantry }, pendingShoppingItemKeys);
       resetForm();
       setSuccessMessage('Purchase saved. It is now in your history.');
     } catch (error) {
       setPantryPromptOpen(false);
       setPendingPurchase(null);
+      setPendingShoppingItemKeys([]);
       setErrorMessage(error instanceof Error ? error.message : 'Could not save this purchase.');
     } finally {
       setIsSaving(false);

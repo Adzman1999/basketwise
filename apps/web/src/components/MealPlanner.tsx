@@ -352,7 +352,7 @@ export default function MealPlanner({
   onCreatePurchaseDraft,
   pantryRevision,
 }: {
-  onCreatePurchaseDraft: (items: PurchaseDraftLine[]) => void;
+  onCreatePurchaseDraft: (items: PurchaseDraftLine[], onPurchaseSaved: (shoppingItemKeys: string[]) => void) => void;
   pantryRevision: number;
 }) {
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
@@ -505,13 +505,23 @@ export default function MealPlanner({
       const coverage = pantryCoverageByKey.get(`${item.groceryItemId}:${item.unitId}`);
       if (!coverage || coverage.amountToBuy <= 0) return [];
       return [{
+        shoppingItemKey: `${item.groceryItemId}:${item.unitId}`,
         itemName: item.itemName,
         quantity: coverage.amountToBuy,
         unit: item.unit,
         needsUnitReview: coverage.unconvertedStockFound,
       }];
     });
-    if (items.length > 0) onCreatePurchaseDraft(items);
+    if (items.length > 0) onCreatePurchaseDraft(items, markShoppingItemsPickedUp);
+  }
+
+  function markShoppingItemsPickedUp(keys: string[]) {
+    if (keys.length === 0) return;
+    setShoppingCheckState((current) => {
+      const checkedKeys = new Set(current.weekFrom === weekFrom ? current.checkedKeys : []);
+      keys.forEach((key) => checkedKeys.add(key));
+      return { weekFrom, checkedKeys: Array.from(checkedKeys) };
+    });
   }
 
   return (
