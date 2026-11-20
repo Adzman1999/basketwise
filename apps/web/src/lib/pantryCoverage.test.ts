@@ -123,7 +123,7 @@ describe('getPantryCoverage', () => {
     expect(metricResult.amountToBuy).toBe(250);
   });
 
-  it('marks stock in an unknown unit and reports only the minimum amount still needed', () => {
+  it('marks stock in an unknown unit and reports an upper estimate of the amount still needed', () => {
     const item = shoppingItem('unit-cup', 'cup', 5);
     const stock = pantryStock('stock-bag', 'unit-bag', 'bag', 2);
     const result = getPantryCoverage(item, pantryData(

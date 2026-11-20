@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { philippineDateString } from '@/lib/dates';
 import UnitInput from '@/components/UnitInput';
+import type { PurchaseDraftLine } from '@/lib/purchaseDraft';
 import {
   createUnit,
   createStore,
@@ -35,6 +36,7 @@ type DraftItem = {
   unit: string;
   unitPrice: string;
   expiresOn: string;
+  needsUnitReview: boolean;
 };
 
 type PendingPurchase = Omit<CreatePurchaseRequest, 'addToPantry'>;
@@ -42,6 +44,7 @@ type PendingPurchase = Omit<CreatePurchaseRequest, 'addToPantry'>;
 type PurchaseFormProps = {
   onSubmit: (purchase: CreatePurchaseRequest) => Promise<void>;
   onCancel: () => void;
+  initialItems?: PurchaseDraftLine[];
 };
 
 const maxCentavos = 2_147_483_647;
@@ -92,7 +95,20 @@ function formatPesoAmount(centavos: bigint): string {
 }
 
 function emptyItem(id: number): DraftItem {
-  return { id, itemName: '', quantity: '1', unit: 'item', unitPrice: '', expiresOn: '' };
+  return { id, itemName: '', quantity: '1', unit: 'item', unitPrice: '', expiresOn: '', needsUnitReview: false };
+}
+
+function initialDraftItems(initialItems?: PurchaseDraftLine[]): DraftItem[] {
+  if (!initialItems?.length) return [emptyItem(1)];
+  return initialItems.map((item, index) => ({
+    id: index + 1,
+    itemName: item.itemName,
+    quantity: String(item.quantity),
+    unit: item.unit,
+    unitPrice: '',
+    expiresOn: '',
+    needsUnitReview: item.needsUnitReview,
+  }));
 }
 
 const inputClassName = 'h-10 w-full min-w-0 rounded-md bg-background text-base sm:text-sm';
@@ -337,8 +353,8 @@ function CatalogNameInput({
   );
 }
 
-export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) {
-  const nextItemId = useRef(2);
+export default function PurchaseForm({ onSubmit, onCancel, initialItems: purchaseDraftItems }: PurchaseFormProps) {
+  const nextItemId = useRef(Math.max(2, (purchaseDraftItems?.length ?? 0) + 1));
   const [purchasedOn, setPurchasedOn] = useState(todayAsLocalDate);
   const [spendingPeriodType, setSpendingPeriodType] = useState<BudgetPeriodType | ''>('');
   const [customPeriodStartsOn, setCustomPeriodStartsOn] = useState('');
@@ -357,7 +373,7 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
   const [newStoreCategory, setNewStoreCategory] = useState<StoreCategory>('supermarket');
   const [storeErrorMessage, setStoreErrorMessage] = useState('');
   const [isAddingStore, setIsAddingStore] = useState(false);
-  const [items, setItems] = useState<DraftItem[]>([emptyItem(1)]);
+  const [items, setItems] = useState<DraftItem[]>(() => initialDraftItems(purchaseDraftItems));
   const [isSaving, setIsSaving] = useState(false);
   const [pantryPromptOpen, setPantryPromptOpen] = useState(false);
   const [pendingPurchase, setPendingPurchase] = useState<PendingPurchase | null>(null);
@@ -887,6 +903,7 @@ export default function PurchaseForm({ onSubmit, onCancel }: PurchaseFormProps) 
                       <Label className={labelClassName}>
                         Quantity
                         <Input className={inputClassName} type="number" min="0.001" max="999999999.999" step="0.001" value={item.quantity} onChange={(event) => updateItem(item.id, { quantity: event.target.value })} required disabled={isSaving || !spendingPeriod} />
+                        {item.needsUnitReview && <span className="text-xs font-normal leading-5 text-amber-700 dark:text-amber-300">Some pantry stock uses another unit. Review this estimated quantity before saving.</span>}
                       </Label>
                       <Label className={labelClassName}>
                         Unit

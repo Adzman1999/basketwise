@@ -17,6 +17,7 @@ import { Separator } from '@/components/ui/separator';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { addPurchaseItemsToPantry, createPurchase, fetchHealthStatus, fetchPurchases, type CreatePurchaseRequest, type HealthResponse, type Purchase, type PurchaseFilterOptions, type PurchaseFilters } from '@/lib/api';
+import type { PurchaseDraftLine } from '@/lib/purchaseDraft';
 
 type ConnectionState =
   | { kind: 'checking' }
@@ -56,6 +57,8 @@ export default function App() {
   const [catalogRefresh, setCatalogRefresh] = useState(0);
   const [activeHref, setActiveHref] = useState(getActiveHref);
   const [purchaseDialogOpen, setPurchaseDialogOpen] = useState(false);
+  const [purchaseDraftItems, setPurchaseDraftItems] = useState<PurchaseDraftLine[] | null>(null);
+  const [purchaseFormInstance, setPurchaseFormInstance] = useState(0);
   const [purchaseRestockNotice, setPurchaseRestockNotice] = useState<Purchase['pantryRestockedItems'] | null>(null);
 
   useEffect(() => {
@@ -122,9 +125,17 @@ export default function App() {
     return () => window.removeEventListener('hashchange', updateActiveSection);
   }, []);
 
+  function openPurchaseDialog(draftItems?: PurchaseDraftLine[]) {
+    setPurchaseDraftItems(draftItems?.length ? draftItems : null);
+    setPurchaseFormInstance((current) => current + 1);
+    setPurchaseRestockNotice(null);
+    setPurchaseDialogOpen(true);
+  }
+
   async function savePurchase(input: CreatePurchaseRequest) {
     const purchase = await createPurchase(input);
     setPurchaseRestockNotice(purchase.pantryRestockedItems?.length ? purchase.pantryRestockedItems : null);
+    setPurchaseDraftItems(null);
     setPageNumber(1);
     setHistoryRefresh((current) => current + 1);
     setCatalogRefresh((current) => current + 1);
@@ -252,7 +263,7 @@ export default function App() {
                   </Suspense>
                 ) : activeHref === '#meal-plan' ? (
                   <Suspense fallback={<div className="space-y-3" role="status" aria-label="Loading meal plan">{Array.from({ length: 4 }, (_, index) => <Skeleton key={index} className="h-36" />)}</div>}>
-                    <MealPlanner />
+                    <MealPlanner onCreatePurchaseDraft={openPurchaseDialog} />
                   </Suspense>
                 ) : activeHref === '#stores' ? (
                   <StoresAndShops />
@@ -284,7 +295,7 @@ export default function App() {
                       appliedSearch={appliedItemSearch}
                       filtersPending={purchaseFiltersPending}
                       searchPending={itemSearchPending}
-                      onAddPurchase={() => { setPurchaseRestockNotice(null); setPurchaseDialogOpen(true); }}
+                      onAddPurchase={() => openPurchaseDialog()}
                       onFiltersChange={(filters) => {
                         setPurchaseFilters(filters);
                       }}
@@ -308,7 +319,10 @@ export default function App() {
             )}
           </main>
         </SidebarInset>
-        <Dialog open={purchaseDialogOpen} onOpenChange={setPurchaseDialogOpen}>
+        <Dialog open={purchaseDialogOpen} onOpenChange={(open) => {
+          setPurchaseDialogOpen(open);
+          if (!open) setPurchaseDraftItems(null);
+        }}>
           <DialogContent className="flex h-[100dvh] max-h-[100dvh] w-screen max-w-none flex-col gap-0 overflow-hidden rounded-none p-0 sm:h-[min(90dvh,900px)] sm:max-h-[90dvh] sm:w-[calc(100vw-2rem)] sm:max-w-3xl sm:rounded-lg">
             <DialogHeader className="sticky top-0 z-20 shrink-0 border-b border-primary/10 bg-gradient-to-r from-primary/[0.045] via-background to-background px-4 py-4 sm:px-6 sm:py-5">
               <div className="flex items-start gap-3">
@@ -317,11 +331,23 @@ export default function App() {
                 </span>
                 <div className="min-w-0 space-y-1">
                   <DialogTitle>Add a purchase</DialogTitle>
-                  <DialogDescription>Choose a spending period, then enter the receipt date and items. After saving, choose whether to add this purchase to pantry stock.</DialogDescription>
+                  <DialogDescription>
+                    {purchaseDraftItems
+                      ? 'Review the suggested quantities, choose a spending period, and enter the actual unit prices. The receipt total is calculated from the item lines.'
+                      : 'Choose a spending period, then enter the receipt date and items. After saving, choose whether to add this purchase to pantry stock.'}
+                  </DialogDescription>
                 </div>
               </div>
             </DialogHeader>
-            <PurchaseForm onSubmit={savePurchase} onCancel={() => setPurchaseDialogOpen(false)} />
+            <PurchaseForm
+              key={purchaseFormInstance}
+              initialItems={purchaseDraftItems ?? undefined}
+              onSubmit={savePurchase}
+              onCancel={() => {
+                setPurchaseDraftItems(null);
+                setPurchaseDialogOpen(false);
+              }}
+            />
           </DialogContent>
         </Dialog>
       </SidebarProvider>

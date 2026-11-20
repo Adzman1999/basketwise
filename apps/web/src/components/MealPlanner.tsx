@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { AlertCircle, ArrowLeft, ArrowRight, CalendarDays, ChefHat, Circle, CircleCheck, Clock3, Filter, ListChecks, Pencil, Plus, RotateCcw, ShoppingBasket, Trash2, Utensils } from 'lucide-react';
+import { AlertCircle, ArrowLeft, ArrowRight, CalendarDays, ChefHat, Circle, CircleCheck, Clock3, Filter, ListChecks, Pencil, Plus, ReceiptText, RotateCcw, ShoppingBasket, Trash2, Utensils } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -27,6 +27,7 @@ import {
 } from '@/lib/api';
 import { philippineDateString } from '@/lib/dates';
 import { getPantryCoverage, type ShoppingListItem } from '@/lib/pantryCoverage';
+import type { PurchaseDraftLine } from '@/lib/purchaseDraft';
 
 type PlanState =
   | { kind: 'loading' }
@@ -347,7 +348,7 @@ function MealPlanEditor({
   );
 }
 
-export default function MealPlanner() {
+export default function MealPlanner({ onCreatePurchaseDraft }: { onCreatePurchaseDraft: (items: PurchaseDraftLine[]) => void }) {
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
   const [state, setState] = useState<PlanState>({ kind: 'loading' });
   const [refreshKey, setRefreshKey] = useState(0);
@@ -433,8 +434,11 @@ export default function MealPlanner() {
       getPantryCoverage(item, pantryComparisonState, today),
     ]));
   }, [pantryComparisonState, shoppingItems, today]);
-  const shoppingItemsToBuy = pantryComparisonState.kind === 'loaded'
+  const shoppingItemsNeedingPurchase = pantryComparisonState.kind === 'loaded'
     ? shoppingItems.filter((item) => (pantryCoverageByKey.get(`${item.groceryItemId}:${item.unitId}`)?.amountToBuy ?? 0) > 0)
+    : shoppingItems;
+  const shoppingItemsToBuy = pantryComparisonState.kind === 'loaded'
+    ? shoppingItemsNeedingPurchase.filter((item) => !checkedShoppingKeys.has(`${item.groceryItemId}:${item.unitId}`))
     : shoppingItems;
   const visibleShoppingItems = showOnlyItemsToBuy && pantryComparisonState.kind === 'loaded'
     ? shoppingItemsToBuy
@@ -487,6 +491,21 @@ export default function MealPlanner() {
 
   function retryPantryComparison() {
     setPantryRefreshKey((current) => current + 1);
+  }
+
+  function startPurchaseDraft() {
+    if (pantryComparisonState.kind !== 'loaded') return;
+    const items = shoppingItemsToBuy.flatMap((item) => {
+      const coverage = pantryCoverageByKey.get(`${item.groceryItemId}:${item.unitId}`);
+      if (!coverage || coverage.amountToBuy <= 0) return [];
+      return [{
+        itemName: item.itemName,
+        quantity: coverage.amountToBuy,
+        unit: item.unit,
+        needsUnitReview: coverage.unconvertedStockFound,
+      }];
+    });
+    if (items.length > 0) onCreatePurchaseDraft(items);
   }
 
   return (
@@ -616,6 +635,11 @@ export default function MealPlanner() {
                         <CardDescription>Quantities scale to planned servings. Unexpired pantry stock with a matching or saved unit conversion is subtracted; checklist progress is saved per week in this browser.</CardDescription>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
+                        {pantryComparisonState.kind === 'loaded' && shoppingItemsToBuy.length > 0 && (
+                          <Button type="button" size="sm" className="h-8" onClick={startPurchaseDraft}>
+                            <ReceiptText aria-hidden="true" /> Start purchase
+                          </Button>
+                        )}
                         <Button
                           type="button"
                           variant={showOnlyItemsToBuy ? 'secondary' : 'outline'}
@@ -653,8 +677,16 @@ export default function MealPlanner() {
                       )}
                       {showOnlyItemsToBuy && pantryComparisonState.kind === 'loaded' && visibleShoppingItems.length === 0 ? (
                         <div className="flex flex-col items-center justify-center gap-2 border-t px-5 py-10 text-center">
-                          <p className="text-sm font-medium">Your pantry covers this week’s list</p>
-                          <p className="text-sm text-muted-foreground">No additional quantities are needed for the planned meals.</p>
+                          <p className="text-sm font-medium">
+                            {shoppingItemsNeedingPurchase.length > 0
+                              ? 'You marked the remaining items picked up'
+                              : 'Your pantry covers this week’s list'}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {shoppingItemsNeedingPurchase.length > 0
+                              ? 'Uncheck an item in the full list if you still need to buy it.'
+                              : 'No additional quantities are needed for the planned meals.'}
+                          </p>
                           <Button type="button" variant="ghost" size="sm" onClick={() => setShowOnlyItemsToBuy(false)}>Show all ingredients</Button>
                         </div>
                       ) : (
@@ -687,7 +719,7 @@ export default function MealPlanner() {
                                   <>
                                     <p className="mt-1 text-xs font-medium text-foreground/80">
                                       {coverage.unconvertedStockFound && coverage.amountToBuy > 0
-                                        ? `At least ${quantityFormatter.format(coverage.amountToBuy)} ${item.unit} still needed`
+                                        ? `Up to ${quantityFormatter.format(coverage.amountToBuy)} ${item.unit} may still be needed`
                                         : coverage.amountToBuy > 0
                                           ? `Buy ${quantityFormatter.format(coverage.amountToBuy)} ${item.unit}`
                                           : 'Covered by pantry'}
