@@ -55,6 +55,7 @@ export default function App() {
   const [purchaseFilters, setPurchaseFilters] = useState<PurchaseFilterOptions>(emptyPurchaseFilterOptions);
   const [appliedPurchaseFilters, setAppliedPurchaseFilters] = useState<PurchaseFilterOptions>(emptyPurchaseFilterOptions);
   const [catalogRefresh, setCatalogRefresh] = useState(0);
+  const [pantryRevision, setPantryRevision] = useState(0);
   const [activeHref, setActiveHref] = useState(getActiveHref);
   const [purchaseDialogOpen, setPurchaseDialogOpen] = useState(false);
   const [purchaseDraftItems, setPurchaseDraftItems] = useState<PurchaseDraftLine[] | null>(null);
@@ -135,6 +136,7 @@ export default function App() {
   async function savePurchase(input: CreatePurchaseRequest) {
     const purchase = await createPurchase(input);
     setPurchaseRestockNotice(purchase.pantryRestockedItems?.length ? purchase.pantryRestockedItems : null);
+    if (purchase.pantryRestockedItems?.length) setPantryRevision((current) => current + 1);
     setPurchaseDraftItems(null);
     setPageNumber(1);
     setHistoryRefresh((current) => current + 1);
@@ -145,6 +147,7 @@ export default function App() {
   async function addPurchaseToPantry(purchaseId: string) {
     const pantryItems = await addPurchaseItemsToPantry(purchaseId);
     setPurchaseRestockNotice(pantryItems.length > 0 ? pantryItems : null);
+    if (pantryItems.length > 0) setPantryRevision((current) => current + 1);
     setHistoryRefresh((current) => current + 1);
   }
 
@@ -263,7 +266,7 @@ export default function App() {
                   </Suspense>
                 ) : activeHref === '#meal-plan' ? (
                   <Suspense fallback={<div className="space-y-3" role="status" aria-label="Loading meal plan">{Array.from({ length: 4 }, (_, index) => <Skeleton key={index} className="h-36" />)}</div>}>
-                    <MealPlanner onCreatePurchaseDraft={openPurchaseDialog} />
+                    <MealPlanner onCreatePurchaseDraft={openPurchaseDialog} pantryRevision={pantryRevision} />
                   </Suspense>
                 ) : activeHref === '#stores' ? (
                   <StoresAndShops />

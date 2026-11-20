@@ -348,7 +348,13 @@ function MealPlanEditor({
   );
 }
 
-export default function MealPlanner({ onCreatePurchaseDraft }: { onCreatePurchaseDraft: (items: PurchaseDraftLine[]) => void }) {
+export default function MealPlanner({
+  onCreatePurchaseDraft,
+  pantryRevision,
+}: {
+  onCreatePurchaseDraft: (items: PurchaseDraftLine[]) => void;
+  pantryRevision: number;
+}) {
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
   const [state, setState] = useState<PlanState>({ kind: 'loading' });
   const [refreshKey, setRefreshKey] = useState(0);
@@ -421,7 +427,7 @@ export default function MealPlanner({ onCreatePurchaseDraft }: { onCreatePurchas
         });
       });
     return () => controller.abort();
-  }, [state.kind, shoppingItems, pantryRefreshKey]);
+  }, [state.kind, shoppingItems, pantryRefreshKey, pantryRevision]);
 
   const checkedShoppingKeys = new Set(
     shoppingCheckState.weekFrom === weekFrom ? shoppingCheckState.checkedKeys : [],
