@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { AlertCircle, ArrowLeft, ArrowLeftRight, ArrowRight, CalendarDays, ChefHat, Circle, CircleCheck, Clock3, Filter, ListChecks, Pencil, Plus, ReceiptText, RotateCcw, ShoppingBasket, Trash2, Utensils } from 'lucide-react';
+import { AlertCircle, ArrowLeft, ArrowLeftRight, ArrowRight, CalendarDays, Check, ChefHat, Circle, CircleCheck, Clock3, Copy, Filter, ListChecks, Pencil, Plus, ReceiptText, RotateCcw, ShoppingBasket, Trash2, Utensils } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -375,6 +375,7 @@ export default function MealPlanner({
   const [pantryRefreshKey, setPantryRefreshKey] = useState(0);
   const [pantryComparisonState, setPantryComparisonState] = useState<PantryComparisonState>({ kind: 'idle' });
   const [showOnlyItemsToBuy, setShowOnlyItemsToBuy] = useState(false);
+  const [shoppingListCopyStatus, setShoppingListCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle');
   const [editingEntry, setEditingEntry] = useState<MealPlanEntry | null>(null);
   const [newSlot, setNewSlot] = useState<{ date: string; mealType: MealType } | null>(null);
   const [shoppingCheckState, setShoppingCheckState] = useState<ShoppingCheckState>({ weekFrom: '', checkedKeys: [] });
@@ -397,6 +398,7 @@ export default function MealPlanner({
 
   useEffect(() => {
     setShoppingCheckState({ weekFrom, checkedKeys: loadShoppingChecks(weekFrom) });
+    setShoppingListCopyStatus('idle');
   }, [weekFrom]);
 
   useEffect(() => {
@@ -560,10 +562,12 @@ export default function MealPlanner({
 
   function refreshPlan() {
     closeEditor();
+    setShoppingListCopyStatus('idle');
     setRefreshKey((current) => current + 1);
   }
 
   function toggleShoppingItem(key: string) {
+    setShoppingListCopyStatus('idle');
     setShoppingCheckState((current) => {
       const checkedKeys = new Set(current.weekFrom === weekFrom ? current.checkedKeys : []);
       if (checkedKeys.has(key)) checkedKeys.delete(key);
@@ -573,6 +577,7 @@ export default function MealPlanner({
   }
 
   function clearShoppingChecks() {
+    setShoppingListCopyStatus('idle');
     setShoppingCheckState({ weekFrom, checkedKeys: [] });
   }
 
@@ -621,6 +626,7 @@ export default function MealPlanner({
       });
       setUnitConversionTarget(null);
       setUnitConversionRatio('');
+      setShoppingListCopyStatus('idle');
       setPantryRefreshKey((current) => current + 1);
       setRecipePriceRefreshKey((current) => current + 1);
     } catch (caughtError) {
@@ -648,11 +654,51 @@ export default function MealPlanner({
 
   function markShoppingItemsPickedUp(keys: string[]) {
     if (keys.length === 0) return;
+    setShoppingListCopyStatus('idle');
     setShoppingCheckState((current) => {
       const checkedKeys = new Set(current.weekFrom === weekFrom ? current.checkedKeys : []);
       keys.forEach((key) => checkedKeys.add(key));
       return { weekFrom, checkedKeys: Array.from(checkedKeys) };
     });
+  }
+
+  async function copyShoppingList() {
+    if (pantryComparisonState.kind !== 'loaded') return;
+    const itemLines = shoppingItemsToBuy.flatMap((item) => {
+      const itemKey = `${item.groceryItemId}:${item.unitId}`;
+      const coverage = pantryCoverageByKey.get(itemKey);
+      if (!coverage || coverage.amountToBuy <= 0) return [];
+      const price = shoppingUnitPrices.get(itemKey);
+      const amountLabel = coverage.unconvertedStockFound ? 'Up to ' : '';
+      const costLabel = price
+        ? ` — est. ${currencyFormatter.format(Math.round(coverage.amountToBuy * price.unitPriceCentavos) / 100)}`
+        : ' — price unavailable';
+      return [`- ${item.itemName}: ${amountLabel}${quantityFormatter.format(coverage.amountToBuy)} ${item.unit}${costLabel}`];
+    });
+    if (itemLines.length === 0) return;
+
+    const content = [
+      `Basketwise shopping list · ${formatDate(weekDates[0])} – ${formatDate(weekDates[6])}`,
+      '',
+      ...itemLines,
+      ...(shoppingEstimate && shoppingEstimate.pricedItemCount > 0
+        ? ['', `Estimated total for priced items: ${currencyFormatter.format(shoppingEstimate.totalCentavos / 100)}`]
+        : []),
+      ...(shoppingEstimate && shoppingEstimate.unconvertedItemCount > 0
+        ? ['Some quantities are upper estimates because pantry units still need conversion.']
+        : []),
+      ...(shoppingEstimate && shoppingEstimate.unpricedItemCount > 0
+        ? ['Some items do not have a compatible recorded price.']
+        : []),
+    ].join('\n');
+
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error('Clipboard access is unavailable in this browser.');
+      await navigator.clipboard.writeText(content);
+      setShoppingListCopyStatus('copied');
+    } catch {
+      setShoppingListCopyStatus('error');
+    }
   }
 
   return (
@@ -783,9 +829,15 @@ export default function MealPlanner({
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
                         {pantryComparisonState.kind === 'loaded' && shoppingItemsToBuy.length > 0 && (
-                          <Button type="button" size="sm" className="h-8" onClick={startPurchaseDraft}>
-                            <ReceiptText aria-hidden="true" /> Start purchase
-                          </Button>
+                          <>
+                            <Button type="button" size="sm" variant="outline" className="h-8" onClick={() => void copyShoppingList()}>
+                              {shoppingListCopyStatus === 'copied' ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
+                              {shoppingListCopyStatus === 'copied' ? 'Copied' : 'Copy list'}
+                            </Button>
+                            <Button type="button" size="sm" className="h-8" onClick={startPurchaseDraft}>
+                              <ReceiptText aria-hidden="true" /> Start purchase
+                            </Button>
+                          </>
                         )}
                         <Button
                           type="button"
@@ -808,6 +860,11 @@ export default function MealPlanner({
                           <Button type="button" variant="ghost" size="sm" className="h-8" onClick={clearShoppingChecks}>
                             <RotateCcw aria-hidden="true" /> Clear checked
                           </Button>
+                        )}
+                        {shoppingListCopyStatus !== 'idle' && (
+                          <span className={`text-xs ${shoppingListCopyStatus === 'error' ? 'text-destructive' : 'text-muted-foreground'}`} role={shoppingListCopyStatus === 'error' ? 'alert' : 'status'} aria-live="polite">
+                            {shoppingListCopyStatus === 'copied' ? 'Shopping list copied.' : 'Could not copy the list. Check browser clipboard permissions.'}
+                          </span>
                         )}
                       </div>
                     </CardHeader>
