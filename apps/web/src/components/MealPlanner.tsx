@@ -60,6 +60,11 @@ type PantryComparisonState =
     }
   | { kind: 'error'; message: string };
 
+type ShoppingUnitPrice = {
+  unitPriceCentavos: number;
+  purchasedOn: string | null;
+};
+
 function dateToIso(date: Date): string {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -359,6 +364,8 @@ export default function MealPlanner({
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
   const [state, setState] = useState<PlanState>({ kind: 'loading' });
   const [refreshKey, setRefreshKey] = useState(0);
+  const [recipePriceRefreshKey, setRecipePriceRefreshKey] = useState(0);
+  const [recipePriceRefreshError, setRecipePriceRefreshError] = useState('');
   const [pantryRefreshKey, setPantryRefreshKey] = useState(0);
   const [pantryComparisonState, setPantryComparisonState] = useState<PantryComparisonState>({ kind: 'idle' });
   const [showOnlyItemsToBuy, setShowOnlyItemsToBuy] = useState(false);
@@ -402,6 +409,22 @@ export default function MealPlanner({
       });
     return () => controller.abort();
   }, [weekFrom, weekTo, refreshKey]);
+
+  useEffect(() => {
+    if (recipePriceRefreshKey === 0 || state.kind !== 'loaded') return;
+    const controller = new AbortController();
+    setRecipePriceRefreshError('');
+    void fetchAllRecipes(controller.signal)
+      .then((recipes) => {
+        if (controller.signal.aborted) return;
+        setState((current) => current.kind === 'loaded' ? { ...current, recipes } : current);
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) return;
+        setRecipePriceRefreshError(error instanceof Error ? error.message : 'Price data could not be refreshed.');
+      });
+    return () => controller.abort();
+  }, [recipePriceRefreshKey, state.kind]);
 
   const entriesBySlot = useMemo(() => {
     const slots = new Map<string, MealPlanEntry>();
@@ -461,6 +484,45 @@ export default function MealPlanner({
   const visibleShoppingItems = showOnlyItemsToBuy && pantryComparisonState.kind === 'loaded'
     ? shoppingItemsToBuy
     : shoppingItems;
+  const shoppingUnitPrices = useMemo(() => {
+    const prices = new Map<string, ShoppingUnitPrice>();
+    for (const entry of plannedEntries) {
+      const recipe = recipesById.get(entry.recipeId);
+      for (const ingredient of recipe?.ingredients ?? []) {
+        if (ingredient.unitPriceCentavos === null) continue;
+        const key = `${ingredient.groceryItemId}:${ingredient.unitId}`;
+        const current = prices.get(key);
+        if (!current || (ingredient.pricePurchasedOn ?? '') > (current.purchasedOn ?? '')) {
+          prices.set(key, {
+            unitPriceCentavos: ingredient.unitPriceCentavos,
+            purchasedOn: ingredient.pricePurchasedOn,
+          });
+        }
+      }
+    }
+    return prices;
+  }, [plannedEntries, recipesById]);
+  const shoppingEstimate = useMemo(() => {
+    if (pantryComparisonState.kind !== 'loaded' || shoppingItemsToBuy.length === 0) return null;
+    let totalCentavos = 0;
+    let pricedItemCount = 0;
+    let unpricedItemCount = 0;
+    let unconvertedItemCount = 0;
+    for (const item of shoppingItemsToBuy) {
+      const itemKey = `${item.groceryItemId}:${item.unitId}`;
+      const coverage = pantryCoverageByKey.get(itemKey);
+      if (!coverage || coverage.amountToBuy <= 0) continue;
+      if (coverage.unconvertedStockFound) unconvertedItemCount += 1;
+      const price = shoppingUnitPrices.get(itemKey);
+      if (!price) {
+        unpricedItemCount += 1;
+        continue;
+      }
+      pricedItemCount += 1;
+      totalCentavos += Math.round(coverage.amountToBuy * price.unitPriceCentavos);
+    }
+    return { totalCentavos, pricedItemCount, unpricedItemCount, unconvertedItemCount };
+  }, [pantryComparisonState.kind, pantryCoverageByKey, shoppingItemsToBuy, shoppingUnitPrices]);
 
   useEffect(() => {
     if (state.kind !== 'loaded' || shoppingCheckState.weekFrom !== weekFrom) return;
@@ -553,6 +615,7 @@ export default function MealPlanner({
       setUnitConversionTarget(null);
       setUnitConversionRatio('');
       setPantryRefreshKey((current) => current + 1);
+      setRecipePriceRefreshKey((current) => current + 1);
     } catch (caughtError) {
       setUnitConversionError(caughtError instanceof Error ? caughtError.message : 'Could not save this conversion.');
     } finally {
@@ -741,6 +804,33 @@ export default function MealPlanner({
                         )}
                       </div>
                     </CardHeader>
+                    {shoppingEstimate && (
+                      <div className="flex flex-col gap-1 border-y bg-muted/20 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium">Estimated cost to buy</p>
+                          <p className="text-xs text-muted-foreground">Based on latest compatible prices for items not marked picked up.</p>
+                          {recipePriceRefreshError && (
+                            <div className="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-destructive" role="alert">
+                              <span>Price data could not refresh. {recipePriceRefreshError}</span>
+                              <Button type="button" variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => setRecipePriceRefreshKey((current) => current + 1)}>Try again</Button>
+                            </div>
+                          )}
+                          {(shoppingEstimate.unpricedItemCount > 0 || shoppingEstimate.unconvertedItemCount > 0) && (
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {shoppingEstimate.unpricedItemCount > 0 && `${shoppingEstimate.unpricedItemCount} ${shoppingEstimate.unpricedItemCount === 1 ? 'item has' : 'items have'} no compatible price`}
+                              {shoppingEstimate.unpricedItemCount > 0 && shoppingEstimate.unconvertedItemCount > 0 ? ' · ' : ''}
+                              {shoppingEstimate.unconvertedItemCount > 0 && `${shoppingEstimate.unconvertedItemCount} amount${shoppingEstimate.unconvertedItemCount === 1 ? '' : 's'} may be overstated until pantry units are converted`}
+                            </p>
+                          )}
+                        </div>
+                        <p className="shrink-0 text-lg font-semibold tabular-nums sm:text-right">
+                          {shoppingEstimate.pricedItemCount > 0
+                            ? currencyFormatter.format(shoppingEstimate.totalCentavos / 100)
+                            : 'Price unavailable'}
+                          {shoppingEstimate.unpricedItemCount > 0 && shoppingEstimate.pricedItemCount > 0 && <span className="ml-1 text-xs font-normal text-muted-foreground">partial estimate</span>}
+                        </p>
+                      </div>
+                    )}
                     <CardContent className="p-0">
                       {pantryComparisonState.kind === 'error' && (
                         <Alert variant="destructive" className="m-3 sm:m-4">

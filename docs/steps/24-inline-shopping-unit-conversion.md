@@ -9,7 +9,7 @@ Let users resolve pantry stock that cannot be compared with a planned ingredient
 - The pantry comparison lists unexpired stock amounts whose units have no saved or standard conversion to the shopping-list unit.
 - Each unresolved unit has an inline action that opens a conversion form.
 - The form records how many shopping-list units are in one pantry unit, using the existing grocery item conversion API.
-- After saving, pantry stock and conversions reload and the shopping estimate recalculates.
+- After saving, pantry stock, conversions, and recipe price observations reload so pantry coverage and shopping estimates recalculate.
 - Expired pantry lots remain excluded from both the displayed unresolved amount and the shopping estimate.
 
 ## Decisions
