@@ -63,6 +63,7 @@ type PantryComparisonState =
 type ShoppingUnitPrice = {
   unitPriceCentavos: number;
   purchasedOn: string | null;
+  storeName: string | null;
 };
 
 function dateToIso(date: Date): string {
@@ -496,6 +497,7 @@ export default function MealPlanner({
           prices.set(key, {
             unitPriceCentavos: ingredient.unitPriceCentavos,
             purchasedOn: ingredient.pricePurchasedOn,
+            storeName: ingredient.priceStoreName,
           });
         }
       }
@@ -864,6 +866,10 @@ export default function MealPlanner({
                           const coverage = pantryComparisonState.kind === 'loaded'
                             ? pantryCoverageByKey.get(itemKey) ?? null
                             : null;
+                          const unitPrice = shoppingUnitPrices.get(itemKey);
+                          const estimatedLineCost = coverage && unitPrice && coverage.amountToBuy > 0 && !isChecked
+                            ? Math.round(coverage.amountToBuy * unitPrice.unitPriceCentavos)
+                            : null;
                           return (
                             <li key={itemKey} className="flex min-w-0 items-center gap-3 px-3 py-3 sm:px-4">
                               <Button
@@ -885,11 +891,21 @@ export default function MealPlanner({
                                 {coverage ? (
                                   <>
                                     <p className="mt-1 text-xs font-medium text-foreground/80">
-                                      {coverage.unconvertedStockFound && coverage.amountToBuy > 0
-                                        ? `Up to ${quantityFormatter.format(coverage.amountToBuy)} ${item.unit} may still be needed`
-                                        : coverage.amountToBuy > 0
-                                          ? `Buy ${quantityFormatter.format(coverage.amountToBuy)} ${item.unit}`
-                                          : 'Covered by pantry'}
+                                      {isChecked
+                                        ? 'Picked up'
+                                        : coverage.amountToBuy <= 0
+                                          ? 'Covered by pantry'
+                                          : coverage.unconvertedStockFound
+                                            ? `Up to ${quantityFormatter.format(coverage.amountToBuy)} ${item.unit} may still be needed`
+                                            : `Buy ${quantityFormatter.format(coverage.amountToBuy)} ${item.unit}`}
+                                      {estimatedLineCost !== null && (
+                                        <span
+                                          className="ml-1 font-normal text-muted-foreground"
+                                          title={`Estimated from the latest compatible price${unitPrice?.storeName ? ` at ${unitPrice.storeName}` : ''}${unitPrice?.purchasedOn ? ` on ${unitPrice.purchasedOn}` : ''}.`}
+                                        >
+                                          · est. {currencyFormatter.format(estimatedLineCost / 100)}
+                                        </span>
+                                      )}
                                     </p>
                                     {coverage.comparableOnHand > 0 && (
                                       <p className="text-xs text-muted-foreground">{quantityFormatter.format(coverage.comparableOnHand)} {item.unit} unexpired on hand</p>

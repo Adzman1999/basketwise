@@ -7,6 +7,7 @@ Help users plan a grocery trip by estimating the cost of the quantities still ne
 ## Current increment
 
 - The shopping list shows an estimated total for unchecked quantities that are still needed after pantry stock is subtracted.
+- Each needed line shows its own estimated cost when a compatible price is available.
 - Estimates use the latest compatible unit prices already returned with the planned recipes.
 - Items without a compatible recorded price are counted and excluded from the partial total.
 - Items with pantry stock in an unresolved unit are identified because the quantity to buy may be overstated.
