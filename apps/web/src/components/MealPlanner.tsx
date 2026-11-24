@@ -93,6 +93,11 @@ function formatDate(date: Date): string {
   return new Intl.DateTimeFormat('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }).format(date);
 }
 
+function formatDateString(value: string): string {
+  const [year, month, day] = value.split('-').map(Number);
+  return formatDate(new Date(year, month - 1, day));
+}
+
 async function fetchAllRecipes(signal: AbortSignal): Promise<Recipe[]> {
   const recipes: Recipe[] = [];
   let page = 1;
@@ -473,9 +478,9 @@ export default function MealPlanner({
     if (pantryComparisonState.kind !== 'loaded') return new Map<string, ReturnType<typeof getPantryCoverage>>();
     return new Map(shoppingItems.map((item) => [
       `${item.groceryItemId}:${item.unitId}`,
-      getPantryCoverage(item, pantryComparisonState, today),
+      getPantryCoverage(item, pantryComparisonState, today, weekTo),
     ]));
-  }, [pantryComparisonState, shoppingItems, today]);
+  }, [pantryComparisonState, shoppingItems, today, weekTo]);
   const shoppingItemsNeedingPurchase = pantryComparisonState.kind === 'loaded'
     ? shoppingItems.filter((item) => (pantryCoverageByKey.get(`${item.groceryItemId}:${item.unitId}`)?.amountToBuy ?? 0) > 0)
     : shoppingItems;
@@ -910,6 +915,11 @@ export default function MealPlanner({
                                     {coverage.comparableOnHand > 0 && (
                                       <p className="text-xs text-muted-foreground">{quantityFormatter.format(coverage.comparableOnHand)} {item.unit} unexpired on hand</p>
                                     )}
+                                    {coverage.expiringStock.map((stock) => (
+                                      <p key={`${stock.expiresOn}:${stock.unit}`} className="text-xs text-amber-700 dark:text-amber-400">
+                                        Use {quantityFormatter.format(stock.quantity)} {stock.unit} by {formatDateString(stock.expiresOn)}
+                                      </p>
+                                    ))}
                                     {coverage.unconvertedStockFound && (
                                       <div className="mt-1 space-y-1">
                                         <p className="text-xs text-muted-foreground">Some pantry stock uses another unit and is not included in this estimate.</p>

@@ -49,28 +49,40 @@ export function getPantryCoverage(
   item: ShoppingListItem,
   pantry: PantryComparisonData,
   today: string,
+  planThrough = today,
 ) {
   const conversions = pantry.conversionsByGroceryItemId.get(item.groceryItemId) ?? [];
   let comparableOnHand = 0;
   let expiredStockFound = false;
   let unconvertedStockFound = false;
   const unconvertedStockUnits = new Map<string, { unitId: string; unit: string; quantity: number }>();
+  const expiringStock = new Map<string, { quantity: number; unit: string; expiresOn: string }>();
 
   for (const stock of pantry.stocks.filter((candidate) => candidate.groceryItemId === item.groceryItemId)) {
     const stockLots = pantry.lots.filter((lot) => lot.pantryStockId === stock.id);
+    const factor = stockToShoppingUnitFactor(stock, item, conversions);
     let usableQuantity = 0;
     let expiredQuantity = 0;
     if (stockLots.length === 0) {
       if (stock.expiresOn && stock.expiresOn < today) expiredQuantity = stock.quantity;
-      else usableQuantity = stock.quantity;
+      else {
+        usableQuantity = stock.quantity;
+        if (stock.expiresOn && stock.expiresOn <= planThrough && stock.quantity > 0) {
+          addExpiringStock(stock.quantity, stock.expiresOn, stock, factor, item, expiringStock);
+        }
+      }
     } else {
       for (const lot of stockLots) {
         if (lot.expiresOn && lot.expiresOn < today) expiredQuantity += lot.quantityRemaining;
-        else usableQuantity += lot.quantityRemaining;
+        else {
+          usableQuantity += lot.quantityRemaining;
+          if (lot.expiresOn && lot.expiresOn <= planThrough && lot.quantityRemaining > 0) {
+            addExpiringStock(lot.quantityRemaining, lot.expiresOn, stock, factor, item, expiringStock);
+          }
+        }
       }
     }
 
-    const factor = stockToShoppingUnitFactor(stock, item, conversions);
     if (expiredQuantity > 0) expiredStockFound = true;
     if (usableQuantity > 0 && factor === null) {
       unconvertedStockFound = true;
@@ -93,5 +105,27 @@ export function getPantryCoverage(
     unconvertedStockFound,
     unconvertedStockUnits: Array.from(unconvertedStockUnits.values())
       .sort((left, right) => left.unit.localeCompare(right.unit)),
+    expiringStock: Array.from(expiringStock.values())
+      .map((stock) => ({ ...stock, quantity: Math.round(stock.quantity * 1000) / 1000 }))
+      .sort((left, right) => left.expiresOn.localeCompare(right.expiresOn) || left.unit.localeCompare(right.unit)),
   };
+}
+
+function addExpiringStock(
+  quantity: number,
+  expiresOn: string,
+  stock: PantryStockItem,
+  factor: number | null,
+  item: ShoppingListItem,
+  expiringStock: Map<string, { quantity: number; unit: string; expiresOn: string }>,
+) {
+  const unit = factor === null ? stock.unit : item.unit;
+  const convertedQuantity = factor === null ? quantity : quantity * factor;
+  const key = `${expiresOn}:${unit}`;
+  const current = expiringStock.get(key);
+  expiringStock.set(key, {
+    quantity: (current?.quantity ?? 0) + convertedQuantity,
+    unit,
+    expiresOn,
+  });
 }
