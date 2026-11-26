@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { AlertCircle, ArrowLeft, ArrowLeftRight, ArrowRight, CalendarDays, Check, ChefHat, Circle, CircleCheck, Clock3, Copy, Filter, ListChecks, Pencil, Plus, ReceiptText, RotateCcw, ShoppingBasket, Trash2, Utensils } from 'lucide-react';
+import { AlertCircle, ArrowLeft, ArrowLeftRight, ArrowRight, CalendarDays, Check, ChefHat, Circle, CircleCheck, Clock3, Copy, Filter, ListChecks, Pencil, Plus, ReceiptText, RotateCcw, Search, ShoppingBasket, Trash2, Utensils, X } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -96,6 +96,22 @@ function formatDate(date: Date): string {
 function formatDateString(value: string): string {
   const [year, month, day] = value.split('-').map(Number);
   return formatDate(new Date(year, month - 1, day));
+}
+
+function HighlightedShoppingName({ name, query }: { name: string; query: string }) {
+  const normalizedQuery = query.trim().replace(/\s+/g, ' ');
+  const matchIndex = name.toLowerCase().indexOf(normalizedQuery.toLowerCase());
+  if (!normalizedQuery || matchIndex < 0) return <>{name}</>;
+
+  return (
+    <>
+      {name.slice(0, matchIndex)}
+      <mark className="rounded bg-primary/20 px-0.5 text-foreground">
+        {name.slice(matchIndex, matchIndex + normalizedQuery.length)}
+      </mark>
+      {name.slice(matchIndex + normalizedQuery.length)}
+    </>
+  );
 }
 
 async function fetchAllRecipes(signal: AbortSignal): Promise<Recipe[]> {
@@ -376,6 +392,7 @@ export default function MealPlanner({
   const [pantryComparisonState, setPantryComparisonState] = useState<PantryComparisonState>({ kind: 'idle' });
   const [showOnlyItemsToBuy, setShowOnlyItemsToBuy] = useState(false);
   const [shoppingListCopyStatus, setShoppingListCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle');
+  const [shoppingSearchQuery, setShoppingSearchQuery] = useState('');
   const [editingEntry, setEditingEntry] = useState<MealPlanEntry | null>(null);
   const [newSlot, setNewSlot] = useState<{ date: string; mealType: MealType } | null>(null);
   const [shoppingCheckState, setShoppingCheckState] = useState<ShoppingCheckState>({ weekFrom: '', checkedKeys: [] });
@@ -399,6 +416,7 @@ export default function MealPlanner({
   useEffect(() => {
     setShoppingCheckState({ weekFrom, checkedKeys: loadShoppingChecks(weekFrom) });
     setShoppingListCopyStatus('idle');
+    setShoppingSearchQuery('');
   }, [weekFrom]);
 
   useEffect(() => {
@@ -489,9 +507,20 @@ export default function MealPlanner({
   const shoppingItemsToBuy = pantryComparisonState.kind === 'loaded'
     ? shoppingItemsNeedingPurchase.filter((item) => !checkedShoppingKeys.has(`${item.groceryItemId}:${item.unitId}`))
     : shoppingItems;
-  const visibleShoppingItems = showOnlyItemsToBuy && pantryComparisonState.kind === 'loaded'
+  const shoppingItemsForDisplay = showOnlyItemsToBuy && pantryComparisonState.kind === 'loaded'
     ? shoppingItemsToBuy
     : shoppingItems;
+  const normalizedShoppingSearch = shoppingSearchQuery.trim().replace(/\s+/g, ' ');
+  const matchingShoppingItems = normalizedShoppingSearch
+    ? shoppingItems.filter((item) => item.itemName.toLowerCase().includes(normalizedShoppingSearch.toLowerCase()))
+    : shoppingItems;
+  const visibleShoppingItems = normalizedShoppingSearch
+    ? shoppingItemsForDisplay.filter((item) => item.itemName.toLowerCase().includes(normalizedShoppingSearch.toLowerCase()))
+    : shoppingItemsForDisplay;
+  const searchMatchesOutsideNeedToBuy = showOnlyItemsToBuy
+    && pantryComparisonState.kind === 'loaded'
+    && matchingShoppingItems.length > 0
+    && visibleShoppingItems.length === 0;
   const shoppingUnitPrices = useMemo(() => {
     const prices = new Map<string, ShoppingUnitPrice>();
     for (const entry of plannedEntries) {
@@ -895,6 +924,42 @@ export default function MealPlanner({
                         </p>
                       </div>
                     )}
+                    {shoppingItems.length > 8 && (
+                      <div className="space-y-1 border-b px-3 py-3 sm:px-4">
+                        <div className="relative max-w-md">
+                          <Label htmlFor="meal-shopping-search" className="sr-only">Search shopping list</Label>
+                          <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                          <Input
+                            id="meal-shopping-search"
+                            type="text"
+                            inputMode="search"
+                            value={shoppingSearchQuery}
+                            onChange={(event) => setShoppingSearchQuery(event.target.value)}
+                            placeholder="Search ingredients"
+                            className="h-9 pl-9 pr-10"
+                          />
+                          {shoppingSearchQuery && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="absolute right-1 top-1/2 size-7 -translate-y-1/2"
+                              aria-label="Clear shopping list search"
+                              onClick={() => setShoppingSearchQuery('')}
+                            >
+                              <X aria-hidden="true" className="size-4" />
+                            </Button>
+                          )}
+                        </div>
+                        {normalizedShoppingSearch ? (
+                          <p className="text-xs text-muted-foreground" aria-live="polite">
+                            Showing {visibleShoppingItems.length} of {shoppingItemsForDisplay.length} items. Copy and purchase actions still use all items that need buying.
+                          </p>
+                        ) : (
+                          <p className="text-xs text-muted-foreground">Search only narrows the visible rows.</p>
+                        )}
+                      </div>
+                    )}
                     <CardContent className="p-0">
                       {pantryComparisonState.kind === 'error' && (
                         <Alert variant="destructive" className="m-3 sm:m-4">
@@ -906,7 +971,28 @@ export default function MealPlanner({
                           </AlertDescription>
                         </Alert>
                       )}
-                      {showOnlyItemsToBuy && pantryComparisonState.kind === 'loaded' && visibleShoppingItems.length === 0 ? (
+                      {normalizedShoppingSearch && visibleShoppingItems.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center gap-2 border-t px-5 py-10 text-center">
+                          <p className="text-sm font-medium">
+                            {searchMatchesOutsideNeedToBuy
+                              ? `“${normalizedShoppingSearch}” has no items left to buy`
+                              : `No ingredients match “${normalizedShoppingSearch}”`}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {searchMatchesOutsideNeedToBuy
+                              ? 'Show all ingredients to see matches that are already covered or picked up.'
+                              : 'Try another item name or clear the search.'}
+                          </p>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => searchMatchesOutsideNeedToBuy ? setShowOnlyItemsToBuy(false) : setShoppingSearchQuery('')}
+                          >
+                            {searchMatchesOutsideNeedToBuy ? 'Show all ingredients' : 'Clear search'}
+                          </Button>
+                        </div>
+                      ) : showOnlyItemsToBuy && pantryComparisonState.kind === 'loaded' && visibleShoppingItems.length === 0 ? (
                         <div className="flex flex-col items-center justify-center gap-2 border-t px-5 py-10 text-center">
                           <p className="text-sm font-medium">
                             {shoppingItemsNeedingPurchase.length > 0
@@ -948,7 +1034,9 @@ export default function MealPlanner({
                                   : <Circle aria-hidden="true" className="size-5 text-muted-foreground" />}
                               </Button>
                               <div className="min-w-0 flex-1">
-                                <p className={`truncate text-sm font-medium ${isChecked ? 'text-muted-foreground line-through' : ''}`}>{item.itemName}</p>
+                                <p className={`truncate text-sm font-medium ${isChecked ? 'text-muted-foreground line-through' : ''}`}>
+                                  <HighlightedShoppingName name={item.itemName} query={normalizedShoppingSearch} />
+                                </p>
                                 <p className="mt-0.5 text-xs text-muted-foreground">{item.plannedMealCount === 1 ? 'Used in 1 planned meal' : `Used in ${item.plannedMealCount} planned meals`}</p>
                                 {coverage ? (
                                   <>
