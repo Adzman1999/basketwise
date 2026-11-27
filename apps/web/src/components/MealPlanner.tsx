@@ -29,6 +29,7 @@ import {
 import { philippineDateString } from '@/lib/dates';
 import { getPantryCoverage, type ShoppingListItem } from '@/lib/pantryCoverage';
 import type { PurchaseDraftLine } from '@/lib/purchaseDraft';
+import { findCloseShoppingMatches } from '@/lib/shoppingSearch';
 
 type PlanState =
   | { kind: 'loading' }
@@ -521,6 +522,9 @@ export default function MealPlanner({
     && pantryComparisonState.kind === 'loaded'
     && matchingShoppingItems.length > 0
     && visibleShoppingItems.length === 0;
+  const closeShoppingMatches = normalizedShoppingSearch && visibleShoppingItems.length === 0 && !searchMatchesOutsideNeedToBuy
+    ? findCloseShoppingMatches(shoppingItemsForDisplay, normalizedShoppingSearch)
+    : [];
   const shoppingUnitPrices = useMemo(() => {
     const prices = new Map<string, ShoppingUnitPrice>();
     for (const entry of plannedEntries) {
@@ -933,6 +937,7 @@ export default function MealPlanner({
                             id="meal-shopping-search"
                             type="text"
                             inputMode="search"
+                            maxLength={120}
                             value={shoppingSearchQuery}
                             onChange={(event) => setShoppingSearchQuery(event.target.value)}
                             placeholder="Search ingredients"
@@ -981,8 +986,25 @@ export default function MealPlanner({
                           <p className="text-sm text-muted-foreground">
                             {searchMatchesOutsideNeedToBuy
                               ? 'Show all ingredients to see matches that are already covered or picked up.'
-                              : 'Try another item name or clear the search.'}
+                              : closeShoppingMatches.length > 0
+                                ? 'Closest matches:'
+                                : 'Try another item name or clear the search.'}
                           </p>
+                          {closeShoppingMatches.length > 0 && (
+                            <div className="flex flex-wrap justify-center gap-2">
+                              {closeShoppingMatches.map((match) => (
+                                <Button
+                                  key={`${match.item.groceryItemId}:${match.item.unitId}`}
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => setShoppingSearchQuery(match.item.itemName)}
+                                >
+                                  <HighlightedShoppingName name={match.item.itemName} query={match.matchedPart} />
+                                </Button>
+                              ))}
+                            </div>
+                          )}
                           <Button
                             type="button"
                             variant="ghost"
